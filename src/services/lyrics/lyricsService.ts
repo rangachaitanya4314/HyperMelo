@@ -2,7 +2,7 @@
 // Authoritative synchronized lyrics engine with deterministic timing & translation
 // Strict adherence to actual timestamps without faked word-level timing or formula timestamps
 
-import type { LyricLine, TimedLyricLine, LyricsCapability, SongLyrics, LanguageLyrics, Language, Song } from '../../types/music';
+import type { TimedLyricLine, LyricsCapability, SongLyrics, LanguageLyrics, Language, Song } from '../../shared';
 
 interface LrclibRecord {
   id?: number;
@@ -26,7 +26,7 @@ interface LrclibRecord {
  * 5. Uses binary search for high performance on large datasets.
  */
 export function getActiveLyricIndex(
-  lines: TimedLyricLine[] | LyricLine[] | undefined | null,
+  lines: TimedLyricLine[] | undefined | null,
   currentTime: number,
   options?: number | { offsetMs?: number; betweenLinesBehavior?: 'midpoint' | 'nearest_previous' | 'gap' }
 ): number {
@@ -169,7 +169,7 @@ export function detectLanguage(text: string): Language {
  * Strictly returns "Translation unavailable" when missing — never substitutes another language!
  */
 export function getLineTranslation(
-  line: TimedLyricLine | LyricLine | undefined | null,
+  line: TimedLyricLine | undefined | null,
   targetLanguage: Language,
   fallbackOriginalLang?: Language
 ): { text: string; isAvailable: boolean } {
@@ -228,7 +228,7 @@ class LyricsService {
    * Deterministic active lyric calculation wrapper
    */
   public getActiveLyricIndex(
-    lines: TimedLyricLine[] | LyricLine[] | undefined | null,
+    lines: TimedLyricLine[] | undefined | null,
     currentTime: number,
     offsetMs = 0
   ): number {
@@ -239,10 +239,10 @@ class LyricsService {
    * Backward-compatible active line lookup
    */
   public getActiveLine(
-    lines: TimedLyricLine[] | LyricLine[] | undefined | null,
+    lines: TimedLyricLine[] | undefined | null,
     currentTime: number,
     offsetMs = 0
-  ): { index: number; line: TimedLyricLine | LyricLine | null } {
+  ): { index: number; line: TimedLyricLine | null } {
     const index = this.getActiveLyricIndex(lines, currentTime, offsetMs);
     const line = (index >= 0 && lines && lines[index]) ? lines[index] : null;
     return { index, line };
@@ -252,7 +252,7 @@ class LyricsService {
    * Retrieve honest line translation for English, Hindi, Telugu, Tamil, or Malayalam
    */
   public getLineTranslation(
-    line: TimedLyricLine | LyricLine | undefined | null,
+    line: TimedLyricLine | undefined | null,
     targetLanguage: Language,
     fallbackOriginalLang?: Language
   ): { text: string; isAvailable: boolean } {
@@ -270,7 +270,7 @@ class LyricsService {
    * Parse standard LRC format [mm:ss.xx]
    * Does NOT fabricate word-level timestamps when unavailable.
    */
-  public parseLrc(lrcText: string, totalDuration: number): LyricLine[] {
+  public parseLrc(lrcText: string, totalDuration: number): TimedLyricLine[] {
     const rawLines = lrcText.split('\n');
     const parsed: { time: number; text: string }[] = [];
 
@@ -305,7 +305,7 @@ class LyricsService {
     parsed.sort((a, b) => a.time - b.time);
 
     // Compute durations strictly between lines
-    const result: LyricLine[] = [];
+    const result: TimedLyricLine[] = [];
     for (let i = 0; i < parsed.length; i++) {
       const current = parsed[i];
       const next = parsed[i + 1];
@@ -331,7 +331,7 @@ class LyricsService {
    * Parse plain lyrics into lines when synced LRC is unavailable.
    * NEVER generates synthetic timestamps from duration, formulas, or intervals!
    */
-  public parsePlainLyrics(plainText: string): LyricLine[] {
+  public parsePlainLyrics(plainText: string): TimedLyricLine[] {
     const rawLines = plainText
       .split('\n')
       .map((l) => l.trim())
@@ -427,7 +427,7 @@ class LyricsService {
   }
 
   private buildSongLyricsFromRecord(record: LrclibRecord, duration: number): SongLyrics | null {
-    let lines: LyricLine[] = [];
+    let lines: TimedLyricLine[] = [];
 
     if (record.syncedLyrics) {
       lines = this.parseLrc(record.syncedLyrics, duration);

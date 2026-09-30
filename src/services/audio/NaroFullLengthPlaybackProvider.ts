@@ -2,7 +2,7 @@
 // Delivers full-length licensed music streaming with complete Web Audio DSP vocal suppression
 // Supports instant seeking across entire timeline (60s, 120s, 180s) and unified clock broadcast
 
-import type { Song, PlaybackState } from '../../types/music';
+import type { Song, PlaybackState } from '../../shared';
 import type { MusicPlaybackProvider, ProviderCapabilities, PlaybackClockListener, PlaybackClockEvent } from './playbackTypes';
 import { karaokeMixer } from './karaokeMixer';
 

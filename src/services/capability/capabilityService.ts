@@ -17,7 +17,7 @@
 //    - protected provider track where vocal suppression cannot be performed -> SING-ALONG
 //    - no authorized backing source -> KARAOKE UNAVAILABLE
 
-import type { Song, PlaybackCapability, KaraokeCapability, LyricsCapability, TrackCapabilities } from '../../types/music';
+import type { Song, PlaybackCapability, KaraokeCapability, LyricsCapability, TrackCapabilities } from '../../shared';
 import { playbackService } from '../audio/playbackService';
 import { lyricsService } from '../lyrics/lyricsService';
 

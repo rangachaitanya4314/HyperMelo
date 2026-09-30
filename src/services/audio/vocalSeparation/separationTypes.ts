@@ -1,7 +1,7 @@
 // Vocal Separation Engine Interface and Types for NARO
 // Conforms to NARO Master Core Architecture Section 4
 
-import type { Song } from '../../../types/music';
+import type { Song } from '../../../shared';
 
 export type SeparationEngineType =
   | 'licensed_stems'

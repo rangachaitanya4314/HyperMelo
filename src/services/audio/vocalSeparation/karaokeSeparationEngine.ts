@@ -1,7 +1,7 @@
 // Master Karaoke Separation Engine for NARO
 // Implements KaraokeSeparationEngine interface defined in NARO Master Core Architecture
 
-import type { Song } from '../../../types/music';
+import type { Song } from '../../../shared';
 import type { KaraokeSeparationEngine } from './separationTypes';
 import { SpectralChunkSeparator } from './SpectralChunkSeparator';
 

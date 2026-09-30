@@ -1,7 +1,7 @@
 // IndexedDB Storage Service for NARO
 // Persists real audio blobs and user-recorded moments in the browser
 
-import type { RecordedTake } from '../../types/music';
+import type { RecordedTake } from '../../shared';
 
 const DB_NAME = 'naro_storage_db';
 const DB_VERSION = 1;

@@ -3,8 +3,15 @@
 // and Web Audio vocal cancellation DSP testing.
 // NOTE: Assets provided here are DEV/TEST FIXTURES ONLY — NEVER LICENSED PRODUCTION MASTERS.
 
-import type { Song, ProviderResult, SongLyrics, SongCapabilities, KaraokeSource } from '../../types/music';
-import type { MusicProvider, SearchOptions } from './musicProviderTypes';
+import type {
+  Song,
+  ProviderResult,
+  SongLyrics,
+  SongCapabilities,
+  KaraokeSource,
+  MusicProvider,
+  SearchOptions
+} from '../../shared';
 import { SONGS, JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
 
 export class NaroCatalogProvider implements MusicProvider {

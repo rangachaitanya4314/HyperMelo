@@ -1,7 +1,7 @@
 // Apple MusicKit Playback Provider for NARO
 // Conforms to Apple Music Web Playback & NARO MusicPlaybackProvider specification
 
-import type { Song, PlaybackState } from '../../types/music';
+import type { Song, PlaybackState } from '../../shared';
 import type { MusicPlaybackProvider, ProviderCapabilities, PlaybackClockListener, PlaybackClockEvent } from './playbackTypes';
 import { appleMusicKitService } from '../providers/appleMusicKitService';
 

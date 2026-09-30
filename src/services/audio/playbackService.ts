@@ -1,7 +1,7 @@
 // Master Playback Service for NARO
 // Manages authorized playback providers, tracks actual playback clock, and broadcasts state
 
-import type { Song } from '../../types/music';
+import type { Song } from '../../shared';
 import type {
   MusicPlaybackProvider,
   PlaybackClockEvent,

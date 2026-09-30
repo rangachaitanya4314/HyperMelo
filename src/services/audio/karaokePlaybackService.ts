@@ -3,7 +3,7 @@
 // Karaoke is an ON-DEMAND MODE of the active track with real-time vocal suppression DSP,
 // or uses dedicated instrumental backing if provided.
 
-import type { Song, KaraokeSource } from '../../types/music';
+import type { Song, KaraokeSource } from '../../shared';
 import { audioEngine } from '../audioEngine';
 import { playbackService } from './playbackService';
 import { karaokeMixer } from './karaokeMixer';

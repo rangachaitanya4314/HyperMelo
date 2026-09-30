@@ -2,7 +2,7 @@
 // Unified catalog aggregation, strong cross-provider deduplication into ONE NARO RESULT,
 // dynamic discovery sections, and seamless offline handling
 
-import type { Song, ProviderResult, CatalogSection } from '../../types/music';
+import type { Song, ProviderResult, CatalogSection } from '../../shared';
 import { naroCatalogProvider } from './NaroCatalogProvider';
 import { appleMusicCatalogProvider } from './AppleMusicCatalogProvider';
 import { connectivityService } from '../connectivity/connectivityService';

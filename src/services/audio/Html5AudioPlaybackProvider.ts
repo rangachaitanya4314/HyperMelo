@@ -2,7 +2,7 @@
 // Delivers real authorized direct media streaming directly to system audio output
 // High-resolution clock synchronization for real-time lyrics & waveform timeline
 
-import type { Song, PlaybackState } from '../../types/music';
+import type { Song, PlaybackState } from '../../shared';
 import type { MusicPlaybackProvider, ProviderCapabilities, PlaybackClockListener } from './playbackTypes';
 import { karaokeMixer } from './karaokeMixer';
 

@@ -1,8 +1,14 @@
 // YouTube Catalog Provider for NARO
 // Compliant with YouTube terms: provides metadata and official IFrame player candidates
 
-import type { Song, ProviderResult, SongLyrics, SongCapabilities } from '../../types/music';
-import type { MusicProvider, SearchOptions } from './musicProviderTypes';
+import type {
+  Song,
+  ProviderResult,
+  SongLyrics,
+  SongCapabilities,
+  MusicProvider,
+  SearchOptions
+} from '../../shared';
 
 export class YouTubeCatalogProvider implements MusicProvider {
   public readonly id = 'youtube';

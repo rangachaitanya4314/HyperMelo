@@ -1,8 +1,18 @@
 // Apple Music / iTunes Online Catalog Provider for NARO
 // Delivers live search across millions of current and historical songs with official preview streams
 
-import type { Song, ProviderResult, SongLyrics, SongCapabilities, ArtworkStyle, SongSection, PlaybackAvailability, KaraokeSource } from '../../types/music';
-import type { MusicProvider, SearchOptions } from './musicProviderTypes';
+import type {
+  Song,
+  ProviderResult,
+  SongLyrics,
+  SongCapabilities,
+  ArtworkStyle,
+  SongSection,
+  PlaybackAvailability,
+  KaraokeSource,
+  MusicProvider,
+  SearchOptions
+} from '../../shared';
 import { lyricsService } from '../lyrics/lyricsService';
 
 interface ItunesResult {
@@ -294,9 +304,10 @@ export class AppleMusicCatalogProvider implements MusicProvider {
     // If lyrics exist with timestamps on full track, find the chorus or middle peak
     if (lyrics?.en?.lines && lyrics.en.lines.length >= 4) {
       const lines = lyrics.en.lines;
-      const firstLine = lines[0]?.time || 5;
+      const firstLine = lines[0]?.startTime ?? lines[0]?.time ?? 5;
       const middleIdx = Math.floor(lines.length / 2);
-      const chorusStart = Math.max(10, lines[middleIdx]?.time - 5 || Math.floor(total * 0.35));
+      const midLineTime = lines[middleIdx]?.startTime ?? lines[middleIdx]?.time;
+      const chorusStart = Math.max(10, midLineTime !== undefined ? midLineTime - 5 : Math.floor(total * 0.35));
       const chorusEnd = Math.min(total - 5, chorusStart + 35);
 
       return [

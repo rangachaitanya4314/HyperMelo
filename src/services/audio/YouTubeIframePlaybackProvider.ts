@@ -1,7 +1,7 @@
 // YouTube IFrame Player API Playback Provider for NARO
 // Compliant with YouTube Developer Terms: uses official IFrame API, never extracts audio
 
-import type { Song, PlaybackState } from '../../types/music';
+import type { Song, PlaybackState } from '../../shared';
 import type { MusicPlaybackProvider, PlaybackClockListener, ProviderCapabilities } from './playbackTypes';
 
 declare global {

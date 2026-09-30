@@ -2,18 +2,8 @@
 // Uses navigator.mediaDevices.getUserMedia() and MediaRecorder
 // Honest error handling with zero simulation of recording or fabricated metrics
 
-export interface StartRecordingResult {
-  success: boolean;
-  error?: 'denied' | 'not_found' | 'unsupported' | 'unknown';
-  errorMessage?: string;
-}
-
-export interface StopRecordingResult {
-  success: boolean;
-  audioBlob?: Blob;
-  audioBlobUrl?: string;
-  duration: number;
-}
+import type { StartRecordingResult, StopRecordingResult } from '../../shared';
+export type { StartRecordingResult, StopRecordingResult };
 
 class RecordingEngine {
   private mediaStream: MediaStream | null = null;
