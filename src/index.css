@@ -1,0 +1,450 @@
+:root {
+  --bg-base: #080B10;
+  --bg-surface: #0E131A;
+  --bg-surface-elevated: #151D28;
+  --bg-surface-glass: rgba(14, 19, 26, 0.75);
+  --bg-card: rgba(18, 24, 34, 0.6);
+  --bg-card-hover: rgba(24, 32, 46, 0.85);
+  
+  --text-primary: #F4F0EB;
+  --text-muted: #9AA2AD;
+  --text-dim: #5E6673;
+
+  --accent-warm: #E7A58D;
+  --accent-cream: #F4DFC9;
+  --secondary-blue: #8FA8C8;
+
+  --border-subtle: rgba(244, 240, 235, 0.08);
+  --border-medium: rgba(244, 240, 235, 0.16);
+  --border-warm: rgba(231, 165, 141, 0.28);
+  --border-blue: rgba(143, 168, 200, 0.24);
+
+  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-floating: 0 20px 50px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 40px rgba(231, 165, 141, 0.15);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* Three Typography Roles */
+  --font-brand: 'Alex Brush', cursive, sans-serif;
+  --font-editorial: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Devanagari', 'Noto Sans Telugu', sans-serif;
+}
+
+.font-brand {
+  font-family: var(--font-brand);
+}
+
+.font-editorial {
+  font-family: var(--font-editorial);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+/* Curated Vinyl Record Sleeve Aesthetics */
+.record-sleeve {
+  position: relative;
+  background: linear-gradient(145deg, rgba(20, 26, 38, 0.65) 0%, rgba(10, 14, 22, 0.9) 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: all 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.record-sleeve:hover {
+  transform: translateY(-5px);
+  border-color: var(--border-warm);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7), 0 0 25px rgba(231, 165, 141, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  line-height: 1.5;
+  selection-background-color: var(--accent-warm);
+}
+
+::selection {
+  background-color: rgba(231, 165, 141, 0.25);
+  color: var(--accent-cream);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(244, 240, 235, 0.12);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(231, 165, 141, 0.3);
+}
+
+/* Typography styles */
+.serif-italic {
+  font-family: var(--font-editorial);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.text-gradient-warm {
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cream) 60%, var(--accent-warm) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-subtle {
+  background: linear-gradient(180deg, #F4F0EB 20%, #9AA2AD 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Glass Panels */
+.glass-panel {
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-pill {
+  background: rgba(244, 240, 235, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+}
+
+/* Buttons */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--accent-warm);
+  color: #080B10;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 12px 26px;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(231, 165, 141, 0.25);
+  text-decoration: none;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  background-color: #efb5a0;
+  box-shadow: 0 8px 30px rgba(231, 165, 141, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(244, 240, 235, 0.06);
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 12px 24px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+}
+
+.btn-secondary:hover {
+  background: rgba(244, 240, 235, 0.12);
+  border-color: var(--border-medium);
+  transform: translateY(-2px);
+  color: #FFFFFF;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(244, 240, 235, 0.06);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(244, 240, 235, 0.14);
+  border-color: var(--border-medium);
+  color: var(--accent-cream);
+  transform: scale(1.05);
+}
+
+.btn-icon:active {
+  transform: scale(0.96);
+}
+
+/* Animations */
+@keyframes discSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes floatLyrics1 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate(-6px, -12px) rotate(1deg);
+  }
+}
+
+@keyframes floatLyrics2 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(1.5deg);
+  }
+  50% {
+    transform: translate(8px, -10px) rotate(-1.5deg);
+  }
+}
+
+@keyframes floatLyrics3 {
+  0%, 100% {
+    transform: translate(0, 0) rotate(-1deg);
+  }
+  50% {
+    transform: translate(4px, -14px) rotate(2deg);
+  }
+}
+
+@keyframes waveformPulse {
+  0%, 100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.06);
+  }
+}
+
+.animate-disc {
+  animation: discSpin 34s linear infinite;
+}
+
+.animate-float-1 {
+  animation: floatLyrics1 7s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: floatLyrics2 8.5s ease-in-out infinite 0.8s;
+}
+
+.animate-float-3 {
+  animation: floatLyrics3 9s ease-in-out infinite 1.5s;
+}
+
+.animate-glow {
+  animation: glowPulse 6s ease-in-out infinite;
+}
+
+/* Focus styles */
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 3px;
+}
+
+/* Accessible reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-disc,
+  .animate-float-1,
+  .animate-float-2,
+  .animate-float-3,
+  .animate-glow {
+    animation: none !important;
+  }
+}
+
+/* ==========================================================================
+   IMMERSIVE NOW PLAYING ATMOSPHERIC ANIMATIONS
+   Cinematic, restrained, hardware-accelerated visual treatments
+   ========================================================================== */
+
+@keyframes rainStreak {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.4;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(120vh);
+    opacity: 0;
+  }
+}
+
+@keyframes warmPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.52;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes heartGlow {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scale(1.06) translateY(-5px);
+    opacity: 0.45;
+  }
+}
+
+@keyframes solarisBloom {
+  0%, 100% {
+    opacity: 0.32;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.52;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes dustMote {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.45;
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(30px, -70px);
+    opacity: 0;
+  }
+}
+
+@keyframes nowPlayingFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes vinylRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-vinyl-spin {
+  animation: vinylRotate 24s linear infinite;
+}
+
+.animate-rain-1 {
+  animation: rainStreak 2.2s linear infinite;
+}
+
+.animate-rain-2 {
+  animation: rainStreak 1.8s linear infinite 0.6s;
+}
+
+.animate-rain-3 {
+  animation: rainStreak 2.5s linear infinite 1.2s;
+}
+
+.animate-heart-glow {
+  animation: heartGlow 5s ease-in-out infinite;
+}
+
+.animate-solaris-bloom {
+  animation: solarisBloom 7s ease-in-out infinite;
+}
+
+.animate-dust-1 {
+  animation: dustMote 6s ease-in-out infinite;
+}
+
+.animate-dust-2 {
+  animation: dustMote 8s ease-in-out infinite 2s;
+}
+
+.animate-dust-3 {
+  animation: dustMote 7s ease-in-out infinite 4s;
+}

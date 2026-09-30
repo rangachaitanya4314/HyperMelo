@@ -1,0 +1,240 @@
+// Master Music Catalog Service for NARO
+// Unified catalog aggregation, strong cross-provider deduplication into ONE NARO RESULT,
+// dynamic discovery sections, and seamless offline handling
+
+import type { Song, ProviderResult, CatalogSection } from '../../types/music';
+import { naroCatalogProvider } from './NaroCatalogProvider';
+import { appleMusicCatalogProvider } from './AppleMusicCatalogProvider';
+import { connectivityService } from '../connectivity/connectivityService';
+
+class MusicCatalogService {
+  private inMemoryCache: Map<string, Song[]> = new Map();
+
+  /**
+   * Helper to normalize text for strong fuzzy matching & deduplication
+   */
+  private normalizeString(str: string): string {
+    return str
+      .toLowerCase()
+      .replace(/[[({].*?[)\]}]/g, '') // remove (feat. ...), [Remix], etc.
+      .replace(/[^a-z0-9]/g, '')
+      .trim();
+  }
+
+  /**
+   * Deduplicate multiple provider results into ONE clean NARO result per song
+   */
+  public deduplicateResults(results: ProviderResult[], query?: string): ProviderResult[] {
+    const cleanQ = query ? this.normalizeString(query) : '';
+    const canonicalMap = new Map<string, ProviderResult>();
+
+    for (const item of results) {
+      const normTitle = this.normalizeString(item.title);
+      const isInstrumental = /instrumental|karaoke/i.test(item.title);
+      const isRemix = /remix|lofi|flip/i.test(item.title);
+
+      // Key on normalized title to collapse duplicate album releases
+      const key = normTitle;
+
+      if (!canonicalMap.has(key)) {
+        canonicalMap.set(key, item);
+      } else {
+        const existing = canonicalMap.get(key)!;
+        const existingIsVariant = /remix|unplugged|lofi|instrumental/i.test(existing.title);
+        const thisIsOriginal = !isRemix && !isInstrumental && !/unplugged/i.test(item.title);
+
+        // An official commercial track ALWAYS supersedes a dev-fixture
+        if (existing.playbackSourceType === 'dev-fixture' && item.playbackSourceType !== 'dev-fixture') {
+          canonicalMap.set(key, item);
+        } else if (item.playbackSourceType === 'dev-fixture') {
+          // A dev-fixture never overwrites an existing genuine commercial track
+          if (existing.playbackSourceType === 'dev-fixture') {
+            if (!existing.artworkUrl && item.artworkUrl) {
+              existing.artworkUrl = item.artworkUrl;
+            }
+          }
+        } else if (existingIsVariant && thisIsOriginal) {
+          canonicalMap.set(key, item);
+        } else if (!existing.streamUrl && item.streamUrl) {
+          existing.streamUrl = item.streamUrl;
+          existing.playbackAvailability = true;
+          existing.playbackType = item.playbackType;
+          existing.playbackSourceType = item.playbackSourceType;
+        }
+        if (!existing.artworkUrl && item.artworkUrl) {
+          existing.artworkUrl = item.artworkUrl;
+        }
+        if (item.karaokeAvailability && item.karaokeSource?.availability === 'available' && item.playbackSourceType !== 'dev-fixture') {
+          existing.karaokeAvailability = true;
+          existing.karaokeSource = item.karaokeSource;
+        }
+      }
+    }
+
+    let list = Array.from(canonicalMap.values());
+
+    // If query matches a canonical song title (e.g. "Channa Mereya"), return ONE canonical result!
+    if (cleanQ && list.some((item) => this.normalizeString(item.title) === cleanQ)) {
+      list = list.filter((item) => this.normalizeString(item.title) === cleanQ);
+    }
+
+    return list;
+  }
+
+  /**
+   * Search connected music catalogs
+   * When online: searches connected catalogs (Apple Music / online catalog + NARO licensed)
+   * When offline: shows offline status and indicates online search is unavailable
+   */
+  public async search(query: string): Promise<{ songs: Song[]; isOffline: boolean; message?: string }> {
+    const q = query.trim();
+    if (!q) {
+      return { songs: [], isOffline: !connectivityService.isOnline };
+    }
+
+    // Check if offline: online streaming/search is unavailable, never fake playback
+    if (!connectivityService.isOnline) {
+      return {
+        songs: [],
+        isOffline: true,
+        message: "You're offline. Connect to the internet to search and stream music."
+      };
+    }
+
+    // Check cache
+    const cacheKey = `search_${q.toLowerCase()}`;
+    if (this.inMemoryCache.has(cacheKey)) {
+      return { songs: this.inMemoryCache.get(cacheKey)!, isOffline: false };
+    }
+
+    try {
+      // 1. Query online catalogs and NARO catalog concurrently
+      const [naroResults, appleResults] = await Promise.all([
+        naroCatalogProvider.search(q, { limit: 5 }),
+        appleMusicCatalogProvider.search(q, { limit: 20 })
+      ]);
+
+      // 2. Combine and deduplicate into ONE NARO result per song
+      const merged = this.deduplicateResults([...naroResults, ...appleResults], q);
+
+      // 3. Normalize concurrently using Promise.all for high responsiveness
+      const normalizedSongs = await Promise.all(
+        merged.map(async (item) => {
+          if (item.provider === 'naro') {
+            const track = await naroCatalogProvider.getTrack(item.providerTrackId);
+            if (track) {
+              if (item.artworkUrl) {
+                track.artwork.imageUrl = item.artworkUrl;
+              }
+              return track;
+            }
+          }
+          return appleMusicCatalogProvider.normalizeSong(item);
+        })
+      );
+
+      const validSongs = normalizedSongs.filter((s): s is Song => s !== null);
+      this.inMemoryCache.set(cacheKey, validSongs);
+      return { songs: validSongs, isOffline: false };
+    } catch (err) {
+      console.warn('Catalog search error, returning fallback results:', err);
+      return {
+        songs: [],
+        isOffline: false,
+        message: 'Could not connect to live music catalogs right now.'
+      };
+    }
+  }
+
+  /**
+   * Fetch dynamic discovery sections (Trending, Made for You, Indian Music, Midnight, Romantic, Energetic)
+   */
+  public async getDiscoverySections(): Promise<CatalogSection[]> {
+    const rawFallback = naroCatalogProvider.getRawCatalog();
+    const consumerFallback = rawFallback.filter(
+      (s) => s.playbackSourceType !== 'dev-fixture' && s.fullLengthAvailable === true
+    );
+
+    if (!connectivityService.isOnline) {
+      // Offline mode: provide sections from fallback catalog
+      return [
+        {
+          id: 'made-for-you',
+          title: 'MADE FOR YOU',
+          subtitle: 'Curated tracks engineered for active listening and moment-by-moment karaoke.',
+          songs: consumerFallback,
+          isDynamicLive: false
+        }
+      ];
+    }
+
+    // Online mode: build rich dynamic sections
+    try {
+      const [trendingSongs, indianSongs, midnightSongs] = await Promise.all([
+        appleMusicCatalogProvider.getTrending('all'),
+        appleMusicCatalogProvider.getTrending('hindi'),
+        appleMusicCatalogProvider.getTrending('midnight')
+      ]);
+
+      const sections: CatalogSection[] = [
+        {
+          id: 'made-for-you',
+          title: 'MADE FOR YOU',
+          subtitle: 'Curated tracks engineered for active listening and moment-by-moment karaoke.',
+          songs: consumerFallback,
+          isDynamicLive: true
+        }
+      ];
+
+      if (trendingSongs.length > 0) {
+        sections.push({
+          id: 'trending-now',
+          title: 'TRENDING NOW',
+          subtitle: 'Live global & chart-topping tracks streaming directly inside NARO.',
+          songs: trendingSongs.slice(0, 8),
+          isDynamicLive: true
+        });
+      }
+
+      if (indianSongs.length > 0) {
+        sections.push({
+          id: 'indian-music',
+          title: 'INDIAN MUSIC & HITS',
+          subtitle: 'Hindi, Telugu, and South Asian sensations with mapped karaoke moments.',
+          songs: indianSongs.slice(0, 8),
+          isDynamicLive: true
+        });
+      }
+
+      if (midnightSongs.length > 0) {
+        sections.push({
+          id: 'midnight-vibes',
+          title: 'MIDNIGHT & VIBES',
+          subtitle: 'Late-night indie, synth-pop, and intimate retro acoustics.',
+          songs: midnightSongs.slice(0, 8),
+          isDynamicLive: true
+        });
+      }
+
+      return sections;
+    } catch {
+      return [
+        {
+          id: 'made-for-you',
+          title: 'MADE FOR YOU',
+          subtitle: 'Curated tracks engineered for active listening and moment-by-moment karaoke.',
+          songs: consumerFallback,
+          isDynamicLive: false
+        }
+      ];
+    }
+  }
+
+  public getFallbackCatalog(): Song[] {
+    return naroCatalogProvider
+      .getRawCatalog()
+      .filter((s) => s.playbackSourceType !== 'dev-fixture' && s.fullLengthAvailable === true);
+  }
+}
+
+export const musicCatalogService = new MusicCatalogService();
