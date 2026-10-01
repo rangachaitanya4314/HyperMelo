@@ -413,6 +413,7 @@ export const LibraryPage: React.FC = () => {
                           padding: '7px 16px',
                           fontSize: '0.84rem'
                         }}
+                        data-testid={`play-take-${take.id}`}
                         title={isPlayingThis ? 'Pause Take' : 'Play Take'}
                       >
                         {isPlayingThis ? <Pause size={15} fill="#080B10" /> : <Play size={15} fill="#080B10" />}

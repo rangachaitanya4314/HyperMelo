@@ -69,7 +69,20 @@ export class TakePlaybackService {
   }
 
   public async playTake(take: RecordedTake): Promise<void> {
-    if (!take || !take.audioBlobUrl) return;
+    if (!take) return;
+
+    if (!take.audioBlobUrl && take.audioBlob) {
+      try {
+        take.audioBlobUrl = URL.createObjectURL(take.audioBlob);
+      } catch (err) {
+        console.warn('[TakePlaybackService] Failed to create object URL for audioBlob:', err);
+      }
+    }
+
+    if (!take.audioBlobUrl) {
+      console.warn('[TakePlaybackService] playTake aborted: take has no audioBlobUrl or audioBlob', take);
+      return;
+    }
 
     // 1. Pause normal music playback to prevent audio clashing
     playbackController.pause();
@@ -333,3 +346,7 @@ export class TakePlaybackService {
 }
 
 export const takePlaybackService = new TakePlaybackService();
+if (typeof window !== 'undefined') {
+  (window as unknown as { __naro_take_playback_service?: TakePlaybackService }).__naro_take_playback_service =
+    takePlaybackService;
+}
