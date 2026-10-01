@@ -2,6 +2,8 @@
 // Manages MusicKit configuration, developer token, and user authorization
 // Conforms to Apple Music Web API specifications without faking credentials
 
+import { providerAuthService } from '../../backend/services/ProviderAuthService';
+
 export interface AppleMusicAuthState {
   isConfigured: boolean;
   isAuthorized: boolean;
@@ -71,13 +73,7 @@ class AppleMusicKitService {
 
   public setDeveloperToken(token: string): void {
     this.developerToken = token.trim();
-    if (typeof window !== 'undefined') {
-      if (this.developerToken) {
-        localStorage.setItem('naro_apple_developer_token', this.developerToken);
-      } else {
-        localStorage.removeItem('naro_apple_developer_token');
-      }
-    }
+    providerAuthService.setAppleDeveloperToken(this.developerToken);
     this.isConfigured = false;
     this.musicKitInstance = null;
     this.initMusicKit().catch((err) => console.warn('MusicKit re-init error:', err));
@@ -181,8 +177,8 @@ class AppleMusicKitService {
 
     try {
       const musicUserToken = await instance.authorize();
-      if (typeof window !== 'undefined' && musicUserToken) {
-        localStorage.setItem('naro_apple_user_token', musicUserToken);
+      if (musicUserToken) {
+        await providerAuthService.setAppleUserToken(musicUserToken);
       }
       this.emitState();
       return true;
@@ -205,9 +201,7 @@ class AppleMusicKitService {
         // ignore
       }
     }
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('naro_apple_user_token');
-    }
+    await providerAuthService.setAppleUserToken('');
     this.emitState();
   }
 

@@ -4,7 +4,7 @@ import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
 import { playbackController } from '../services/audio/PlaybackController';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { connectivityService } from '../services/connectivity/connectivityService';
-import { indexedDbService } from '../services/storage/indexedDbService';
+import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
 
 export type AppView = 'home' | 'discover' | 'karaoke' | 'library' | 'downloads';
@@ -228,13 +228,13 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
-  // 3. Load user library moments from IndexedDB
+  // 3. Load user library moments via backend boundary
   const refreshLibrary = useCallback(async () => {
     try {
-      const takes = await indexedDbService.getAllTakes();
+      const takes = await userLibraryService.getAllTakes();
       setSavedTakes(takes);
     } catch (err) {
-      console.warn('Failed to load library moments from IndexedDB:', err);
+      console.warn('Failed to load library moments from persistence layer:', err);
     }
   }, []);
 
@@ -453,7 +453,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const saveTakeToLibrary = useCallback(
     async (take: RecordedTake) => {
-      await indexedDbService.saveTake(take);
+      await userLibraryService.saveTake(take);
       await refreshLibrary();
     },
     [refreshLibrary]
@@ -461,14 +461,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const deleteTakeFromLibrary = useCallback(
     async (takeId: string) => {
-      await indexedDbService.deleteTake(takeId);
+      await userLibraryService.deleteTake(takeId);
       await refreshLibrary();
     },
     [refreshLibrary]
   );
 
   const downloadTake = useCallback((take: RecordedTake) => {
-    indexedDbService.triggerDownload(take);
+    userLibraryService.triggerDownload(take);
   }, []);
 
   const toggleLyricsDrawer = useCallback(() => {

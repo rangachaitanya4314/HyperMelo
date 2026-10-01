@@ -60,3 +60,37 @@ export interface SongLyrics {
 }
 
 export type TrackLyrics = SongLyrics;
+
+export interface LyricsFetchParams {
+  trackName: string;
+  artistName: string;
+  duration?: number;
+  albumName?: string;
+  isrc?: string;
+}
+
+/**
+ * Backend-facing Lyrics Ingestion & Retrieval Contract.
+ * Defines server-side lyrics querying, caching, and multi-language alignment.
+ */
+export interface ILyricsService {
+  fetchLyrics(
+    trackName: string,
+    artistName: string,
+    duration?: number,
+    albumName?: string,
+    isrc?: string
+  ): Promise<SongLyrics | null>;
+}
+
+/**
+ * Detect language script (Telugu, Tamil, Malayalam, Devanagari/Hindi, or English/Latin)
+ */
+export function detectLanguage(text: string): Language {
+  if (!text) return 'en';
+  if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
+  if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
+  if (/[\u0900-\u097F]/.test(text)) return 'hi';
+  return 'en';
+}

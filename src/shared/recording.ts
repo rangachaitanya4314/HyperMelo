@@ -5,7 +5,11 @@
 import type { Language } from './lyrics';
 import type { SectionType, ArtworkStyle } from './track';
 
-export interface RecordedTake {
+/**
+ * Pure take metadata decoupled from the browser binary audio Blob.
+ * Suitable for cloud persistence, database tables, and API responses.
+ */
+export interface TakeMetadata {
   id: string;
   songId: string;
   songTitle: string;
@@ -15,11 +19,25 @@ export interface RecordedTake {
   language: Language;
   recordedAt: number; // epoch timestamp
   duration: number;   // duration in seconds
-  audioBlob?: Blob;
-  audioBlobUrl?: string;
   artwork?: ArtworkStyle;
   isRealRecording: boolean;
   analysisStatus: 'unavailable' | 'pending' | 'completed';
+}
+
+export interface RecordedTake extends TakeMetadata {
+  audioBlob?: Blob;
+  audioBlobUrl?: string;
+}
+
+/**
+ * Backend-facing Recording Storage Service Contract.
+ * Separates binary audio blob upload/download from browser recording lifecycle.
+ */
+export interface IRecordingStorageService {
+  saveTake(take: RecordedTake): Promise<void>;
+  getTake(id: string): Promise<RecordedTake | null>;
+  deleteTake(id: string): Promise<void>;
+  getAllTakes(): Promise<RecordedTake[]>;
 }
 
 export interface StartRecordingResult {

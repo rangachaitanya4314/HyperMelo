@@ -91,6 +91,28 @@ class IndexedDbService {
   }
 
   /**
+   * Retrieve a single take by ID
+   */
+  public async getTakeById(id: string): Promise<RecordedTake | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([MOMENTS_STORE], 'readonly');
+      const store = transaction.objectStore(MOMENTS_STORE);
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        const item = request.result as RecordedTake | undefined;
+        if (item && item.audioBlob && item.audioBlob instanceof Blob) {
+          item.audioBlobUrl = URL.createObjectURL(item.audioBlob);
+        }
+        resolve(item || null);
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
    * Delete a take by ID
    */
   public async deleteTake(id: string): Promise<void> {
