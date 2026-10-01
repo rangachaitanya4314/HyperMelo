@@ -37,7 +37,21 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
       }
       this.setupListeners();
     } else {
-      this.audio = {} as HTMLAudioElement;
+      this.audio = {
+        preload: 'auto',
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        load: () => {},
+        play: async () => {},
+        pause: () => {},
+        currentTime: 0,
+        duration: 0,
+        volume: 0.8,
+        muted: false,
+        playbackRate: 1.0,
+        src: '',
+        readyState: 0
+      } as unknown as HTMLAudioElement;
     }
   }
 
@@ -169,9 +183,10 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
 
   private startClockPoll(): void {
     this.stopClockPoll();
-    this.clockPollTimer = window.setInterval(() => {
+    const intervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval;
+    this.clockPollTimer = intervalFn(() => {
       this.emitClock();
-    }, 200);
+    }, 200) as unknown as number;
   }
 
   private stopClockPoll(): void {
@@ -237,7 +252,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
       this.audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
     }
 
-    if (this.audio.readyState >= 2) {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined' || this.audio.readyState >= 2) {
       this.state = 'ready';
       this.emitClock();
       return;
@@ -304,7 +319,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
   }
 
   public pause(): void {
-    if (this.audio) {
+    if (this.audio && typeof this.audio.pause === 'function') {
       this.audio.pause();
     }
     if (this.state !== 'ended') {
@@ -349,12 +364,14 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
   }
 
   private getBufferedTime(): number {
-    if (!this.audio || !this.audio.buffered.length) return 0;
     try {
-      return this.audio.buffered.end(this.audio.buffered.length - 1);
+      if (this.audio && this.audio.buffered && this.audio.buffered.length > 0) {
+        return this.audio.buffered.end(this.audio.buffered.length - 1);
+      }
     } catch {
-      return 0;
+      // ignore
     }
+    return 0;
   }
 
   public getState(): PlaybackState {

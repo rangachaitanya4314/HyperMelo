@@ -1,5 +1,6 @@
-// Master Playback Service for NARO
-// Manages authorized playback providers, tracks actual playback clock, and broadcasts state
+// Master Playback Service for NARO (Compatibility Facade)
+// Phase 3.5B: Wraps the dedicated PlaybackController to preserve backward compatibility
+// while delegating all playback orchestration and authoritative clock management to PlaybackController.
 
 import type { Song } from '../../shared';
 import type {
@@ -8,123 +9,82 @@ import type {
   PlaybackClockListener,
   ProviderCapabilities
 } from './playbackTypes';
+import { AppleMusicPlaybackProvider } from './AppleMusicPlaybackProvider';
+import { NaroFullLengthPlaybackProvider } from './NaroFullLengthPlaybackProvider';
 import { Html5AudioPlaybackProvider } from './Html5AudioPlaybackProvider';
 import { YouTubeIframePlaybackProvider } from './YouTubeIframePlaybackProvider';
-import { NaroFullLengthPlaybackProvider } from './NaroFullLengthPlaybackProvider';
-import { AppleMusicPlaybackProvider } from './AppleMusicPlaybackProvider';
-import { connectivityService } from '../connectivity/connectivityService';
-import { karaokeMixer } from './karaokeMixer';
+import { PlaybackController, playbackController } from './PlaybackController';
 
-class PlaybackService {
-  private activeProvider: MusicPlaybackProvider | null = null;
-  private naroFullLengthProvider: NaroFullLengthPlaybackProvider;
-  private appleMusicProvider: AppleMusicPlaybackProvider;
-  private html5Provider: Html5AudioPlaybackProvider;
-  private youtubeProvider: YouTubeIframePlaybackProvider;
-  private clockListeners: Set<PlaybackClockListener> = new Set();
-  private currentSong: Song | null = null;
-  private currentVolume = 0.8;
-  private currentClock: PlaybackClockEvent = {
-    currentTime: 0,
-    duration: 0,
-    bufferedTime: 0,
-    isPlaying: false,
-    state: 'idle',
-    playbackType: 'preview'
-  };
+export class PlaybackService {
+  private controller: PlaybackController;
 
-  constructor() {
-    this.naroFullLengthProvider = new NaroFullLengthPlaybackProvider(this.handleClockEvent);
-    this.appleMusicProvider = new AppleMusicPlaybackProvider(this.handleClockEvent);
-    this.html5Provider = new Html5AudioPlaybackProvider(this.handleClockEvent);
-    this.youtubeProvider = new YouTubeIframePlaybackProvider(this.handleClockEvent);
-    this.activeProvider = this.naroFullLengthProvider;
+  constructor(controller: PlaybackController = playbackController) {
+    this.controller = controller;
+  }
 
-    // Listen for network loss
-    connectivityService.subscribe((isOnline) => {
-      if (!isOnline && this.currentClock.isPlaying) {
-        // If current song is an online stream and we lost internet
-        if (this.currentSong && !this.currentSong.isFallbackDemo && !this.currentSong.playbackSource?.streamUrl?.startsWith('blob:')) {
-          this.pause();
-          this.handleClockEvent({
-            ...this.currentClock,
-            isPlaying: false,
-            state: 'offline',
-            error: "You're offline. Connect to the internet to stream music."
-          });
-        }
-      }
-    });
+  // Properties / getters / setters for provider & track access
+  public get activeProvider(): MusicPlaybackProvider | null {
+    return this.controller.getActiveProvider();
+  }
+
+  public set activeProvider(provider: MusicPlaybackProvider | null) {
+    this.controller.setActiveProvider(provider);
+  }
+
+  public get appleMusicProvider(): AppleMusicPlaybackProvider {
+    return this.controller.appleMusicProvider;
+  }
+
+  public set appleMusicProvider(provider: AppleMusicPlaybackProvider) {
+    this.controller.appleMusicProvider = provider;
+  }
+
+  public get naroFullLengthProvider(): NaroFullLengthPlaybackProvider {
+    return this.controller.naroFullLengthProvider;
+  }
+
+  public set naroFullLengthProvider(provider: NaroFullLengthPlaybackProvider) {
+    this.controller.naroFullLengthProvider = provider;
+  }
+
+  public get html5Provider(): Html5AudioPlaybackProvider {
+    return this.controller.html5Provider;
+  }
+
+  public set html5Provider(provider: Html5AudioPlaybackProvider) {
+    this.controller.html5Provider = provider;
+  }
+
+  public get youtubeProvider(): YouTubeIframePlaybackProvider {
+    return this.controller.youtubeProvider;
+  }
+
+  public set youtubeProvider(provider: YouTubeIframePlaybackProvider) {
+    this.controller.youtubeProvider = provider;
+  }
+
+  public get currentSong(): Song | null {
+    return this.controller.getCurrentTrack();
+  }
+
+  public set currentSong(song: Song | null) {
+    this.controller.setCurrentTrack(song);
   }
 
   public subscribeClock(listener: PlaybackClockListener): () => void {
-    this.clockListeners.add(listener);
-    listener(this.currentClock);
-    return () => {
-      this.clockListeners.delete(listener);
-    };
+    return this.controller.subscribeClock(listener);
   }
 
-  private handleClockEvent = (event: PlaybackClockEvent) => {
-    // A track must ONLY be marked full when the selected provider actually confirms full-length playback is available
-    const isFull = this.activeProvider && this.currentSong
-      ? this.activeProvider.canPlayFullLength(this.currentSong)
-      : false;
-
-    const sourceType = event.playbackSourceType ||
-      this.currentSong?.playbackSourceType ||
-      (this.currentSong?.playbackSourceType === 'dev-fixture' ? 'dev-fixture' : (isFull ? 'official-provider' : 'preview'));
-
-    const enrichedEvent: PlaybackClockEvent = {
-      ...event,
-      providerId: this.activeProvider?.id || event.providerId,
-      playbackType: isFull ? 'full' : (event.playbackType || 'preview'),
-      playbackSourceType: sourceType
-    };
-    this.currentClock = enrichedEvent;
-    this.clockListeners.forEach((listener) => {
-      try {
-        listener(enrichedEvent);
-      } catch (err) {
-        console.error('Error in clock listener:', err);
-      }
-    });
-  };
-
-  /**
-   * Determine and select the best authorized playback provider for the song
-   */
   public selectProviderForSong(song: Song): MusicPlaybackProvider {
-    // 1. Authorized Apple MusicKit stream (ONLY if authorized!)
-    if (this.appleMusicProvider.canPlay(song) && this.appleMusicProvider.isAuthorized()) {
-      return this.appleMusicProvider;
-    }
-
-    // 2. NARO-owned full-length licensed stream
-    if (this.naroFullLengthProvider.canPlayFullLength(song)) {
-      return this.naroFullLengthProvider;
-    }
-
-    // 3. YouTube official iframe
-    if (this.youtubeProvider.canPlayFullLength(song)) {
-      return this.youtubeProvider;
-    }
-
-    // 4. Dev fixture provider for internal development testing
-    if (song.playbackSourceType === 'dev-fixture' && this.naroFullLengthProvider.canPlay(song)) {
-      return this.naroFullLengthProvider;
-    }
-
-    // 5. Default: HTML5 Audio Provider (previews, MP3s, direct stream URLs)
-    return this.html5Provider;
+    return this.controller.selectProviderForSong(song);
   }
 
   public getActiveProvider(): MusicPlaybackProvider | null {
-    return this.activeProvider;
+    return this.controller.getActiveProvider();
   }
 
   public getProviderCapabilities(): ProviderCapabilities | null {
-    return this.activeProvider?.capabilities || null;
+    return this.controller.getProviderCapabilities();
   }
 
   public canPlayFullLength(song: Song): boolean {
@@ -134,213 +94,80 @@ class PlaybackService {
   }
 
   public isAuthorized(providerId?: string): boolean {
-    if (!providerId || providerId === 'apple-music') {
-      return this.appleMusicProvider.isAuthorized();
-    }
-    if (providerId === 'naro-full-length') {
-      return this.naroFullLengthProvider.isAuthorized();
-    }
-    return true;
+    return this.controller.isAuthorized(providerId);
   }
 
   public async authenticateProvider(providerId: string): Promise<boolean> {
-    if (providerId === 'apple-music') {
-      return this.appleMusicProvider.authenticate();
-    }
-    if (providerId === 'naro-full-length') {
-      return this.naroFullLengthProvider.authenticate();
-    }
-    return true;
+    return this.controller.authenticateProvider(providerId);
   }
 
   public async loadAndPlay(song: Song, startTime = 0): Promise<void> {
-    // If offline and trying to stream an online-only song
-    if (!connectivityService.isOnline && !song.isFallbackDemo && !song.playbackSource?.streamUrl?.startsWith('blob:')) {
-      this.currentSong = song;
-      this.handleClockEvent({
-        currentTime: 0,
-        duration: song.duration,
-        bufferedTime: 0,
-        isPlaying: false,
-        state: 'offline',
-        error: "You're offline. Connect to the internet to stream music."
-      });
-      return;
-    }
+    return this.controller.loadAndPlay(song, startTime);
+  }
 
-    if (this.activeProvider) {
-      this.activeProvider.pause();
-    }
-
-    this.currentSong = song;
-    this.isKaraokeActive = false;
-
-    const provider = this.selectProviderForSong(song);
-
-    if (
-      !provider.canPlay(song) &&
-      !this.naroFullLengthProvider.canPlay(song) &&
-      !this.appleMusicProvider.canPlay(song) &&
-      !this.youtubeProvider.canPlay(song) &&
-      !this.html5Provider.canPlay(song)
-    ) {
-      this.handleClockEvent({
-        currentTime: 0,
-        duration: song.duration,
-        bufferedTime: 0,
-        isPlaying: false,
-        state: 'error',
-        error: 'Playback unavailable: No authorized audio stream available for this track.'
-      });
-      return;
-    }
-
-    if (this.activeProvider !== provider) {
-      this.activeProvider = provider;
-    }
-
-    this.activeProvider.setVolume(this.currentVolume);
-
-    try {
-      await this.activeProvider.load(song, startTime);
-      await this.activeProvider.play();
-    } catch (err: unknown) {
-      console.warn('Playback service error during loadAndPlay:', err);
-      const domErr = err as DOMException;
-      let errorMsg = this.currentClock.error;
-      if (!errorMsg || errorMsg === 'Playback unavailable right now.') {
-        if (domErr.name === 'NotAllowedError') {
-          errorMsg = 'Playback blocked: NotAllowedError (user interaction needed to play audio)';
-        } else if (domErr.name === 'NotSupportedError') {
-          errorMsg = 'Playback error: NotSupportedError (format not supported by browser)';
-        } else {
-          errorMsg = `Playback error: ${domErr.name || 'Error'} - ${domErr.message || 'Failed to play'}`;
-        }
-      }
-      this.handleClockEvent({
-        currentTime: this.currentClock.currentTime || 0,
-        duration: song.duration,
-        bufferedTime: 0,
-        isPlaying: false,
-        state: 'error',
-        error: errorMsg
-      });
-    }
+  public async playSong(song: Song, startTime = 0): Promise<void> {
+    return this.controller.loadAndPlay(song, startTime);
   }
 
   public async load(song: Song, startTime = 0): Promise<void> {
-    if (this.activeProvider) {
-      this.activeProvider.pause();
-    }
-    this.currentSong = song;
-    const provider = this.selectProviderForSong(song);
-    this.activeProvider = provider;
-    this.activeProvider.setVolume(this.currentVolume);
-    await this.activeProvider.load(song, startTime);
+    return this.controller.load(song, startTime);
   }
 
   public async play(): Promise<void> {
-    if (this.activeProvider) {
-      await this.activeProvider.play();
-    }
+    return this.controller.play();
   }
 
   public async togglePlay(fallbackSong?: Song): Promise<void> {
-    if (!this.currentSong && fallbackSong) {
-      this.currentSong = fallbackSong;
-    }
-    if (!this.activeProvider || !this.currentSong) return;
-
-    if (this.currentClock.isPlaying) {
-      this.activeProvider.pause();
-    } else {
-      if (
-        this.currentClock.state === 'error' ||
-        this.currentClock.state === 'idle' ||
-        (this.currentClock.currentTime === 0 && !this.currentClock.isPlaying)
-      ) {
-        await this.loadAndPlay(this.currentSong, this.currentClock.currentTime);
-      } else {
-        await this.activeProvider.play();
-      }
-    }
+    return this.controller.togglePlay(fallbackSong);
   }
 
   public seek(time: number): void {
-    if (this.activeProvider) {
-      this.activeProvider.seek(time);
-    }
+    this.controller.seek(time);
   }
 
   public pause(): void {
-    if (this.activeProvider) {
-      this.activeProvider.pause();
-    }
+    this.controller.pause();
   }
 
   public setVolume(vol: number): void {
-    this.currentVolume = Math.max(0, Math.min(1, vol));
-    if (this.activeProvider) {
-      this.activeProvider.setVolume(this.currentVolume);
-    }
+    this.controller.setVolume(vol);
+  }
+
+  public getVolume(): number {
+    return this.controller.getVolume();
   }
 
   public getVisualizerData(): Uint8Array | null {
-    if (this.activeProvider) {
-      return this.activeProvider.getVisualizerData();
-    }
-    return null;
+    return this.controller.getVisualizerData();
   }
 
   public getAudioElement(): HTMLAudioElement | null {
-    if (this.activeProvider && 'getAudioElement' in this.activeProvider) {
-      return (this.activeProvider as unknown as { getAudioElement(): HTMLAudioElement }).getAudioElement();
-    }
-    return null;
+    return this.controller.getAudioElement();
   }
 
-  private isKaraokeActive = false;
-
   public setKaraokeMode(enabled: boolean): void {
-    this.isKaraokeActive = enabled;
-    const isDedicatedInstrumental =
-      this.currentSong?.karaokeSource?.type === 'dedicated-instrumental' &&
-      Boolean(this.currentSong.karaokeSource.streamUrl);
-
-    if (isDedicatedInstrumental && this.currentSong?.karaokeSource?.streamUrl) {
-      // Dedicated instrumental backing track:
-      // Switch active provider to dedicated NoVox instrumental without DSP vocal cancellation
-      this.activeProvider?.setBackingMode?.(
-        enabled,
-        this.currentSong.karaokeSource.streamUrl,
-        this.currentSong.playbackSource?.streamUrl
-      );
-      karaokeMixer.setKaraokeMode(false);
-    } else {
-      // Standard track: Engage real-time WebAudio center-channel vocal suppression DSP
-      karaokeMixer.setKaraokeMode(enabled);
-    }
+    this.controller.setKaraokeMode(enabled);
   }
 
   public isKaraokeMode(): boolean {
-    return this.isKaraokeActive || karaokeMixer.isKaraoke;
+    return this.controller.isKaraokeMode();
   }
 
   public setBgmVolume(vol: number): void {
-    karaokeMixer.setBgmVolume(vol);
+    this.controller.setBgmVolume(vol);
   }
 
   public setVoiceVolume(vol: number): void {
-    karaokeMixer.setVoiceVolume(vol);
+    this.controller.setVoiceVolume(vol);
   }
 
   public setMicEnabled(enabled: boolean): void {
-    karaokeMixer.setMicEnabled(enabled);
+    this.controller.setMicEnabled(enabled);
   }
 
   public getCurrentClock(): PlaybackClockEvent {
-    return this.currentClock;
+    return this.controller.getCurrentClock();
   }
 }
 
-export const playbackService = new PlaybackService();
+export const playbackService = new PlaybackService(playbackController);

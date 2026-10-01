@@ -102,6 +102,9 @@ class KaraokeMixer {
    * Connect HTML5 Audio Element to the vocal suppression and mixer graph
    */
   public connectAudioElement(audio: HTMLAudioElement): boolean {
+    if (typeof window === 'undefined') {
+      return false;
+    }
     try {
       const ctx = this.getContext();
       if (this.connectedAudioElement === audio && this.audioSourceNode) {

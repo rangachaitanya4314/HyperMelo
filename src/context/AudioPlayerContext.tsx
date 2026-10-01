@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { Song, Language, SongSection, RecordedTake, PlaybackState, TimedLyricLine } from '../types/music';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
-import { playbackService } from '../services/audio/playbackService';
+import { playbackController } from '../services/audio/PlaybackController';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { indexedDbService } from '../services/storage/indexedDbService';
@@ -101,7 +101,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [volume, setVolumeState] = useState<number>(0.8);
   const [activeLanguage, setActiveLanguage] = useState<Language>('en');
   const [displayLanguage, setDisplayLanguageState] = useState<Language>('en');
-  const [isLoopingSection, setIsLoopingSection] = useState<boolean>(false);
+  const [isLoopingSection, setIsLoopingSectionState] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [savedTakes, setSavedTakes] = useState<RecordedTake[]>([]);
   const [isOnline, setIsOnline] = useState<boolean>(connectivityService.isOnline);
@@ -132,7 +132,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Default section
   const defaultChorus = INITIAL_FEATURED_SONG.sections.find((s) => s.type === 'chorus') || INITIAL_FEATURED_SONG.sections[0];
-  const [selectedSection, setSelectedSection] = useState<SongSection>(defaultChorus);
+  const [selectedSection, setSelectedSectionState] = useState<SongSection>(defaultChorus);
 
   // Modals - strict initial false state
   const [nowPlayingOpen, setNowPlayingOpen] = useState<boolean>(false);
@@ -154,9 +154,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     isRecordingActiveRef.current = isRecordingActive;
   }, [isRecordingActive]);
 
-  // 1. Subscribe to central playback clock for Normal Playback
+  // Synchronize catalog list with PlaybackController queue
   useEffect(() => {
-    const unsubscribeClock = playbackService.subscribeClock((clockEvent) => {
+    playbackController.setQueue(songs);
+  }, [songs]);
+
+  // 1. Subscribe to central authoritative playback clock from PlaybackController
+  useEffect(() => {
+    const unsubscribeClock = playbackController.subscribeClock((clockEvent) => {
       // If karaoke recording is active, do not allow normal playback to override karaoke clock
       if (isRecordingActiveRef.current) return;
 
@@ -168,19 +173,31 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsPlaying(clockEvent.isPlaying);
       setPlaybackState(clockEvent.state);
       setPlaybackError(clockEvent.error || null);
-
-      // Handle section looping if enabled
-      if (isLoopingSection && selectedSection && clockEvent.isPlaying) {
-        if (clockEvent.currentTime >= selectedSection.end) {
-          playbackService.seek(selectedSection.start);
-        }
-      }
     });
 
     return () => {
       unsubscribeClock();
     };
-  }, [isLoopingSection, selectedSection]);
+  }, []);
+
+  // 1a. Subscribe to current track updates from PlaybackController
+  useEffect(() => {
+    const unsubscribeTrack = playbackController.subscribeTrack((track) => {
+      if (track && track.id !== currentSong.id) {
+        setCurrentSong(track);
+        setDuration(track.duration);
+        const chorus = track.sections.find((s) => s.type === 'chorus') || track.sections[0];
+        if (chorus) {
+          setSelectedSectionState(chorus);
+          playbackController.setLoopSection(chorus, isLoopingSection);
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeTrack();
+    };
+  }, [currentSong.id, isLoopingSection]);
 
   // 1b. Subscribe to central playback clock for Karaoke Backing Playback
   useEffect(() => {
@@ -230,7 +247,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (prev.some((s) => s.id === song.id)) return prev;
       return [song, ...prev];
     });
+    playbackController.addToQueue(song);
   }, []);
+
+  // Section and loop handlers delegating to PlaybackController
+  const setIsLoopingSection = useCallback((loop: boolean) => {
+    setIsLoopingSectionState(loop);
+    playbackController.setIsLooping(loop);
+  }, []);
+
+  const setSelectedSection = useCallback(
+    (sec: SongSection) => {
+      setSelectedSectionState(sec);
+      playbackController.setLoopSection(sec, isLoopingSection);
+    },
+    [isLoopingSection]
+  );
 
   const playSong = useCallback(
     (song: Song, startTime = 0) => {
@@ -241,14 +273,15 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       const chorus = song.sections.find((s) => s.type === 'chorus') || song.sections[0];
       if (isNew && chorus) {
-        setSelectedSection(chorus);
+        setSelectedSectionState(chorus);
+        playbackController.setLoopSection(chorus, isLoopingSection);
       }
 
       // Normal listening is ALWAYS default when starting any song
-      playbackService.setKaraokeMode(false);
+      playbackController.setKaraokeMode(false);
       setIsKaraokeMode(false);
 
-      playbackService.loadAndPlay(song, startTime);
+      playbackController.loadAndPlay(song, startTime);
 
       // Background enrichment: fetch real synced lyrics if missing
       if (!song.lyrics?.en?.lines?.length && song.playbackSource?.provider === 'apple-music') {
@@ -290,21 +323,21 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }).catch(() => {});
       }
     },
-    [currentSong.id, addSongToCatalog]
+    [currentSong.id, addSongToCatalog, isLoopingSection]
   );
 
   // Preload initial featured track on startup
   useEffect(() => {
-    playbackService.load(INITIAL_FEATURED_SONG);
+    playbackController.load(INITIAL_FEATURED_SONG);
   }, []);
 
   const togglePlay = useCallback(() => {
-    playbackService.togglePlay(currentSong);
+    playbackController.togglePlay(currentSong);
   }, [currentSong]);
 
   const seekTo = useCallback((time: number) => {
     setCurrentTime(time);
-    playbackService.seek(time);
+    playbackController.seek(time);
     if (isRecordingActiveRef.current) {
       karaokePlaybackService.seek(time);
     }
@@ -312,48 +345,44 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setVolume = useCallback((vol: number) => {
     setVolumeState(vol);
-    playbackService.setVolume(vol);
+    playbackController.setVolume(vol);
   }, []);
 
   const nextSong = useCallback(() => {
-    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
-    const nextIndex = (currentIndex + 1) % songs.length;
-    playSong(songs[nextIndex], 0);
-  }, [songs, currentSong.id, playSong]);
+    playbackController.nextTrack();
+  }, []);
 
   const prevSong = useCallback(() => {
-    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
-    const prevIndex = (currentIndex - 1 + songs.length) % songs.length;
-    playSong(songs[prevIndex], 0);
-  }, [songs, currentSong.id, playSong]);
+    playbackController.prevTrack();
+  }, []);
 
   const toggleKaraokeMode = useCallback(() => {
     setIsKaraokeMode((prev) => {
       const next = !prev;
-      playbackService.setKaraokeMode(next);
+      playbackController.setKaraokeMode(next);
       return next;
     });
   }, []);
 
   const setKaraokeMode = useCallback((enabled: boolean) => {
     setIsKaraokeMode(enabled);
-    playbackService.setKaraokeMode(enabled);
+    playbackController.setKaraokeMode(enabled);
   }, []);
 
   const setBgmVolume = useCallback((vol: number) => {
     setBgmVolumeState(vol);
-    playbackService.setBgmVolume(vol);
+    playbackController.setBgmVolume(vol);
   }, []);
 
   const setVoiceVolume = useCallback((vol: number) => {
     setVoiceVolumeState(vol);
-    playbackService.setVoiceVolume(vol);
+    playbackController.setVoiceVolume(vol);
   }, []);
 
   const toggleMic = useCallback(() => {
     setIsMicEnabled((prev) => {
       const next = !prev;
-      playbackService.setMicEnabled(next);
+      playbackController.setMicEnabled(next);
       return next;
     });
   }, []);
@@ -372,18 +401,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       addSongToCatalog(targetSong);
 
       if (section) {
-        setSelectedSection(section);
+        setSelectedSectionState(section);
+        playbackController.setLoopSection(section, isLoopingSection);
       } else {
         const chorus = targetSong.sections.find((s) => s.type === 'chorus') || targetSong.sections[0];
-        if (chorus) setSelectedSection(chorus);
+        if (chorus) {
+          setSelectedSectionState(chorus);
+          playbackController.setLoopSection(chorus, isLoopingSection);
+        }
       }
 
       // Engage real-time vocal suppression on active track
-      playbackService.setKaraokeMode(true);
+      playbackController.setKaraokeMode(true);
       setIsKaraokeMode(true);
       setKaraokeModalOpen(true);
     },
-    [currentSong, playSong, addSongToCatalog]
+    [currentSong, playSong, addSongToCatalog, isLoopingSection]
   );
 
   const closeKaraokeModal = useCallback(() => {
@@ -392,13 +425,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const startKaraokeRecording = useCallback(
     (section: SongSection) => {
-      setSelectedSection(section);
-      playbackService.setKaraokeMode(true);
+      setSelectedSectionState(section);
+      playbackController.setLoopSection(section, isLoopingSection);
+      playbackController.setKaraokeMode(true);
       setIsKaraokeMode(true);
       setKaraokeModalOpen(false);
       setIsRecordingActive(true);
     },
-    []
+    [isLoopingSection]
   );
 
   const stopKaraokeRecording = useCallback(() => {
@@ -461,13 +495,15 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_get_current_time?: () => number;
         __naro_is_playing?: () => boolean;
         __naro_get_canonical_lines?: () => TimedLyricLine[];
+        __naro_playback_controller?: typeof playbackController;
       };
       win.__naro_play_song = playSong;
+      win.__naro_playback_controller = playbackController;
       win.__naro_current_song = currentSong;
       win.__naro_set_karaoke = setKaraokeMode;
       win.__naro_toggle_karaoke = toggleKaraokeMode;
       win.__naro_open_karaoke_modal = () => openKaraokeForSong(currentSong);
-      win.__naro_get_audio = () => playbackService.getAudioElement();
+      win.__naro_get_audio = () => playbackController.getAudioElement();
       win.__naro_toggle_lyrics = toggleLyricsDrawer;
       win.__naro_seek = seekTo;
       win.__naro_open_now_playing = openNowPlaying;
