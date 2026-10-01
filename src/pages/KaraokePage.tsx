@@ -6,6 +6,7 @@ import { capabilityService } from '../services/capability/capabilityService';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
 import { appleMusicCatalogProvider } from '../services/providers/AppleMusicCatalogProvider';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
+import { takePlaybackService } from '../services/audio/takePlaybackService';
 import type { Song, RecordedTake } from '../types/music';
 
 export const KaraokePage: React.FC = () => {
@@ -19,8 +20,17 @@ export const KaraokePage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Song[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [playingTakeId, setPlayingTakeId] = useState<string | null>(null);
-  const takeAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [playingTakeId, setPlayingTakeId] = useState<string | null>(() => takePlaybackService.getPlayingTakeId());
+
+  useEffect(() => {
+    const unsubscribe = takePlaybackService.subscribePreview((event) => {
+      setPlayingTakeId(event.playingTakeId);
+    });
+    return () => {
+      unsubscribe();
+      takePlaybackService.stopTake();
+    };
+  }, []);
 
   // Recently sung tracks stored in session storage
   const [recentlySungIds, setRecentlySungIds] = useState<string[]>(() => {
@@ -155,21 +165,7 @@ export const KaraokePage: React.FC = () => {
   };
 
   const handlePlayTake = (take: RecordedTake) => {
-    if (playingTakeId === take.id) {
-      if (takeAudioRef.current) takeAudioRef.current.pause();
-      setPlayingTakeId(null);
-      return;
-    }
-
-    if (take.audioBlobUrl) {
-      if (takeAudioRef.current) {
-        takeAudioRef.current.pause();
-      }
-      takeAudioRef.current = new Audio(take.audioBlobUrl);
-      takeAudioRef.current.onended = () => setPlayingTakeId(null);
-      takeAudioRef.current.play();
-      setPlayingTakeId(take.id);
-    }
+    takePlaybackService.toggleTake(take);
   };
 
   // Recently sung songs resolved

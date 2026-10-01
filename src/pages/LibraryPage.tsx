@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, Download, Trash2, Share2, Mic, Check, Music } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from '../components/AbstractArtwork';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
+import { takePlaybackService } from '../services/audio/takePlaybackService';
 import type { RecordedTake, Song } from '../types/music';
 
 export const LibraryPage: React.FC = () => {
@@ -18,28 +19,23 @@ export const LibraryPage: React.FC = () => {
   } = useAudioPlayer();
 
   const [activeTab, setActiveTab] = useState<'takes' | 'songs'>('takes');
-  const [playingTakeId, setPlayingTakeId] = useState<string | null>(null);
+  const [playingTakeId, setPlayingTakeId] = useState<string | null>(() => takePlaybackService.getPlayingTakeId());
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = takePlaybackService.subscribePreview((event) => {
+      setPlayingTakeId(event.playingTakeId);
+    });
+    return () => {
+      unsubscribe();
+      takePlaybackService.stopTake();
+    };
+  }, []);
 
   const catalogSongs = musicCatalogService.getFallbackCatalog();
 
   const handlePlayTake = (take: RecordedTake) => {
-    if (playingTakeId === take.id) {
-      if (audioRef.current) audioRef.current.pause();
-      setPlayingTakeId(null);
-      return;
-    }
-
-    if (take.audioBlobUrl) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      audioRef.current = new Audio(take.audioBlobUrl);
-      audioRef.current.onended = () => setPlayingTakeId(null);
-      audioRef.current.play();
-      setPlayingTakeId(take.id);
-    }
+    takePlaybackService.toggleTake(take);
   };
 
   const handleShare = (take: RecordedTake) => {

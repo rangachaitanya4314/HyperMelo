@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, Share2, Download, Check, X, RotateCcw, Save, Trash2, Mic2, Volume2, Mic } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
+import { takePlaybackService } from '../services/audio/takePlaybackService';
 
 export const PerformanceReviewModal: React.FC = () => {
   const {
@@ -21,112 +22,56 @@ export const PerformanceReviewModal: React.FC = () => {
   const [musicVolume, setMusicVolume] = useState<number>(0.8);
   const [voiceVolume, setVoiceVolume] = useState<number>(1.0);
 
-  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
-  const backingAudioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Setup backing audio and voice recording
+  // Setup backing audio and voice recording via TakePlaybackService
   useEffect(() => {
     if (!reviewModalOpen || !recordedTake?.audioBlobUrl) {
-      if (voiceAudioRef.current) {
-        voiceAudioRef.current.pause();
-        voiceAudioRef.current = null;
-      }
-      if (backingAudioRef.current) {
-        backingAudioRef.current.pause();
-        backingAudioRef.current = null;
-      }
+      takePlaybackService.stopReviewSession();
       setIsPlayingBack(false);
       setPlaybackTime(0);
       return;
     }
 
-    const voice = new Audio(recordedTake.audioBlobUrl);
-    voice.volume = voiceVolume;
-    voiceAudioRef.current = voice;
-
-    // Optional backing track sync
     const backingStream = currentSong.karaokeSource?.streamUrl || currentSong.playbackSource?.streamUrl;
-    if (backingStream) {
-      const backing = new Audio(backingStream);
-      backing.volume = musicVolume;
-      backing.currentTime = (recordedTake as any).startTime || 0;
-      backingAudioRef.current = backing;
-    }
+    const initialOffset = (recordedTake as any).startTime || 0;
 
-    const handleTimeUpdate = () => {
-      setPlaybackTime(voice.currentTime);
-    };
-    const handleEnded = () => {
-      setIsPlayingBack(false);
-      setPlaybackTime(0);
-      if (backingAudioRef.current) {
-        backingAudioRef.current.pause();
-        backingAudioRef.current.currentTime = (recordedTake as any).startTime || 0;
-      }
-    };
+    takePlaybackService.initReviewSession(recordedTake, backingStream, initialOffset);
 
-    voice.addEventListener('timeupdate', handleTimeUpdate);
-    voice.addEventListener('ended', handleEnded);
+    const unsubscribe = takePlaybackService.subscribeReview((state) => {
+      setIsPlayingBack(state.isPlaying);
+      setPlaybackTime(state.currentTime);
+      setVoiceVolume(state.voiceVolume);
+      setMusicVolume(state.musicVolume);
+    });
 
     return () => {
-      voice.removeEventListener('timeupdate', handleTimeUpdate);
-      voice.removeEventListener('ended', handleEnded);
-      voice.pause();
-      if (backingAudioRef.current) {
-        backingAudioRef.current.pause();
-      }
+      unsubscribe();
+      takePlaybackService.stopReviewSession();
     };
   }, [reviewModalOpen, recordedTake?.audioBlobUrl, currentSong]);
-
-  // Sync volume slider changes in real time
-  useEffect(() => {
-    if (voiceAudioRef.current) {
-      voiceAudioRef.current.volume = voiceVolume;
-    }
-  }, [voiceVolume]);
-
-  useEffect(() => {
-    if (backingAudioRef.current) {
-      backingAudioRef.current.volume = musicVolume;
-    }
-  }, [musicVolume]);
 
   if (!reviewModalOpen || !recordedTake) return null;
 
   const handlePlayToggle = () => {
-    if (!voiceAudioRef.current && recordedTake.audioBlobUrl) {
-      voiceAudioRef.current = new Audio(recordedTake.audioBlobUrl);
-    }
-    if (!voiceAudioRef.current) return;
+    takePlaybackService.toggleReviewPlayback();
+  };
 
-    if (isPlayingBack) {
-      voiceAudioRef.current.pause();
-      if (backingAudioRef.current) {
-        backingAudioRef.current.pause();
-      }
-      setIsPlayingBack(false);
-    } else {
-      voiceAudioRef.current.play().then(() => {
-        setIsPlayingBack(true);
-        if (backingAudioRef.current) {
-          backingAudioRef.current.play().catch(() => {});
-        }
-      }).catch((err) => {
-        console.warn('Playback error:', err);
-      });
-    }
+  const handleMusicVolumeChange = (newVol: number) => {
+    setMusicVolume(newVol);
+    takePlaybackService.setReviewMusicVolume(newVol);
+  };
+
+  const handleVoiceVolumeChange = (newVol: number) => {
+    setVoiceVolume(newVol);
+    takePlaybackService.setReviewVoiceVolume(newVol);
+  };
+
+  const handleClose = () => {
+    takePlaybackService.stopReviewSession();
+    dismissReviewModal();
   };
 
   const handleRerecord = () => {
-    if (voiceAudioRef.current) {
-      voiceAudioRef.current.pause();
-      voiceAudioRef.current = null;
-      setIsPlayingBack(false);
-    }
-    if (backingAudioRef.current) {
-      backingAudioRef.current.pause();
-      backingAudioRef.current = null;
-    }
+    takePlaybackService.stopReviewSession();
     dismissReviewModal();
     openKaraokeForSong(currentSong);
   };
@@ -138,15 +83,7 @@ export const PerformanceReviewModal: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (voiceAudioRef.current) {
-      voiceAudioRef.current.pause();
-      voiceAudioRef.current = null;
-      setIsPlayingBack(false);
-    }
-    if (backingAudioRef.current) {
-      backingAudioRef.current.pause();
-      backingAudioRef.current = null;
-    }
+    takePlaybackService.stopReviewSession();
     if (recordedTake) {
       try {
         await deleteTakeFromLibrary(recordedTake.id);
@@ -219,7 +156,7 @@ export const PerformanceReviewModal: React.FC = () => {
         }}
       >
         <button
-          onClick={dismissReviewModal}
+          onClick={handleClose}
           aria-label="Close review modal"
           style={{
             position: 'absolute',
@@ -345,7 +282,7 @@ export const PerformanceReviewModal: React.FC = () => {
               max={1}
               step={0.05}
               value={musicVolume}
-              onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+              onChange={(e) => handleMusicVolumeChange(parseFloat(e.target.value))}
               aria-label="Music volume slider"
               style={{ flex: 1, height: '4px', accentColor: 'var(--accent-warm)', cursor: 'pointer' }}
             />
@@ -367,7 +304,7 @@ export const PerformanceReviewModal: React.FC = () => {
               max={1}
               step={0.05}
               value={voiceVolume}
-              onChange={(e) => setVoiceVolume(parseFloat(e.target.value))}
+              onChange={(e) => handleVoiceVolumeChange(parseFloat(e.target.value))}
               aria-label="My Voice volume slider"
               style={{ flex: 1, height: '4px', accentColor: 'var(--accent-cream)', cursor: 'pointer' }}
             />
