@@ -256,9 +256,9 @@ async function runBrowserPlaybackControllerVerification(): Promise<void> {
       (async () => {
         const controller = (window).__naro_playback_controller || (await import('/src/services/audio/PlaybackController.ts')).playbackController;
         const previewTrack = {
-          id: 'apple-preview-channa',
-          title: 'Channa Mereya',
-          artist: 'Pritam & Arijit Singh',
+          id: 'apple-preview-unlicensed',
+          title: 'Unlicensed Indie Preview',
+          artist: 'Independent Sample Artist',
           duration: 30,
           sections: [{ type: 'chorus', label: 'Chorus', start: 0, end: 30 }],
           isStreamPreview: true,

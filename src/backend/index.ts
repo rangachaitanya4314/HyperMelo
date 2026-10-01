@@ -4,3 +4,4 @@ export * from './services/CatalogAggregationService';
 export * from './services/LyricsIngestionService';
 export * from './services/UserLibraryService';
 export * from './services/ProviderAuthService';
+export * from './services/PlaybackSourceResolver';

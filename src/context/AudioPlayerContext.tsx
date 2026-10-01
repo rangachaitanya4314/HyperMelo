@@ -183,10 +183,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // 1a. Subscribe to current track updates from PlaybackController
   useEffect(() => {
     const unsubscribeTrack = playbackController.subscribeTrack((track) => {
-      if (track && track.id !== currentSong.id) {
+      if (track) {
         setCurrentSong(track);
         setDuration(track.duration);
-        const chorus = track.sections.find((s) => s.type === 'chorus') || track.sections[0];
+        const chorus = track.sections?.find((s) => s.type === 'chorus') || track.sections?.[0];
         if (chorus) {
           setSelectedSectionState(chorus);
           playbackController.setLoopSection(chorus, isLoopingSection);
@@ -197,7 +197,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => {
       unsubscribeTrack();
     };
-  }, [currentSong.id, isLoopingSection]);
+  }, [isLoopingSection]);
 
   // 1b. Subscribe to central playback clock for Karaoke Backing Playback
   useEffect(() => {

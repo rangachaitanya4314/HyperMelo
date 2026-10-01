@@ -488,15 +488,79 @@ async function runSmokeTest() {
     // -----------------------------------------------------------------------
     // [Check 7/13] Full-length playback works
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // [Check 7/13] Full-length playback works (Ordinary Catalog Song + Control)
+    // -----------------------------------------------------------------------
     console.log('\n[Check 7/13] Full-length playback works...');
-    // Switch back to Shot Down
+    
+    // Part A: Ordinary Catalog Track ("Red Sea")
+    console.log('  Testing ordinary catalog song ("Red Sea") in real Chrome...');
+    await cdp.eval(`
+      (async () => {
+        const { catalogAggregationService } = await import('/src/backend/services/CatalogAggregationService.ts');
+        const results = await catalogAggregationService.search('Red Sea Devara');
+        const track = (results.songs && results.songs.length > 0) ? results.songs[0] : (results.items ? results.items[0] : null);
+        window.__naro_play_song(track, 0);
+      })()
+    `);
+    await new Promise((r) => setTimeout(r, 2200));
+
+    const catalogSongCheck = await cdp.eval(`
+      (() => {
+        const song = window.__naro_current_song;
+        const audio = window.__naro_get_audio ? window.__naro_get_audio() : window.__naro_audio;
+        return {
+          title: song?.title,
+          duration: song?.fullTrackDuration || song?.duration || 0,
+          audioDuration: audio?.duration || 0,
+          isFullLength: song?.fullLengthAvailable,
+          streamUrl: audio?.src || '',
+          paused: audio ? audio.paused : true,
+          currentTime: audio ? audio.currentTime : 0
+        };
+      })()
+    `);
+
+    assert(catalogSongCheck.isFullLength === true, 'Catalog song is authenticated as full-length');
+    assert(catalogSongCheck.duration > 30, `Player duration > 30s (actual: ${catalogSongCheck.duration}s)`);
+    assert(catalogSongCheck.audioDuration > 30, `Browser audio element duration > 30s (actual: ${catalogSongCheck.audioDuration.toFixed(2)}s)`);
+    assert(catalogSongCheck.streamUrl.includes('saavncdn.com'), `Audio source is genuine CDN full-length master: ${catalogSongCheck.streamUrl}`);
+    assert(!catalogSongCheck.paused, 'Catalog song is actively playing in Chrome');
+
+    // Seek ordinary catalog song beyond 30s to 45s
+    console.log('  Seeking ordinary catalog song to 45s...');
+    await cdp.eval(`
+      (() => {
+        if (window.__naro_seek) window.__naro_seek(45.0);
+        else {
+          const audio = window.__naro_get_audio ? window.__naro_get_audio() : window.__naro_audio;
+          if (audio) audio.currentTime = 45.0;
+        }
+      })()
+    `);
+    await new Promise((r) => setTimeout(r, 1200));
+
+    const catalogSeekCheck = await cdp.eval(`
+      (() => {
+        const audio = window.__naro_get_audio ? window.__naro_get_audio() : window.__naro_audio;
+        return {
+          currentTime: audio ? audio.currentTime : 0,
+          paused: audio ? audio.paused : true
+        };
+      })()
+    `);
+    assert(catalogSeekCheck.currentTime >= 44.5, `Catalog song currentTime advanced past 30s (${catalogSeekCheck.currentTime.toFixed(2)}s)`);
+    assert(!catalogSeekCheck.paused, 'Catalog song continues active playback after 30s');
+
+    // Part B: Control Track ("Shot Down")
+    console.log('  Testing control track ("Shot Down")...');
     await cdp.eval(`
       (async () => {
         const { JOSH_WOODWARD_SHOT_DOWN } = await import('/src/data/songs.ts');
         window.__naro_play_song(JOSH_WOODWARD_SHOT_DOWN, 0);
       })()
     `);
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1200));
 
     const fullLengthCheck = await cdp.eval(`
       (() => {
@@ -511,8 +575,8 @@ async function runSmokeTest() {
         };
       })()
     `);
-    assert(fullLengthCheck.isFullLength === true, 'Track is authenticated as full-length');
-    assert(fullLengthCheck.duration >= 250, `Duration is full-length: ${fullLengthCheck.duration}s`);
+    assert(fullLengthCheck.isFullLength === true, 'Control track is authenticated as full-length');
+    assert(fullLengthCheck.duration >= 250, `Control duration is full-length: ${fullLengthCheck.duration}s`);
     assert(fullLengthCheck.streamUrl?.includes('josh-woodward-shot-down-vocal.mp3'), `Audio source points to full-length master: ${fullLengthCheck.streamUrl}`);
 
     // -----------------------------------------------------------------------

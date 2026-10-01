@@ -13,6 +13,7 @@ import type {
 import { naroCatalogProvider } from '../../services/providers/NaroCatalogProvider';
 import { appleMusicCatalogProvider } from '../../services/providers/AppleMusicCatalogProvider';
 import { connectivityService } from '../../services/connectivity/connectivityService';
+import { playbackSourceResolver } from './PlaybackSourceResolver';
 
 export class CatalogAggregationService implements ICatalogService {
   private inMemoryCache: Map<string, Song[]> = new Map();
@@ -147,8 +148,13 @@ export class CatalogAggregationService implements ICatalogService {
         validSongs = validSongs.filter((s) => s.playbackSourceType !== 'dev-fixture');
       }
 
-      this.inMemoryCache.set(cacheKey, validSongs);
-      return { songs: validSongs, isOffline: false };
+      // Resolve genuine full-length audio sources for eligible catalog tracks
+      const resolvedSongs = await Promise.all(
+        validSongs.map((s) => playbackSourceResolver.resolvePlaybackSource(s))
+      );
+
+      this.inMemoryCache.set(cacheKey, resolvedSongs);
+      return { songs: resolvedSongs, isOffline: false };
     } catch (err) {
       console.warn('Catalog search error, returning fallback results:', err);
       return {
@@ -189,6 +195,13 @@ export class CatalogAggregationService implements ICatalogService {
         appleMusicCatalogProvider.getTrending('midnight')
       ]);
 
+      // Concurrently resolve full-length playable sources for top trending tracks
+      const [resolvedTrending, resolvedIndian, resolvedMidnight] = await Promise.all([
+        Promise.all(trendingSongs.slice(0, 8).map((s) => playbackSourceResolver.resolvePlaybackSource(s))),
+        Promise.all(indianSongs.slice(0, 8).map((s) => playbackSourceResolver.resolvePlaybackSource(s))),
+        Promise.all(midnightSongs.slice(0, 8).map((s) => playbackSourceResolver.resolvePlaybackSource(s)))
+      ]);
+
       const sections: CatalogSection[] = [
         {
           id: 'made-for-you',
@@ -199,32 +212,32 @@ export class CatalogAggregationService implements ICatalogService {
         }
       ];
 
-      if (trendingSongs.length > 0) {
+      if (resolvedTrending.length > 0) {
         sections.push({
           id: 'trending-now',
           title: 'TRENDING NOW',
           subtitle: 'Live global & chart-topping tracks streaming directly inside NARO.',
-          songs: trendingSongs.slice(0, 8),
+          songs: resolvedTrending,
           isDynamicLive: true
         });
       }
 
-      if (indianSongs.length > 0) {
+      if (resolvedIndian.length > 0) {
         sections.push({
           id: 'indian-music',
           title: 'INDIAN MUSIC & HITS',
           subtitle: 'Hindi, Telugu, and South Asian sensations with mapped karaoke moments.',
-          songs: indianSongs.slice(0, 8),
+          songs: resolvedIndian,
           isDynamicLive: true
         });
       }
 
-      if (midnightSongs.length > 0) {
+      if (resolvedMidnight.length > 0) {
         sections.push({
           id: 'midnight-vibes',
           title: 'MIDNIGHT & VIBES',
           subtitle: 'Late-night indie, synth-pop, and intimate retro acoustics.',
-          songs: midnightSongs.slice(0, 8),
+          songs: resolvedMidnight,
           isDynamicLive: true
         });
       }
@@ -258,7 +271,9 @@ export class CatalogAggregationService implements ICatalogService {
   public async getTrack(trackId: string): Promise<Song | null> {
     const naroTrack = await naroCatalogProvider.getTrack(trackId);
     if (naroTrack) return naroTrack;
-    return appleMusicCatalogProvider.getTrack(trackId);
+    const appleTrack = await appleMusicCatalogProvider.getTrack(trackId);
+    if (!appleTrack) return null;
+    return playbackSourceResolver.resolvePlaybackSource(appleTrack);
   }
 }
 

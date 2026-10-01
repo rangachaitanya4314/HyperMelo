@@ -19,6 +19,7 @@ import { AppleMusicPlaybackProvider } from './AppleMusicPlaybackProvider';
 import { connectivityService } from '../connectivity/connectivityService';
 import { karaokeMixer } from './karaokeMixer';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
+import { playbackSourceResolver } from './playbackSourceResolver';
 
 export interface PlaybackControllerOptions {
   naroFullLengthProvider?: NaroFullLengthPlaybackProvider;
@@ -392,23 +393,26 @@ export class PlaybackController {
       return;
     }
 
-    this.currentTrack = song;
-    this.addToQueue(song);
+    // Resolve genuine full-length playable audio source for catalog song
+    const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
+
+    this.currentTrack = resolvedSong;
+    this.addToQueue(resolvedSong);
     this.notifyTrackChanged();
     this.isKaraokeActive = false;
 
-    const provider = this.selectProviderForSong(song);
+    const provider = this.selectProviderForSong(resolvedSong);
 
     if (
-      !provider.canPlay(song) &&
-      !this.naroFullLengthProvider.canPlay(song) &&
-      !this.appleMusicProvider.canPlay(song) &&
-      !this.youtubeProvider.canPlay(song) &&
-      !this.html5Provider.canPlay(song)
+      !provider.canPlay(resolvedSong) &&
+      !this.naroFullLengthProvider.canPlay(resolvedSong) &&
+      !this.appleMusicProvider.canPlay(resolvedSong) &&
+      !this.youtubeProvider.canPlay(resolvedSong) &&
+      !this.html5Provider.canPlay(resolvedSong)
     ) {
       this.handleClockEvent({
         currentTime: 0,
-        duration: song.duration,
+        duration: resolvedSong.duration,
         bufferedTime: 0,
         isPlaying: false,
         state: 'error',
@@ -421,7 +425,7 @@ export class PlaybackController {
     this.activeProvider?.setVolume(this.volume);
 
     try {
-      await this.activeProvider?.load(song, startTime);
+      await this.activeProvider?.load(resolvedSong, startTime);
       await this.activeProvider?.play();
     } catch (err: unknown) {
       console.warn('PlaybackController error during loadAndPlay:', err);
@@ -438,7 +442,7 @@ export class PlaybackController {
       }
       this.handleClockEvent({
         currentTime: this.currentClock.currentTime || 0,
-        duration: song.duration,
+        duration: resolvedSong.duration,
         bufferedTime: 0,
         isPlaying: false,
         state: 'error',
@@ -448,13 +452,14 @@ export class PlaybackController {
   }
 
   public async load(song: Song, startTime = 0): Promise<void> {
-    this.currentTrack = song;
-    this.addToQueue(song);
+    const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
+    this.currentTrack = resolvedSong;
+    this.addToQueue(resolvedSong);
     this.notifyTrackChanged();
-    const provider = this.selectProviderForSong(song);
+    const provider = this.selectProviderForSong(resolvedSong);
     this.switchProvider(provider);
     this.activeProvider?.setVolume(this.volume);
-    await this.activeProvider?.load(song, startTime);
+    await this.activeProvider?.load(resolvedSong, startTime);
   }
 
   public async play(): Promise<void> {
