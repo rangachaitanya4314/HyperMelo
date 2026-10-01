@@ -21,5 +21,11 @@ export default defineConfig({
     watch: {
       ignored: ['**/.chrome_test_profile/**', '**/scratch/**']
     }
+  },
+  preview: {
+    allowedHosts: [
+      'naro-bf5m.onrender.com',
+      'naro.onrender.com'
+    ]
   }
 })
