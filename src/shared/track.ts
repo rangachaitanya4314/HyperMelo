@@ -8,7 +8,7 @@ import type {
   LyricsCapability,
   SongCapabilities
 } from './capabilities';
-import type { SongLyrics } from './lyrics';
+import type { SongLyrics, Language } from './lyrics';
 
 export type SectionType = 'verse' | 'chorus' | 'bridge' | 'custom';
 
@@ -88,6 +88,8 @@ export interface Track {
   karaokeSource?: KaraokeSource;
   lyricsOffsetMs?: number;
   genre: string;
+  language?: Language;
+  originalLanguage?: Language;
   bpm: number;
   musicalKey: string;
   releaseYear?: number;
@@ -108,6 +110,41 @@ export interface Track {
 
 export type Song = Track;
 
+/**
+ * Resolves the genuine canonical track duration based on authoritative duration priority:
+ * 1. Use genuine resolved full-track duration when fullLengthAvailable is true.
+ * 2. Otherwise use the legitimate catalog duration if it is not merely the 30-second preview duration.
+ * 3. Use 30 seconds only for genuinely preview-only tracks.
+ */
+export function getCanonicalTrackDuration(track?: {
+  duration?: number;
+  fullTrackDuration?: number;
+  fullLengthAvailable?: boolean;
+} | null): number {
+  if (!track) return 30;
+
+  // 1. Use genuine resolved full-track duration when fullLengthAvailable is true
+  if (track.fullLengthAvailable) {
+    if (track.fullTrackDuration && track.fullTrackDuration > 0) {
+      return track.fullTrackDuration;
+    }
+    if (track.duration && track.duration > 0 && track.duration !== 30) {
+      return track.duration;
+    }
+  }
+
+  // 2. Otherwise use the legitimate catalog duration if it is not merely the 30-second preview duration
+  if (track.fullTrackDuration && track.fullTrackDuration > 0 && track.fullTrackDuration !== 30) {
+    return track.fullTrackDuration;
+  }
+  if (track.duration && track.duration > 0 && track.duration !== 30) {
+    return track.duration;
+  }
+
+  // 3. Use 30 seconds only for genuinely preview-only tracks
+  return track.duration || track.fullTrackDuration || 30;
+}
+
 export interface CatalogSection {
   id: string;
   title: string;
@@ -115,3 +152,4 @@ export interface CatalogSection {
   songs: Song[];
   isDynamicLive?: boolean;
 }
+

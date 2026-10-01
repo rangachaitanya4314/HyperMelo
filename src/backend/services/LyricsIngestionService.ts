@@ -68,6 +68,7 @@ export class LyricsIngestionService implements ILyricsService {
       const next = parsed[i + 1];
       const duration = next ? Math.max(0.8, next.time - current.time) : Math.max(2, totalDuration - current.time);
 
+      const detected = detectLanguage(current.text);
       result.push({
         id: `lyric-${i}`,
         startTime: current.time,
@@ -76,7 +77,7 @@ export class LyricsIngestionService implements ILyricsService {
         duration,
         text: current.text,
         translations: {
-          en: current.text
+          [detected]: current.text
         }
       });
     }
@@ -96,16 +97,19 @@ export class LyricsIngestionService implements ILyricsService {
 
     if (rawLines.length === 0) return [];
 
-    return rawLines.map((text, idx) => ({
-      id: `plain-${idx}`,
-      startTime: -1,
-      time: -1,
-      duration: 0,
-      text,
-      translations: {
-        en: text
-      }
-    }));
+    return rawLines.map((text, idx) => {
+      const detected = detectLanguage(text);
+      return {
+        id: `plain-${idx}`,
+        startTime: -1,
+        time: -1,
+        duration: 0,
+        text,
+        translations: {
+          [detected]: text
+        }
+      };
+    });
   }
 
   /**
@@ -197,22 +201,37 @@ export class LyricsIngestionService implements ILyricsService {
     const middleIdx = Math.floor(lines.length / 2);
     const chorusSnippet = lines[middleIdx]?.text || lines[0]?.text || '';
 
+
+    // Detect script from sample lines or metadata
+    const sampleText = lines.slice(0, 10).map((l) => l.text).join(' ');
+    let detectedLang = detectLanguage(sampleText);
+    if (detectedLang === 'en') {
+      const meta = `${record.trackName} ${record.artistName} ${record.albumName || ''}`.toLowerCase();
+      if (meta.includes('hindi') || meta.includes('arijit') || meta.includes('pritam') || meta.includes('channa') || meta.includes('apna') || meta.includes('kesariya')) {
+        detectedLang = 'hi';
+      } else if (meta.includes('telugu') || meta.includes('devara') || meta.includes('neeve') || meta.includes('vennela') || meta.includes('anirudh') || meta.includes('fear song')) {
+        detectedLang = 'te';
+      } else if (meta.includes('tamil') || meta.includes('kuthu') || meta.includes('hukum') || meta.includes('kaavaalaa')) {
+        detectedLang = 'ta';
+      } else if (meta.includes('malayalam') || meta.includes('illuminati') || meta.includes('aavesham')) {
+        detectedLang = 'ml';
+      }
+    }
+
+    // Attach detected language to each line's translations dictionary
+    lines.forEach((l) => {
+      if (!l.translations) l.translations = {};
+      l.translations[detectedLang] = l.text;
+    });
+
     const langLyrics: LanguageLyrics = {
       chorusSnippet,
       lines
     };
 
-    // Detect script from sample lines
-    const sampleText = lines.slice(0, 8).map((l) => l.text).join(' ');
-    const detectedLang = detectLanguage(sampleText);
-
     const songLyrics: SongLyrics = {
       [detectedLang]: langLyrics
     };
-
-    if (detectedLang !== 'en') {
-      songLyrics.en = langLyrics;
-    }
 
     return songLyrics;
   }

@@ -72,6 +72,9 @@ export class CatalogAggregationService implements ICatalogService {
         if (!existing.artworkUrl && item.artworkUrl) {
           existing.artworkUrl = item.artworkUrl;
         }
+        if ((!existing.duration || existing.duration === 30) && item.duration && item.duration !== 30) {
+          existing.duration = item.duration;
+        }
         if (item.karaokeAvailability && item.karaokeSource?.availability === 'available' && item.playbackSourceType !== 'dev-fixture') {
           existing.karaokeAvailability = true;
           existing.karaokeSource = item.karaokeSource;

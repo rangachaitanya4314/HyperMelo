@@ -8,6 +8,7 @@ import { appleMusicCatalogProvider } from '../services/providers/AppleMusicCatal
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
 import { takePlaybackService } from '../services/audio/takePlaybackService';
 import type { Song, RecordedTake } from '../types/music';
+import { getCanonicalTrackDuration } from '../shared/track';
 
 export const KaraokePage: React.FC = () => {
   const {
@@ -301,7 +302,7 @@ export const KaraokePage: React.FC = () => {
               )}
 
               <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-                {formatDuration(song.duration)}
+                {formatDuration(getCanonicalTrackDuration(song))}
               </span>
             </div>
           </div>

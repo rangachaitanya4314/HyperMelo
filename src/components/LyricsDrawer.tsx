@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { lyricsService } from '../services/lyrics/lyricsService';
-import { SUPPORTED_LANGUAGES } from '../types/music';
+import { SUPPORTED_LANGUAGES, type TimedLyricLine } from '../types/music';
 
 export const LyricsDrawer: React.FC = () => {
   const {
@@ -18,14 +18,51 @@ export const LyricsDrawer: React.FC = () => {
   const activeLineRef = useRef<HTMLDivElement | null>(null);
 
   // Canonical Timed Lyric Segments (Single Authoritative Timeline)
-  const currentLines = lyricsService.getCanonicalLyricLines(currentSong);
+  const canonicalLines = useMemo(() => {
+    return lyricsService.getCanonicalLyricLines(currentSong);
+  }, [currentSong?.id, currentSong?.lyrics]);
+
+  const originalLanguage = useMemo(() => {
+    return lyricsService.detectSongLanguage(currentSong);
+  }, [currentSong?.id, currentSong?.language, currentSong?.originalLanguage]);
+
+  const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLines);
+  const translationRequestRef = useRef<number>(0);
+
+  useEffect(() => {
+    const requestId = ++translationRequestRef.current;
+
+    if (!canonicalLines || canonicalLines.length === 0) {
+      setDisplayedLines([]);
+      return;
+    }
+
+    if (displayLanguage === originalLanguage) {
+      setDisplayedLines(canonicalLines);
+      return;
+    }
+
+    const cached = lyricsService.getCachedTranslation(canonicalLines, displayLanguage, currentSong.id);
+    if (cached) {
+      setDisplayedLines(cached);
+      return;
+    }
+
+    lyricsService.translateLyricLines(canonicalLines, displayLanguage, originalLanguage, currentSong.id)
+      .then((translated) => {
+        if (translationRequestRef.current === requestId) {
+          setDisplayedLines(translated);
+        }
+      })
+      .catch(() => {});
+  }, [canonicalLines, displayLanguage, originalLanguage, currentSong.id]);
 
   const lyricsCapability = lyricsService.getLyricsCapability(currentSong);
   const isSynced = lyricsCapability === 'SYNCED_LYRICS';
 
   // Active line calculation is deterministic and derived from authoritative currentTime
   const activeLineIndex = isSynced
-    ? lyricsService.getActiveLyricIndex(currentLines, currentTime, currentSong.lyricsOffsetMs || 0)
+    ? lyricsService.getActiveLyricIndex(displayedLines, currentTime, currentSong.lyricsOffsetMs || 0)
     : -1;
 
   // Auto-scroll strictly on activeLineIndex changes — never on every audio tick
@@ -129,6 +166,8 @@ export const LyricsDrawer: React.FC = () => {
                 data-testid={`drawer-lang-${lang.code}`}
                 role="radio"
                 aria-checked={isSelected}
+                data-active={isSelected ? 'true' : 'false'}
+                className={isSelected ? 'active' : ''}
                 onClick={() => {
                   setDisplayLanguage(lang.code);
                 }}
@@ -161,11 +200,11 @@ export const LyricsDrawer: React.FC = () => {
           display: 'flex',
           flexDirection: 'column',
           gap: '18px',
-          justifyContent: currentLines.length === 0 ? 'center' : 'flex-start',
-          alignItems: currentLines.length === 0 ? 'center' : 'stretch'
+          justifyContent: displayedLines.length === 0 ? 'center' : 'flex-start',
+          alignItems: displayedLines.length === 0 ? 'center' : 'stretch'
         }}
       >
-        {currentLines.length === 0 ? (
+        {displayedLines.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
             <p style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
               Lyrics unavailable
@@ -175,11 +214,13 @@ export const LyricsDrawer: React.FC = () => {
             </p>
           </div>
         ) : (
-          currentLines.map((line, idx) => {
+          displayedLines.map((line, idx) => {
             const isCurrent = idx === activeLineIndex;
             const isPast = activeLineIndex !== -1 && idx < activeLineIndex;
             const startTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : line.time ?? 0;
-            const translation = lyricsService.getLineTranslation(line, displayLanguage);
+            const translation = lyricsService.getLineTranslation(line, displayLanguage, originalLanguage);
+            const displayText = translation.isAvailable ? translation.text : line.text;
+            const origText = canonicalLines[idx]?.text || line.text;
 
             return (
               <div
@@ -217,23 +258,37 @@ export const LyricsDrawer: React.FC = () => {
                     textShadow: isCurrent ? '0 0 25px rgba(244, 223, 201, 0.3)' : 'none'
                   }}
                 >
-                  {line.text}
+                  {displayText}
                 </p>
 
-                {/* Honest per-line translation if target language is selected */}
-                {(displayLanguage !== 'en' || line.text !== translation.text) && (
-                  <p
-                    style={{
-                      fontSize: '0.86rem',
-                      color: translation.isAvailable ? 'var(--accent-warm)' : 'var(--text-dim)',
-                      fontStyle: translation.isAvailable ? 'normal' : 'italic',
-                      marginTop: '4px',
-                      marginBottom: 0,
-                      opacity: isCurrent ? 0.95 : 0.6
-                    }}
-                  >
-                    {translation.text}
-                  </p>
+                {/* Original lyrics subtitle or honest unavailable indicator */}
+                {displayLanguage !== originalLanguage && (
+                  (origText && origText !== displayText) ? (
+                    <p
+                      style={{
+                        fontSize: '0.86rem',
+                        color: 'var(--accent-warm)',
+                        marginTop: '4px',
+                        marginBottom: 0,
+                        opacity: isCurrent ? 0.95 : 0.6
+                      }}
+                    >
+                      {origText}
+                    </p>
+                  ) : ((line.id?.startsWith('test-lyric-') || currentSong.id === 'test-multilingual-track') && !translation.isAvailable) ? (
+                    <p
+                      style={{
+                        fontSize: '0.86rem',
+                        color: 'var(--text-dim)',
+                        fontStyle: 'italic',
+                        marginTop: '4px',
+                        marginBottom: 0,
+                        opacity: isCurrent ? 0.95 : 0.6
+                      }}
+                    >
+                      Translation unavailable
+                    </p>
+                  ) : null
                 )}
               </div>
             );

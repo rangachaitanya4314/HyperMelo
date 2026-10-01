@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Pause } from 'lucide-react';
 import type { Song } from '../types/music';
+import { getCanonicalTrackDuration } from '../shared/track';
 import { AbstractArtwork } from './AbstractArtwork';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 
@@ -160,7 +161,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
             {song.title}
           </h3>
           <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-            {formatDuration(song.duration)}
+            {formatDuration(getCanonicalTrackDuration(song))}
           </span>
         </div>
 

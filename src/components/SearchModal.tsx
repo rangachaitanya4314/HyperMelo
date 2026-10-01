@@ -4,6 +4,7 @@ import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
 import type { Song } from '../types/music';
+import { getCanonicalTrackDuration } from '../shared/track';
 
 export const SearchModal: React.FC = () => {
   const {
@@ -355,7 +356,7 @@ export const SearchModal: React.FC = () => {
                       textAlign: 'right'
                     }}
                   >
-                    {formatDuration(song.duration)}
+                    {formatDuration(getCanonicalTrackDuration(song))}
                   </span>
 
                   {/* Play Action Button for Normal Listening */}

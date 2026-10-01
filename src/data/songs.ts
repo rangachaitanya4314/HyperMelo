@@ -29,6 +29,8 @@ export const JOSH_WOODWARD_SHOT_DOWN: Song = {
   lyricsAvailable: false,
   lyricsSyncAvailable: false,
   genre: 'Indie Rock / Acoustic Pop',
+  language: 'en',
+  originalLanguage: 'en',
   bpm: 120,
   musicalKey: 'G Major',
   releaseYear: 2014,
@@ -100,6 +102,8 @@ export const SONGS: Song[] = [
     artist: 'Aarav',
     duration: 195, // 03:15
     genre: 'Late-Night Synth / Indie R&B',
+    language: 'en',
+    originalLanguage: 'en',
     bpm: 88,
     musicalKey: 'D Minor',
     karaokeReady: true,
@@ -295,6 +299,8 @@ export const SONGS: Song[] = [
     artist: 'Anika',
     duration: 182, // 03:02
     genre: 'Telugu Indie Melodic',
+    language: 'te',
+    originalLanguage: 'te',
     bpm: 76,
     musicalKey: 'G Major',
     karaokeReady: true,
@@ -491,6 +497,8 @@ export const SONGS: Song[] = [
     artist: 'Rishi',
     duration: 210, // 03:30
     genre: 'Acoustic Moonlit Soul',
+    language: 'te',
+    originalLanguage: 'te',
     bpm: 72,
     musicalKey: 'A Minor',
     karaokeReady: true,
@@ -692,6 +700,8 @@ export const SONGS: Song[] = [
     artist: 'Mira',
     duration: 188, // 03:08
     genre: 'Dream Ambient Pop',
+    language: 'hi',
+    originalLanguage: 'hi',
     bpm: 82,
     musicalKey: 'F# Minor',
     karaokeReady: true,

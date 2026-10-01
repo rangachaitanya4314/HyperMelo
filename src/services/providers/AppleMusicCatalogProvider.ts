@@ -1,17 +1,19 @@
 // Apple Music / iTunes Online Catalog Provider for NARO
 // Delivers live search across millions of current and historical songs with official preview streams
 
-import type {
-  Song,
-  ProviderResult,
-  SongLyrics,
-  SongCapabilities,
-  ArtworkStyle,
-  SongSection,
-  PlaybackAvailability,
-  KaraokeSource,
-  MusicProvider,
-  SearchOptions
+import {
+  type Song,
+  type ProviderResult,
+  type SongLyrics,
+  type SongCapabilities,
+  type ArtworkStyle,
+  type SongSection,
+  type PlaybackAvailability,
+  type KaraokeSource,
+  type MusicProvider,
+  type SearchOptions,
+  type Language,
+  getCanonicalTrackDuration
 } from '../../shared';
 import { lyricsService } from '../lyrics/lyricsService';
 
@@ -46,6 +48,13 @@ export class AppleMusicCatalogProvider implements MusicProvider {
       const data: { results?: ItunesResult[] } = await response.json();
       if (!data.results || !Array.isArray(data.results)) return [];
 
+      const qLower = query.toLowerCase();
+      let queryLang: Language | undefined;
+      if (qLower.includes('hindi') || qLower.includes('arijit') || qLower.includes('bollywood')) queryLang = 'hi';
+      else if (qLower.includes('telugu') || qLower.includes('anirudh') || qLower.includes('devara')) queryLang = 'te';
+      else if (qLower.includes('tamil') || qLower.includes('kollywood')) queryLang = 'ta';
+      else if (qLower.includes('malayalam') || qLower.includes('mollywood')) queryLang = 'ml';
+
       return data.results
         .filter((r) => r.trackName && r.artistName)
         .map((r) => {
@@ -74,6 +83,7 @@ export class AppleMusicCatalogProvider implements MusicProvider {
             duration,
             streamUrl: r.previewUrl,
             genre: r.primaryGenreName || 'Music',
+            language: queryLang,
             releaseYear: r.releaseDate ? new Date(r.releaseDate).getFullYear() : undefined,
             playbackAvailability: !!r.previewUrl,
             playbackType,
@@ -205,7 +215,12 @@ export class AppleMusicCatalogProvider implements MusicProvider {
 
     const isPreview = !!result.streamUrl && (result.streamUrl.includes('mzstatic') || result.streamUrl.includes('apple') || result.streamUrl.includes('itunes'));
     const playableDuration = isPreview ? 30 : (result.duration || 180);
-    const fullTrackDuration = result.duration || 180;
+    const fullTrackDuration = result.duration && result.duration > 0 ? result.duration : 180;
+    const duration = getCanonicalTrackDuration({
+      duration: result.duration,
+      fullTrackDuration,
+      fullLengthAvailable: result.fullLengthAvailable
+    });
     const playbackType: PlaybackAvailability = result.streamUrl ? (isPreview ? 'preview' : 'full') : 'unavailable';
 
     // Build intelligent moment sections within playable audio bounds
@@ -220,13 +235,29 @@ export class AppleMusicCatalogProvider implements MusicProvider {
 
     const playbackSourceType = isPreview ? 'preview' : (result.streamUrl ? 'official-provider' : 'unavailable');
 
+    const detectedLang = (result as any).language || lyricsService.detectSongLanguage({
+      id: `am-${result.providerTrackId}`,
+      title: result.title,
+      artist: result.artist,
+      album: result.album,
+      genre: result.genre || 'Contemporary',
+      lyrics: lyrics || {},
+      language: (result as any).language,
+      duration,
+      karaokeReady: false,
+      bpm: 90,
+      musicalKey: 'C Major',
+      artwork,
+      sections: []
+    });
+
     return {
       id: `am-${result.providerTrackId}`,
       title: result.title,
       artist: result.artist,
       album: result.album,
-      duration: playableDuration,
-      fullTrackDuration,
+      duration,
+      fullTrackDuration: duration,
       isStreamPreview: isPreview,
       playbackAvailable: !!result.streamUrl,
       playbackType,
@@ -240,6 +271,8 @@ export class AppleMusicCatalogProvider implements MusicProvider {
       karaokeSource,
       lyricsOffsetMs: 0,
       genre: result.genre || 'Contemporary',
+      language: detectedLang,
+      originalLanguage: detectedLang,
       bpm: 90,
       musicalKey: 'C Major',
       releaseYear: result.releaseYear,

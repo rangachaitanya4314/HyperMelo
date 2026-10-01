@@ -46,7 +46,7 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
         }}
       >
         <img
-          src={artwork.imageUrl}
+          src={safeArtwork.imageUrl}
           alt="Album artwork"
           loading="lazy"
           style={{

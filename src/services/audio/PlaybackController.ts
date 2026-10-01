@@ -369,11 +369,11 @@ export class PlaybackController {
     await this.loadAndPlay(this.queue[prevIndex], 0);
   }
 
-  // =========================================================================
-  // PLAYBACK CONTROL COMMANDS
-  // =========================================================================
+  private currentLoadId = 0;
 
   public async loadAndPlay(song: Song, startTime = 0): Promise<void> {
+    const loadId = ++this.currentLoadId;
+
     // If offline and trying to stream an online-only song
     if (
       !connectivityService.isOnline &&
@@ -395,6 +395,10 @@ export class PlaybackController {
 
     // Resolve genuine full-length playable audio source for catalog song
     const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
+    if (loadId !== this.currentLoadId) {
+      console.warn('[PlaybackController] Stale track resolution ignored for:', song.id);
+      return;
+    }
 
     this.currentTrack = resolvedSong;
     this.addToQueue(resolvedSong);
@@ -452,7 +456,12 @@ export class PlaybackController {
   }
 
   public async load(song: Song, startTime = 0): Promise<void> {
+    const loadId = ++this.currentLoadId;
     const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
+    if (loadId !== this.currentLoadId) {
+      console.warn('[PlaybackController] Stale track resolution ignored for:', song.id);
+      return;
+    }
     this.currentTrack = resolvedSong;
     this.addToQueue(resolvedSong);
     this.notifyTrackChanged();

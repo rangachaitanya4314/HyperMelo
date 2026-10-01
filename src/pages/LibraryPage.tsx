@@ -5,6 +5,7 @@ import { AbstractArtwork } from '../components/AbstractArtwork';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
 import { takePlaybackService } from '../services/audio/takePlaybackService';
 import type { RecordedTake, Song } from '../types/music';
+import { getCanonicalTrackDuration } from '../shared/track';
 
 export const LibraryPage: React.FC = () => {
   const {
@@ -538,7 +539,7 @@ export const LibraryPage: React.FC = () => {
                       fontVariantNumeric: 'tabular-nums'
                     }}
                   >
-                    {formatDuration(song.duration)}
+                    {formatDuration(getCanonicalTrackDuration(song))}
                   </span>
                 </div>
 

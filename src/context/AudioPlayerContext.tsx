@@ -6,6 +6,7 @@ import { karaokePlaybackService } from '../services/audio/karaokePlaybackService
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
+import { getCanonicalTrackDuration } from '../shared/track';
 
 export type AppView = 'home' | 'discover' | 'karaoke' | 'library' | 'downloads';
 
@@ -99,8 +100,11 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [songs, setSongs] = useState<Song[]>(INITIAL_SONGS);
   const [currentSong, setCurrentSong] = useState<Song>(INITIAL_FEATURED_SONG);
   const [volume, setVolumeState] = useState<number>(0.8);
-  const [activeLanguage, setActiveLanguage] = useState<Language>('en');
-  const [displayLanguage, setDisplayLanguageState] = useState<Language>('en');
+  const initialSongLang = useMemo(() => lyricsService.detectSongLanguage(INITIAL_FEATURED_SONG), []);
+  const [activeLanguage, setActiveLanguage] = useState<Language>(initialSongLang);
+  const [displayLanguage, setDisplayLanguageState] = useState<Language>(initialSongLang);
+  const manualLangRef = useRef<{ songId: string; lang: Language } | null>(null);
+  const prevSongIdRef = useRef<string>(INITIAL_FEATURED_SONG.id);
   const [isLoopingSection, setIsLoopingSectionState] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [savedTakes, setSavedTakes] = useState<RecordedTake[]>([]);
@@ -115,12 +119,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Native song language detection
   const nativeLanguage: Language = useMemo(() => {
-    if (currentSong.lyrics?.te?.lines?.length && /[\u0C00-\u0C7F]/.test(currentSong.lyrics.te.lines[0]?.text || '')) return 'te';
-    if (currentSong.lyrics?.ta?.lines?.length && /[\u0B80-\u0BFF]/.test(currentSong.lyrics.ta.lines[0]?.text || '')) return 'ta';
-    if (currentSong.lyrics?.ml?.lines?.length && /[\u0D00-\u0D7F]/.test(currentSong.lyrics.ml.lines[0]?.text || '')) return 'ml';
-    if (currentSong.lyrics?.hi?.lines?.length && /[\u0900-\u097F]/.test(currentSong.lyrics.hi.lines[0]?.text || '')) return 'hi';
-    return lyricsService.detectLanguage((currentSong.title || '') + ' ' + (currentSong.artist || ''));
+    return lyricsService.detectSongLanguage(currentSong);
   }, [currentSong]);
+
+  // Recalculate default lyrics language when song changes
+  useEffect(() => {
+    if (!currentSong) return;
+    const isNew = currentSong.id !== prevSongIdRef.current;
+    if (isNew) {
+      prevSongIdRef.current = currentSong.id;
+      manualLangRef.current = null;
+      const detected = lyricsService.detectSongLanguage(currentSong);
+      console.log('[AudioPlayerContext] Song changed to:', currentSong.id, 'detected lang:', detected);
+      setDisplayLanguageState(detected);
+      setActiveLanguage(detected);
+    }
+  }, [currentSong?.id]);
 
   // Central playback clock states
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -180,10 +194,16 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
+  const targetSongIdRef = useRef<string>(INITIAL_FEATURED_SONG.id);
+
   // 1a. Subscribe to current track updates from PlaybackController
   useEffect(() => {
     const unsubscribeTrack = playbackController.subscribeTrack((track) => {
       if (track) {
+        if (targetSongIdRef.current && track.id !== targetSongIdRef.current) {
+          console.warn('[AudioPlayerContext] Stale track emitted from controller ignored:', track.id, 'expected:', targetSongIdRef.current);
+          return;
+        }
         setCurrentSong(track);
         setDuration(track.duration);
         const chorus = track.sections?.find((s) => s.type === 'chorus') || track.sections?.[0];
@@ -266,12 +286,21 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const playSong = useCallback(
     (song: Song, startTime = 0) => {
+      targetSongIdRef.current = song.id;
       const isNew = song.id !== currentSong.id;
       setCurrentSong(song);
-      setDuration(song.duration);
+      setDuration(getCanonicalTrackDuration(song));
       addSongToCatalog(song);
 
-      const chorus = song.sections.find((s) => s.type === 'chorus') || song.sections[0];
+      if (isNew) {
+        manualLangRef.current = null;
+        const songLang = lyricsService.detectSongLanguage(song);
+        console.log('[playSong] new song:', song.id, 'songLang:', songLang);
+        setDisplayLanguageState(songLang);
+        setActiveLanguage(songLang);
+      }
+
+      const chorus = song.sections?.find((s) => s.type === 'chorus') || song.sections?.[0];
       if (isNew && chorus) {
         setSelectedSectionState(chorus);
         playbackController.setLoopSection(chorus, isLoopingSection);
@@ -390,7 +419,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setDisplayLanguage = useCallback((lang: Language) => {
     setDisplayLanguageState(lang);
     setActiveLanguage(lang);
-  }, []);
+    if (currentSong?.id) {
+      manualLangRef.current = { songId: currentSong.id, lang };
+    }
+  }, [currentSong?.id]);
 
   const openKaraokeForSong = useCallback(
     (song?: Song, section?: SongSection) => {
