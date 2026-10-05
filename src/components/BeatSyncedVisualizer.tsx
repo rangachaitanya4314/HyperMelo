@@ -112,8 +112,8 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
 
       const rect = container.getBoundingClientRect();
       const dpr = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
-      const width = Math.max(260, rect.width || 380);
-      const height = Math.max(260, rect.height || 380);
+      const width = Math.max(140, Math.floor(rect.width || 380));
+      const height = Math.max(140, Math.floor(rect.height || 380));
 
       canvas.width = Math.floor(width * dpr);
       canvas.height = Math.floor(height * dpr);
@@ -128,7 +128,15 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
 
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => handleResize());
+      ro.observe(containerRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (ro) ro.disconnect();
+    };
   }, []);
 
   // Main real-time audio-reactive rendering loop

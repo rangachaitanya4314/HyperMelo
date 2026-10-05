@@ -20,6 +20,7 @@ import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import { lyricsService } from '../services/lyrics/lyricsService';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
+import './NowPlaying.css';
 
 export type AtmosphereMood = 'romance' | 'sad' | 'solaris' | 'midnight';
 
@@ -214,17 +215,6 @@ export const NowPlaying: React.FC = () => {
       data-testid="naro-now-playing"
       role="dialog"
       aria-label={`Now Playing: ${currentSong.title}`}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 95,
-        backgroundColor: '#07090E',
-        color: '#F4F0EB',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        animation: 'nowPlayingFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards'
-      }}
     >
       {/* =========================================================================
           EMOTIONAL ATMOSPHERE BACKDROP
@@ -435,75 +425,34 @@ export const NowPlaying: React.FC = () => {
           TOP BAR / HEADER
           Minimize button, Playing context, Capability badge
           ========================================================================= */}
-      <header
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '20px clamp(20px, 4vw, 48px)',
-          borderBottom: '1px solid rgba(244, 240, 235, 0.06)'
-        }}
-      >
+      <header className="now-playing-header">
         {/* Minimize Button */}
         <button
           id="minimize-now-playing-btn"
           data-testid="minimize-now-playing-btn"
           onClick={closeNowPlaying}
           aria-label="Minimize Now Playing"
-          className="btn-icon"
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(244, 240, 235, 0.08)',
-            border: '1px solid rgba(244, 240, 235, 0.15)',
-            color: '#F4F0EB',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'all 0.2s ease'
-          }}
+          className="now-playing-minimize-btn"
           title="Minimize Now Playing (Esc)"
         >
           <ChevronDown size={24} />
         </button>
 
         {/* Center Title Context */}
-        <div style={{ textAlign: 'center' }}>
-          <span
-            style={{
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'var(--text-dim, #94A3B8)'
-            }}
-          >
+        <div className="now-playing-header-center">
+          <span className="now-playing-header-eyebrow">
             PLAYING FROM NARO
           </span>
-          <div style={{ fontSize: '0.92rem', fontWeight: 600, color: '#F4F0EB' }}>
+          <div className="now-playing-header-context">
             {currentSong.album || currentSong.title}
           </div>
         </div>
 
         {/* Mood Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Mood Icon Tag */}
           <div
             title={`Atmosphere: ${mood}`}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(244, 240, 235, 0.06)',
-              color: 'var(--text-muted, #94A3B8)'
-            }}
+            className="now-playing-mood-badge"
           >
             {mood === 'romance' && <Heart size={15} color="#FB7185" />}
             {mood === 'sad' && <CloudRain size={15} color="#94A3B8" />}
@@ -519,54 +468,28 @@ export const NowPlaying: React.FC = () => {
           Right: Integrated Synced Lyrics Composition
           ========================================================================= */}
       <main
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          flex: 1,
-          display: 'grid',
-          gridTemplateColumns: 'minmax(320px, 1fr) minmax(340px, 1.25fr)',
-          gap: 'clamp(24px, 5vw, 64px)',
-          padding: '24px clamp(20px, 5vw, 64px)',
-          alignItems: 'center',
-          overflow: 'hidden'
-        }}
+        id="now-playing-main"
+        className="now-playing-main"
       >
         {/* Left Column: Expanded Artwork Hero */}
         <section
           aria-label="Track Information and Artwork"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            gap: '24px',
-            maxWidth: '520px',
-            margin: '0 auto',
-            width: '100%'
-          }}
+          className="now-playing-left-col"
         >
           {/* Expanded Artwork with Ambient Outer Glow and Beat-Synced Visualizer */}
           <div
             id="now-playing-artwork-container"
+            className="now-playing-artwork-wrap"
             style={{
-              position: 'relative',
-              width: 'clamp(260px, 32vw, 360px)',
-              height: 'clamp(260px, 32vw, 360px)',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               boxShadow: isPlaying
                 ? '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 80px rgba(245, 158, 11, 0.2)'
-                : '0 20px 40px rgba(0, 0, 0, 0.7)',
-              transition: 'box-shadow 0.6s ease'
+                : '0 20px 40px rgba(0, 0, 0, 0.7)'
             }}
           >
             <BeatSyncedVisualizer
               artwork={currentSong.artwork}
               isPlaying={isPlaying}
-              size={360}
+              size="100%"
               mode="fullscreen"
               songTitle={currentSong.title}
               songArtist={currentSong.artist}
@@ -576,44 +499,22 @@ export const NowPlaying: React.FC = () => {
           </div>
 
           {/* Song Metadata */}
-          <div style={{ width: '100%' }}>
+          <div className="now-playing-metadata">
             <h1
               id="now-playing-title"
-              style={{
-                fontSize: 'clamp(1.6rem, 3.2vw, 2.5rem)',
-                fontWeight: 700,
-                color: '#F4F0EB',
-                margin: 0,
-                letterSpacing: '-0.02em',
-                lineHeight: 1.2
-              }}
+              className="now-playing-title"
             >
               {currentSong.title}
             </h1>
             <p
               id="now-playing-artist"
-              style={{
-                fontSize: 'clamp(1rem, 1.8vw, 1.25rem)',
-                fontWeight: 500,
-                color: 'var(--text-muted, #CBD5E1)',
-                marginTop: '8px',
-                marginBottom: 0
-              }}
+              className="now-playing-artist"
             >
               {currentSong.artist}
             </p>
 
             {/* Song Meta Badges */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '10px',
-                marginTop: '12px',
-                flexWrap: 'wrap'
-              }}
-            >
+            <div className="now-playing-badges">
               {currentSong.genre && (
                 <span
                   style={{
@@ -646,25 +547,13 @@ export const NowPlaying: React.FC = () => {
             </div>
 
             {/* Action Row: Like, Add to Playlist */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '12px',
-                marginTop: '16px'
-              }}
-            >
+            <div className="now-playing-actions">
               <button
                 id="now-playing-like-btn"
                 data-testid="now-playing-like-btn"
                 onClick={() => toggleLikeSong(currentSong)}
-                className="btn-icon"
+                className="now-playing-action-btn"
                 style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(244, 240, 235, 0.08)',
                   color: isSongLiked(currentSong.id) ? '#EF4444' : 'var(--text-muted)'
                 }}
                 title={isSongLiked(currentSong.id) ? 'Unlike' : 'Like'}
@@ -676,14 +565,7 @@ export const NowPlaying: React.FC = () => {
                 id="now-playing-add-playlist-btn"
                 data-testid="now-playing-add-playlist-btn"
                 onClick={() => openAddToPlaylist(currentSong)}
-                className="btn-icon"
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  backgroundColor: 'rgba(244, 240, 235, 0.08)',
-                  color: 'var(--text-primary)'
-                }}
+                className="now-playing-action-btn"
                 title="Add to Playlist"
               >
                 <Plus size={18} />
@@ -691,28 +573,15 @@ export const NowPlaying: React.FC = () => {
             </div>
 
             {/* NARO Immersive Sound Engine Controls */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '16px'
-              }}
-            >
+            <div className="now-playing-sound-controls">
               <button
                 id="now-playing-sound-btn"
                 data-testid="now-playing-sound-btn"
                 onClick={() => {
                   setSoundMode(soundMode === 'immersive' ? 'original' : 'immersive');
                 }}
-                className="glass-pill"
+                className="now-playing-sound-pill"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: 'var(--radius-full)',
                   backgroundColor:
                     soundMode === 'immersive'
                       ? 'rgba(231, 165, 141, 0.25)'
@@ -724,10 +593,7 @@ export const NowPlaying: React.FC = () => {
                   color:
                     soundMode === 'immersive'
                       ? 'var(--accent-cream)'
-                      : 'var(--text-muted)',
-                  fontSize: '0.82rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
+                      : 'var(--text-muted)'
                 }}
               >
                 <Sliders
@@ -742,15 +608,7 @@ export const NowPlaying: React.FC = () => {
               </button>
 
               {soundMode === 'immersive' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '6px',
-                    justifyContent: 'center',
-                    marginTop: '2px'
-                  }}
-                >
+                <div className="now-playing-presets-row">
                   {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map(
                     (preset) => {
                       const isSelected = soundPreset === preset;
@@ -786,29 +644,12 @@ export const NowPlaying: React.FC = () => {
         {/* Right Column: Embedded Synced Lyrics Composition */}
         <section
           aria-label="Synchronized Lyrics"
-          style={{
-            position: 'relative',
-            height: '100%',
-            maxHeight: '520px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'flex-start',
-            overflow: 'hidden'
-          }}
+          className="now-playing-lyrics-col"
         >
           {/* Header Bar: Capability Badge & 5-Language Switcher */}
           <div
             id="now-playing-lyrics-header"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 8px 12px 8px',
-              borderBottom: '1px solid rgba(244, 240, 235, 0.08)',
-              zIndex: 5,
-              flexWrap: 'wrap',
-              gap: '8px'
-            }}
+            className="now-playing-lyrics-header"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span
@@ -936,15 +777,7 @@ export const NowPlaying: React.FC = () => {
             id="now-playing-lyrics-container"
             data-testid="now-playing-lyrics-container"
             ref={lyricsContainerRef}
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '40px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              scrollbarWidth: 'none'
-            }}
+            className="now-playing-lyrics-scroller"
           >
             {hasLyrics ? (
               displayedLines.map((line, idx) => {
@@ -976,7 +809,7 @@ export const NowPlaying: React.FC = () => {
                       cursor: isSynced ? 'pointer' : 'default',
                       transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                       color: isActive ? 'var(--accent-cream, #FEF3C7)' : 'rgba(244, 240, 235, 0.4)',
-                      fontSize: isActive ? 'clamp(1.22rem, 2.3vw, 1.6rem)' : 'clamp(0.98rem, 1.7vw, 1.2rem)',
+                      fontSize: isActive ? 'clamp(1.15rem, 2.2vw, 1.55rem)' : 'clamp(0.95rem, 1.6vw, 1.18rem)',
                       fontWeight: isActive ? 700 : 500,
                       backgroundColor: isActive ? 'rgba(244, 240, 235, 0.08)' : 'transparent',
                       transform: isActive ? 'scale(1.02) translateX(6px)' : 'scale(1)',
@@ -1033,21 +866,9 @@ export const NowPlaying: React.FC = () => {
           BOTTOM AUTHORITATIVE CONTROLS BAR
           Authoritative Playhead Scrubber, Hi-Fi Controls, Volume & Karaoke
           ========================================================================= */}
-      <footer
-        style={{
-          position: 'relative',
-          zIndex: 10,
-          backgroundColor: 'rgba(8, 11, 16, 0.95)',
-          backdropFilter: 'blur(24px)',
-          borderTop: '1px solid rgba(244, 240, 235, 0.08)',
-          padding: '20px clamp(20px, 4vw, 48px)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px'
-        }}
-      >
+      <footer className="now-playing-footer">
         {/* Scrubber & Central Playback Clock */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+        <div className="now-playing-scrubber-row">
           <span
             id="now-playing-current-time"
             style={{
@@ -1098,16 +919,7 @@ export const NowPlaying: React.FC = () => {
         </div>
 
         {/* Action Controls Row */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-            maxWidth: '800px',
-            margin: '0 auto'
-          }}
-        >
+        <div className="now-playing-controls-row">
           {/* Left: Moment Repeat */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
@@ -1127,7 +939,7 @@ export const NowPlaying: React.FC = () => {
           </div>
 
           {/* Center: Prev, Play/Pause, Next */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <button
               onClick={prevSong}
               aria-label="Previous Track"
@@ -1147,20 +959,7 @@ export const NowPlaying: React.FC = () => {
               data-testid="now-playing-play-btn"
               onClick={togglePlay}
               aria-label={isPlaying ? 'Pause' : 'Play'}
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-cream, #F4DFC9)',
-                border: 'none',
-                color: '#080B10',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 8px 24px rgba(244, 223, 201, 0.35)',
-                transition: 'transform 0.15s ease'
-              }}
+              className="now-playing-play-btn"
             >
               {isPlaying ? <Pause size={24} fill="#080B10" /> : <Play size={24} fill="#080B10" style={{ marginLeft: '3px' }} />}
             </button>
@@ -1182,38 +981,39 @@ export const NowPlaying: React.FC = () => {
 
           {/* Right: Master Volume */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button
-                onClick={handleMuteToggle}
-                aria-label={volume === 0 ? 'Unmute' : 'Mute'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--text-muted, #CBD5E1)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </button>
+            <button
+              onClick={handleMuteToggle}
+              aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted, #CBD5E1)',
+                cursor: 'pointer',
+                padding: '4px'
+              }}
+            >
+              {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
 
-              <input
-                id="now-playing-volume-slider"
-                type="range"
-                min={0}
-                max={1}
-                step={0.02}
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                aria-label="Volume Slider"
-                style={{
-                  width: '75px',
-                  accentColor: 'var(--accent-warm, #E7A58D)',
-                  cursor: 'pointer',
-                  height: '4px'
-                }}
-              />
-            </div>
+            <input
+              id="now-playing-volume-slider"
+              className="now-playing-volume-slider"
+              type="range"
+              min={0}
+              max={1}
+              step={0.02}
+              value={volume}
+              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              aria-label="Volume Slider"
+              style={{
+                width: '75px',
+                accentColor: 'var(--accent-warm, #E7A58D)',
+                cursor: 'pointer',
+                height: '4px'
+              }}
+            />
           </div>
+        </div>
       </footer>
     </div>
   );
