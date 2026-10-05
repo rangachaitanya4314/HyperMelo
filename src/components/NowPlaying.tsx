@@ -18,6 +18,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import { lyricsService } from '../services/lyrics/lyricsService';
+import { validateScriptForLanguage, transliterateIndic } from '../services/lyrics/translationService';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 import './NowPlaying.css';
@@ -76,6 +77,7 @@ export const NowPlaying: React.FC = () => {
     setIsLoopingSection,
     displayLanguage,
     setDisplayLanguage,
+    lyricsRevision,
     soundMode,
     soundPreset,
     setSoundMode,
@@ -128,7 +130,7 @@ export const NowPlaying: React.FC = () => {
     }
 
     // 2. Check if already cached synchronously (0ms delay)
-    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, displayLanguage, currentSong.id);
+    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, displayLanguage, currentSong.id, originalLanguage);
     if (cached) {
       setDisplayedLines(cached);
       setIsTranslating(false);
@@ -137,7 +139,7 @@ export const NowPlaying: React.FC = () => {
 
     // 3. Otherwise fetch translation asynchronously (< 1 second)
     setIsTranslating(true);
-    lyricsService.translateLyricLines(canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id)
+    lyricsService.translateLyricLines(canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id, true)
       .then((translated) => {
         if (translationRequestRef.current === requestId) {
           setDisplayedLines(translated);
@@ -149,7 +151,7 @@ export const NowPlaying: React.FC = () => {
           setIsTranslating(false);
         }
       });
-  }, [canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id]);
+  }, [canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id, lyricsRevision]);
 
   const hasLyrics = displayedLines.length > 0 && lyricsCapability !== 'LYRICS_UNAVAILABLE';
 
@@ -663,20 +665,19 @@ export const NowPlaying: React.FC = () => {
                   backgroundColor: isSynced
                     ? 'rgba(56, 189, 248, 0.15)'
                     : lyricsCapability === 'PLAIN_LYRICS'
-                    ? 'rgba(244, 240, 235, 0.08)'
-                    : 'rgba(239, 68, 68, 0.12)',
+                      ? 'rgba(244, 240, 235, 0.08)'
+                      : 'rgba(239, 68, 68, 0.12)',
                   color: isSynced
                     ? '#38BDF8'
                     : lyricsCapability === 'PLAIN_LYRICS'
-                    ? 'var(--text-muted, #94A3B8)'
-                    : '#F87171',
-                  border: `1px solid ${
-                    isSynced
+                      ? 'var(--text-muted, #94A3B8)'
+                      : '#F87171',
+                  border: `1px solid ${isSynced
                       ? 'rgba(56, 189, 248, 0.3)'
                       : lyricsCapability === 'PLAIN_LYRICS'
-                      ? 'rgba(244, 240, 235, 0.15)'
-                      : 'rgba(239, 68, 68, 0.3)'
-                  }`,
+                        ? 'rgba(244, 240, 235, 0.15)'
+                        : 'rgba(239, 68, 68, 0.3)'
+                    }`,
                   textTransform: 'uppercase'
                 }}
               >
@@ -784,7 +785,15 @@ export const NowPlaying: React.FC = () => {
                 const isActive = idx === activeLyricIndex;
                 const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : line.time;
                 const translation = lyricsService.getLineTranslation(line, displayLanguage, originalLanguage);
-                const displayText = translation.isAvailable ? translation.text : line.text;
+                const isTargetOriginal = displayLanguage === originalLanguage;
+                const candidateText = (translation.isAvailable && validateScriptForLanguage(translation.text, displayLanguage, originalLanguage))
+                  ? translation.text
+                  : (validateScriptForLanguage(line.text, displayLanguage, originalLanguage)
+                      ? line.text
+                      : (line.translations?.[displayLanguage] && validateScriptForLanguage(line.translations[displayLanguage], displayLanguage, originalLanguage)
+                          ? line.translations[displayLanguage]
+                          : (isTargetOriginal ? line.text : transliterateIndic(line.text, displayLanguage))));
+                const displayText = candidateText;
                 const originalText = canonicalLyricLines[idx]?.text || line.text;
                 const showSubtitle = displayLanguage !== originalLanguage && originalText && originalText !== displayText;
 
@@ -850,12 +859,11 @@ export const NowPlaying: React.FC = () => {
                   color: 'var(--text-muted, #94A3B8)'
                 }}
               >
-                <p style={{ fontSize: '1.25rem', fontWeight: 600, color: '#F4F0EB', marginBottom: '8px' }}>
-                  Lyrics unavailable for this track
-                </p>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-dim, #64748B)', maxWidth: '340px' }}>
-                  Synchronized lyric streams are delivered only for verified master tracks. Enjoy continuous studio playback.
-                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '220px', height: '14px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.08)' }} />
+                  <div style={{ width: '300px', height: '20px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.12)' }} />
+                  <div style={{ width: '180px', height: '14px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.08)' }} />
+                </div>
               </div>
             )}
           </div>

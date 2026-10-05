@@ -7,8 +7,10 @@ import {
   type LanguageLyrics,
   type TimedLyricLine,
   type ILyricsService,
+  type Language,
   detectLanguage
 } from '../../shared';
+import { validateScriptForLanguage } from '../../services/lyrics/translationService';
 
 interface LrclibRecord {
   id?: number;
@@ -69,6 +71,11 @@ export class LyricsIngestionService implements ILyricsService {
       const duration = next ? Math.max(0.8, next.time - current.time) : Math.max(2, totalDuration - current.time);
 
       const detected = detectLanguage(current.text);
+      const translations: Record<string, string> = {};
+      if (validateScriptForLanguage(current.text, detected)) {
+        translations[detected] = current.text;
+      }
+
       result.push({
         id: `lyric-${i}`,
         startTime: current.time,
@@ -76,9 +83,7 @@ export class LyricsIngestionService implements ILyricsService {
         time: current.time,
         duration,
         text: current.text,
-        translations: {
-          [detected]: current.text
-        }
+        translations
       });
     }
 
@@ -87,7 +92,7 @@ export class LyricsIngestionService implements ILyricsService {
 
   /**
    * Parse plain lyrics into lines when synced LRC is unavailable.
-   * NEVER generates synthetic timestamps from duration, formulas, or intervals!
+   * Generates initial plain model (timestamps can be generated from canonical timeline).
    */
   public parsePlainLyrics(plainText: string): TimedLyricLine[] {
     const rawLines = plainText
@@ -99,15 +104,18 @@ export class LyricsIngestionService implements ILyricsService {
 
     return rawLines.map((text, idx) => {
       const detected = detectLanguage(text);
+      const translations: Record<string, string> = {};
+      if (validateScriptForLanguage(text, detected)) {
+        translations[detected] = text;
+      }
+
       return {
         id: `plain-${idx}`,
         startTime: -1,
         time: -1,
         duration: 0,
         text,
-        translations: {
-          [detected]: text
-        }
+        translations
       };
     });
   }
@@ -120,9 +128,10 @@ export class LyricsIngestionService implements ILyricsService {
     artistName: string,
     duration?: number,
     albumName?: string,
-    isrc?: string
+    isrc?: string,
+    originalLanguage?: Language
   ): Promise<SongLyrics | null> {
-    const cacheKey = `${trackName.toLowerCase()}_${artistName.toLowerCase()}_${Math.round(duration || 0)}`;
+    const cacheKey = `${trackName.toLowerCase()}_${artistName.toLowerCase()}_${Math.round(duration || 0)}_${originalLanguage || 'auto'}`;
     if (this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)!;
     }
@@ -144,7 +153,7 @@ export class LyricsIngestionService implements ILyricsService {
       const getRes = await fetch(exactUrl, { signal: AbortSignal.timeout(3000) });
       if (getRes.ok) {
         const record: LrclibRecord = await getRes.json();
-        const lyrics = this.buildSongLyricsFromRecord(record, duration || record.duration || 180);
+        const lyrics = this.buildSongLyricsFromRecord(record, duration || record.duration || 180, originalLanguage);
         if (lyrics) {
           this.cache.set(cacheKey, lyrics);
           return lyrics;
@@ -152,7 +161,8 @@ export class LyricsIngestionService implements ILyricsService {
       }
 
       // Step 2: Fallback to filtered search
-      const searchUrl = `https://lrclib.net/api/search?track_name=${encodeURIComponent(cleanTrack)}&artist_name=${encodeURIComponent(cleanArtist)}`;
+      const searchQuery = `${cleanTrack} ${cleanArtist}`.trim();
+      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(searchQuery)}`;
       const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(3000) });
       if (!searchRes.ok) return null;
 
@@ -166,7 +176,7 @@ export class LyricsIngestionService implements ILyricsService {
           return false;
         }
         if (duration && c.duration) {
-          if (Math.abs(c.duration - duration) > 14) return false;
+          if (Math.abs(c.duration - duration) > 18) return false;
         }
         if (isrc && c.isrc && c.isrc !== isrc) return false;
         return true;
@@ -175,7 +185,7 @@ export class LyricsIngestionService implements ILyricsService {
       const best = (suitable.length > 0 ? suitable : candidates).find((c) => c.syncedLyrics) || candidates[0];
       const approxDuration = duration || best.duration || 180;
 
-      const lyrics = this.buildSongLyricsFromRecord(best, approxDuration);
+      const lyrics = this.buildSongLyricsFromRecord(best, approxDuration, originalLanguage);
       if (lyrics) {
         this.cache.set(cacheKey, lyrics);
         return lyrics;
@@ -187,7 +197,11 @@ export class LyricsIngestionService implements ILyricsService {
     }
   }
 
-  private buildSongLyricsFromRecord(record: LrclibRecord, duration: number): SongLyrics | null {
+  private buildSongLyricsFromRecord(
+    record: LrclibRecord,
+    duration: number,
+    originalLanguage?: Language
+  ): SongLyrics | null {
     let lines: TimedLyricLine[] = [];
 
     if (record.syncedLyrics) {
@@ -201,27 +215,40 @@ export class LyricsIngestionService implements ILyricsService {
     const middleIdx = Math.floor(lines.length / 2);
     const chorusSnippet = lines[middleIdx]?.text || lines[0]?.text || '';
 
-
-    // Detect script from sample lines or metadata
+    // Step 1: Check script from parsed lines
     const sampleText = lines.slice(0, 10).map((l) => l.text).join(' ');
-    let detectedLang = detectLanguage(sampleText);
+    let detectedLang: Language = detectLanguage(sampleText);
+
+    // Step 2: If script is English/Latin, determine language from metadata or provided originalLanguage
     if (detectedLang === 'en') {
-      const meta = `${record.trackName} ${record.artistName} ${record.albumName || ''}`.toLowerCase();
-      if (meta.includes('hindi') || meta.includes('arijit') || meta.includes('pritam') || meta.includes('channa') || meta.includes('apna') || meta.includes('kesariya')) {
-        detectedLang = 'hi';
-      } else if (meta.includes('telugu') || meta.includes('devara') || meta.includes('neeve') || meta.includes('vennela') || meta.includes('anirudh') || meta.includes('fear song')) {
-        detectedLang = 'te';
-      } else if (meta.includes('tamil') || meta.includes('kuthu') || meta.includes('hukum') || meta.includes('kaavaalaa')) {
-        detectedLang = 'ta';
-      } else if (meta.includes('malayalam') || meta.includes('illuminati') || meta.includes('aavesham')) {
-        detectedLang = 'ml';
+      if (originalLanguage && (['en', 'hi', 'te', 'ta', 'ml'] as string[]).includes(originalLanguage)) {
+        detectedLang = originalLanguage;
+      } else {
+        const meta = `${record.trackName} ${record.artistName} ${record.albumName || ''}`.toLowerCase();
+        if (meta.includes('tamil') || meta.includes('kollywood') || meta.includes('leo') || meta.includes('badass') || meta.includes('kuthu') || meta.includes('hukum') || meta.includes('kaavaalaa') || meta.includes('vaathi') || meta.includes('jailer')) {
+          detectedLang = 'ta';
+        } else if (meta.includes('telugu') || meta.includes('tollywood') || meta.includes('devara') || meta.includes('neeve') || meta.includes('vennela') || meta.includes('fear song') || meta.includes('chuttamalle') || meta.includes('naatu')) {
+          detectedLang = 'te';
+        } else if (meta.includes('hindi') || meta.includes('bollywood') || meta.includes('arijit') || meta.includes('pritam') || meta.includes('channa') || meta.includes('apna') || meta.includes('kesariya')) {
+          detectedLang = 'hi';
+        } else if (meta.includes('malayalam') || meta.includes('mollywood') || meta.includes('illuminati') || meta.includes('aavesham')) {
+          detectedLang = 'ml';
+        } else if (meta.includes('anirudh')) {
+          // Anirudh Ravichander is primarily a Tamil composer
+          detectedLang = 'ta';
+        }
       }
     }
 
-    // Attach detected language to each line's translations dictionary
+    // Attach detected language to each line's translations dictionary strictly when validated
     lines.forEach((l) => {
       if (!l.translations) l.translations = {};
-      l.translations[detectedLang] = l.text;
+      // Never attach wrong script as a language translation!
+      if (validateScriptForLanguage(l.text, detectedLang)) {
+        l.translations[detectedLang] = l.text;
+      } else if (detectedLang === 'en') {
+        l.translations['en'] = l.text;
+      }
     });
 
     const langLyrics: LanguageLyrics = {

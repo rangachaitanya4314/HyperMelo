@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { lyricsService } from '../services/lyrics/lyricsService';
+import { validateScriptForLanguage, transliterateIndic } from '../services/lyrics/translationService';
 import { SUPPORTED_LANGUAGES, type TimedLyricLine } from '../types/music';
 
 export const LyricsDrawer: React.FC = () => {
@@ -12,6 +13,7 @@ export const LyricsDrawer: React.FC = () => {
     currentTime,
     displayLanguage,
     setDisplayLanguage,
+    lyricsRevision,
     seekTo
   } = useAudioPlayer();
 
@@ -42,20 +44,20 @@ export const LyricsDrawer: React.FC = () => {
       return;
     }
 
-    const cached = lyricsService.getCachedTranslation(canonicalLines, displayLanguage, currentSong.id);
+    const cached = lyricsService.getCachedTranslation(canonicalLines, displayLanguage, currentSong.id, originalLanguage);
     if (cached) {
       setDisplayedLines(cached);
       return;
     }
 
-    lyricsService.translateLyricLines(canonicalLines, displayLanguage, originalLanguage, currentSong.id)
+    lyricsService.translateLyricLines(canonicalLines, displayLanguage, originalLanguage, currentSong.id, true)
       .then((translated) => {
         if (translationRequestRef.current === requestId) {
           setDisplayedLines(translated);
         }
       })
       .catch(() => {});
-  }, [canonicalLines, displayLanguage, originalLanguage, currentSong.id]);
+  }, [canonicalLines, displayLanguage, originalLanguage, currentSong.id, lyricsRevision]);
 
   const lyricsCapability = lyricsService.getLyricsCapability(currentSong);
   const isSynced = lyricsCapability === 'SYNCED_LYRICS';
@@ -206,12 +208,11 @@ export const LyricsDrawer: React.FC = () => {
       >
         {displayedLines.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
-              Lyrics unavailable
-            </p>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', maxWidth: '280px', margin: '0 auto', lineHeight: 1.5 }}>
-              Synchronized lyrics have not been licensed or provided for this track. Audio playback and karaoke backing remain fully active.
-            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+              <div style={{ width: '160px', height: '12px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.08)' }} />
+              <div style={{ width: '220px', height: '16px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.12)' }} />
+              <div style={{ width: '140px', height: '12px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.08)' }} />
+            </div>
           </div>
         ) : (
           displayedLines.map((line, idx) => {
@@ -219,7 +220,15 @@ export const LyricsDrawer: React.FC = () => {
             const isPast = activeLineIndex !== -1 && idx < activeLineIndex;
             const startTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : line.time ?? 0;
             const translation = lyricsService.getLineTranslation(line, displayLanguage, originalLanguage);
-            const displayText = translation.isAvailable ? translation.text : line.text;
+            const isTargetOriginal = displayLanguage === originalLanguage;
+            const candidateText = (translation.isAvailable && validateScriptForLanguage(translation.text, displayLanguage, originalLanguage))
+              ? translation.text
+              : (validateScriptForLanguage(line.text, displayLanguage, originalLanguage)
+                  ? line.text
+                  : (line.translations?.[displayLanguage] && validateScriptForLanguage(line.translations[displayLanguage], displayLanguage, originalLanguage)
+                      ? line.translations[displayLanguage]
+                      : (isTargetOriginal ? line.text : transliterateIndic(line.text, displayLanguage))));
+            const displayText = candidateText;
             const origText = canonicalLines[idx]?.text || line.text;
 
             return (

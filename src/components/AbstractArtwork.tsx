@@ -96,23 +96,23 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
         }}
       >
         <defs>
-          <radialGradient id={`rad-${artwork.pattern}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={artwork.accentWarm} stopOpacity="0.85" />
+          <radialGradient id={`rad-${safeArtwork.pattern}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={safeArtwork.accentWarm} stopOpacity="0.85" />
             <stop offset="45%" stopColor={c1} stopOpacity="0.7" />
             <stop offset="80%" stopColor={c2} stopOpacity="0.4" />
             <stop offset="100%" stopColor={c3} stopOpacity="0.1" />
           </radialGradient>
 
-          <linearGradient id={`lin-${artwork.pattern}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={`lin-${safeArtwork.pattern}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor={c1} />
             <stop offset="50%" stopColor={c2} />
             <stop offset="100%" stopColor={c3} />
           </linearGradient>
 
-          <linearGradient id={`foil-${artwork.pattern}`} x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stopColor={artwork.accentWarm} stopOpacity="0.4" />
+          <linearGradient id={`foil-${safeArtwork.pattern}`} x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stopColor={safeArtwork.accentWarm} stopOpacity="0.4" />
             <stop offset="50%" stopColor={c4} stopOpacity="0.1" />
-            <stop offset="100%" stopColor={artwork.accentCool} stopOpacity="0.5" />
+            <stop offset="100%" stopColor={safeArtwork.accentCool} stopOpacity="0.5" />
           </linearGradient>
 
           {/* Vinyl groove filter */}
@@ -128,33 +128,33 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
         <rect width="400" height="400" fill="#0A0E15" />
 
         {/* Dynamic geometric composition according to pattern */}
-        {artwork.pattern === 'orbital' && (
+        {safeArtwork.pattern === 'orbital' && (
           <g>
-            <circle cx="200" cy="200" r="170" fill={`url(#rad-${artwork.pattern})`} />
+            <circle cx="200" cy="200" r="170" fill={`url(#rad-${safeArtwork.pattern})`} />
             <circle cx="230" cy="180" r="95" fill={c1} opacity="0.6" filter="blur(20px)" />
-            <ellipse cx="160" cy="230" rx="140" ry="70" fill={artwork.accentCool} opacity="0.25" transform="rotate(-25 160 230)" />
+            <ellipse cx="160" cy="230" rx="140" ry="70" fill={safeArtwork.accentCool} opacity="0.25" transform="rotate(-25 160 230)" />
             <circle cx="200" cy="200" r="130" stroke="rgba(244, 240, 235, 0.12)" strokeWidth="1.5" fill="none" />
             <circle cx="200" cy="200" r="85" stroke="rgba(231, 165, 141, 0.28)" strokeWidth="1" strokeDasharray="4 8" fill="none" />
-            <circle cx="270" cy="140" r="14" fill={artwork.accentWarm} opacity="0.9" filter="drop-shadow(0 0 10px rgba(231,165,141,0.8))" />
+            <circle cx="270" cy="140" r="14" fill={safeArtwork.accentWarm} opacity="0.9" filter="drop-shadow(0 0 10px rgba(231,165,141,0.8))" />
           </g>
         )}
 
-        {artwork.pattern === 'geometric' && (
+        {safeArtwork.pattern === 'geometric' && (
           <g>
-            <rect width="400" height="400" fill={`url(#lin-${artwork.pattern})`} opacity="0.4" />
-            <polygon points="200,40 360,320 40,320" fill="none" stroke={artwork.accentWarm} strokeWidth="1.5" opacity="0.4" />
-            <polygon points="200,80 330,300 70,300" fill={`url(#rad-${artwork.pattern})`} opacity="0.75" />
+            <rect width="400" height="400" fill={`url(#lin-${safeArtwork.pattern})`} opacity="0.4" />
+            <polygon points="200,40 360,320 40,320" fill="none" stroke={safeArtwork.accentWarm} strokeWidth="1.5" opacity="0.4" />
+            <polygon points="200,80 330,300 70,300" fill={`url(#rad-${safeArtwork.pattern})`} opacity="0.75" />
             <circle cx="200" cy="220" r="70" fill={c2} opacity="0.8" />
-            <circle cx="200" cy="220" r="45" fill={artwork.accentCool} opacity="0.5" filter="blur(10px)" />
+            <circle cx="200" cy="220" r="45" fill={safeArtwork.accentCool} opacity="0.5" filter="blur(10px)" />
             <line x1="200" y1="20" x2="200" y2="380" stroke="rgba(244, 240, 235, 0.15)" strokeWidth="1" strokeDasharray="3 6" />
           </g>
         )}
 
-        {artwork.pattern === 'echo' && (
+        {safeArtwork.pattern === 'echo' && (
           <g>
             <rect width="400" height="400" fill={c3} />
             <circle cx="170" cy="200" r="140" fill={c1} opacity="0.35" filter="blur(30px)" />
-            <circle cx="240" cy="180" r="110" fill={artwork.accentWarm} opacity="0.4" filter="blur(25px)" />
+            <circle cx="240" cy="180" r="110" fill={safeArtwork.accentWarm} opacity="0.4" filter="blur(25px)" />
             {[40, 75, 110, 145, 180].map((r, i) => (
               <circle
                 key={i}
@@ -167,14 +167,14 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
                 strokeDasharray={i % 2 === 0 ? '6 4' : 'none'}
               />
             ))}
-            <circle cx="200" cy="200" r="32" fill={artwork.accentWarm} opacity="0.85" />
+            <circle cx="200" cy="200" r="32" fill={safeArtwork.accentWarm} opacity="0.85" />
           </g>
         )}
 
-        {artwork.pattern === 'solaris' && (
+        {safeArtwork.pattern === 'solaris' && (
           <g>
             <rect width="400" height="400" fill="#0C0812" />
-            <circle cx="200" cy="200" r="180" fill={`url(#rad-${artwork.pattern})`} opacity="0.8" />
+            <circle cx="200" cy="200" r="180" fill={`url(#rad-${safeArtwork.pattern})`} opacity="0.8" />
             <circle cx="200" cy="200" r="120" fill={c1} opacity="0.5" filter="blur(16px)" />
             <path
               d="M 60 200 Q 200 80 340 200 Q 200 320 60 200 Z"
@@ -202,7 +202,7 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
               />
             ))}
             {/* Center Label */}
-            <circle cx="200" cy="200" r="55" fill="#0D1118" stroke={artwork.accentWarm} strokeWidth="1.5" />
+            <circle cx="200" cy="200" r="55" fill="#0D1118" stroke={safeArtwork.accentWarm} strokeWidth="1.5" />
             <circle cx="200" cy="200" r="50" fill="none" stroke="rgba(244, 240, 235, 0.15)" strokeWidth="0.8" strokeDasharray="3 3" />
             <circle cx="200" cy="200" r="12" fill="#080B10" stroke={cream} strokeWidth="1.2" />
             <text
@@ -221,7 +221,7 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
               x="200"
               y="226"
               textAnchor="middle"
-              fill={artwork.accentWarm}
+              fill={safeArtwork.accentWarm}
               fontSize="7"
               fontStyle="italic"
               letterSpacing="0.05em"

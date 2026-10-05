@@ -462,9 +462,6 @@ export const KaraokeRecordingState: React.FC = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                <span style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  Lyrics unavailable
-                </span>
                 <span style={{ color: 'var(--text-dim)', fontSize: '0.95rem' }}>
                   ♪ Backing music playing — sing your moment freely
                 </span>

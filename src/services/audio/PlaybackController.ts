@@ -272,6 +272,16 @@ export class PlaybackController {
     }
   }
 
+  public getAudioElement(): HTMLAudioElement | null {
+    if (this.activeProvider && 'getAudioElement' in this.activeProvider) {
+      return (this.activeProvider as unknown as { getAudioElement(): HTMLAudioElement }).getAudioElement();
+    }
+    if (typeof window !== 'undefined') {
+      return (window as unknown as { __naro_audio?: HTMLAudioElement }).__naro_audio || null;
+    }
+    return null;
+  }
+
   public getProviderCapabilities(): ProviderCapabilities | null {
     return this.activeProvider?.capabilities || null;
   }
@@ -555,13 +565,6 @@ export class PlaybackController {
   public getVisualizerData(): Uint8Array | null {
     if (this.activeProvider) {
       return this.activeProvider.getVisualizerData();
-    }
-    return null;
-  }
-
-  public getAudioElement(): HTMLAudioElement | null {
-    if (this.activeProvider && 'getAudioElement' in this.activeProvider) {
-      return (this.activeProvider as unknown as { getAudioElement(): HTMLAudioElement }).getAudioElement();
     }
     return null;
   }

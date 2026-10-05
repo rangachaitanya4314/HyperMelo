@@ -35,6 +35,7 @@ interface AudioPlayerContextType {
   micLevel: number;
   nativeLanguage: Language;
   displayLanguage: Language;
+  lyricsRevision: number;
 
   // NARO Immersive Sound Engine
   soundMode: SoundMode;
@@ -141,8 +142,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [currentSong, setCurrentSong] = useState<Song>(INITIAL_FEATURED_SONG);
   const [volume, setVolumeState] = useState<number>(0.8);
   const initialSongLang = useMemo(() => lyricsService.detectSongLanguage(INITIAL_FEATURED_SONG), []);
-  const [activeLanguage, setActiveLanguage] = useState<Language>(initialSongLang);
+  const [activeLanguage, setActiveLanguageState] = useState<Language>(initialSongLang);
   const [displayLanguage, setDisplayLanguageState] = useState<Language>(initialSongLang);
+  const [lyricsRevision, setLyricsRevision] = useState<number>(0);
   const manualLangRef = useRef<{ songId: string; lang: Language } | null>(null);
   const prevSongIdRef = useRef<string>(INITIAL_FEATURED_SONG.id);
   const [isLoopingSection, setIsLoopingSectionState] = useState<boolean>(false);
@@ -353,7 +355,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return lyricsService.detectSongLanguage(currentSong);
   }, [currentSong]);
 
-  // Recalculate default lyrics language when song changes
+  // Recalculate default lyrics language when song changes & resolve canonical lyrics
   useEffect(() => {
     if (!currentSong) return;
     const isNew = currentSong.id !== prevSongIdRef.current;
@@ -362,8 +364,12 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       manualLangRef.current = null;
       const detected = lyricsService.detectSongLanguage(currentSong);
       setDisplayLanguageState(detected);
-      setActiveLanguage(detected);
+      setActiveLanguageState(detected);
     }
+    // Asynchronously resolve lyrics from online provider or sections if needed
+    lyricsService.resolveCanonicalLyrics(currentSong).then(() => {
+      setLyricsRevision((prev) => prev + 1);
+    });
   }, [currentSong?.id]);
 
   // Central playback clock states
@@ -492,8 +498,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setDisplayLanguage = useCallback((lang: Language) => {
     manualLangRef.current = { songId: currentSong.id, lang };
+    const origLang = lyricsService.detectSongLanguage(currentSong);
+    // Clear translation cache if re-selecting same language or switching to force fresh resolution
+    lyricsService.clearTranslationCache(currentSong.id, origLang, lang);
     setDisplayLanguageState(lang);
-  }, [currentSong?.id]);
+    setActiveLanguageState(lang);
+    setLyricsRevision((prev) => prev + 1);
+  }, [currentSong]);
+
+  const setActiveLanguage = useCallback((lang: Language) => {
+    manualLangRef.current = { songId: currentSong.id, lang };
+    const origLang = lyricsService.detectSongLanguage(currentSong);
+    lyricsService.clearTranslationCache(currentSong.id, origLang, lang);
+    setActiveLanguageState(lang);
+    setDisplayLanguageState(lang);
+    setLyricsRevision((prev) => prev + 1);
+  }, [currentSong]);
 
   const setSelectedSection = useCallback((sec: SongSection) => {
     setSelectedSectionState(sec);
@@ -602,6 +622,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setLyricsDrawerOpen((prev) => !prev);
   }, []);
 
+  const openLyricsDrawer = useCallback(() => {
+    setLyricsDrawerOpen(true);
+  }, []);
+
+  const closeLyricsDrawer = useCallback(() => {
+    setLyricsDrawerOpen(false);
+  }, []);
+
   const openNowPlaying = useCallback(() => {
     setNowPlayingOpen(true);
   }, []);
@@ -630,6 +658,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_open_karaoke_modal?: () => void;
         __naro_get_audio?: () => HTMLAudioElement | null;
         __naro_toggle_lyrics?: () => void;
+        __naro_open_lyrics?: () => void;
+        __naro_close_lyrics?: () => void;
+        __naro_is_lyrics_open?: () => boolean;
         __naro_seek?: (time: number) => void;
         __naro_open_now_playing?: () => void;
         __naro_close_now_playing?: () => void;
@@ -645,6 +676,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_get_sound_mode?: () => SoundMode;
         __naro_set_sound_preset?: (preset: SoundPreset) => void;
         __naro_get_sound_preset?: () => SoundPreset;
+        __naro_refresh_lyrics?: () => void;
+        __naro_get_lyrics_revision?: () => number;
         __naro_toggle_like?: (s: Song) => void;
         __naro_is_liked?: (id: string) => boolean;
         __naro_get_playlists?: () => Playlist[];
@@ -659,6 +692,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_open_karaoke_modal = () => openKaraokeForSong(currentSong);
       win.__naro_get_audio = () => playbackController.getAudioElement();
       win.__naro_toggle_lyrics = toggleLyricsDrawer;
+      win.__naro_open_lyrics = openLyricsDrawer;
+      win.__naro_close_lyrics = closeLyricsDrawer;
+      win.__naro_is_lyrics_open = () => lyricsDrawerOpen;
       win.__naro_seek = seekTo;
       win.__naro_open_now_playing = openNowPlaying;
       win.__naro_close_now_playing = closeNowPlaying;
@@ -666,9 +702,11 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_is_now_playing_open = () => nowPlayingOpen;
       win.__naro_set_display_language = setDisplayLanguage;
       win.__naro_get_display_language = () => displayLanguage;
-      win.__naro_get_current_time = () => currentTime;
-      win.__naro_is_playing = () => isPlaying;
+      win.__naro_get_current_time = () => playbackController.getCurrentClock().currentTime;
+      win.__naro_is_playing = () => playbackController.getCurrentClock().isPlaying;
       win.__naro_get_canonical_lines = () => lyricsService.getCanonicalLyricLines(currentSong);
+      win.__naro_refresh_lyrics = () => setLyricsRevision((prev) => prev + 1);
+      win.__naro_get_lyrics_revision = () => lyricsRevision;
       win.__naro_set_sound_mode = setSoundMode;
       win.__naro_get_sound_mode = () => soundMode;
       win.__naro_set_sound_preset = setSoundPreset;
@@ -684,6 +722,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     toggleKaraokeMode,
     openKaraokeForSong,
     toggleLyricsDrawer,
+    openLyricsDrawer,
+    closeLyricsDrawer,
+    lyricsDrawerOpen,
     seekTo,
     openNowPlaying,
     closeNowPlaying,
@@ -726,6 +767,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         micLevel,
         nativeLanguage,
         displayLanguage,
+        lyricsRevision,
         soundMode,
         soundPreset,
         setSoundMode,
