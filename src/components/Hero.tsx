@@ -2,29 +2,20 @@ import React from 'react';
 import { Play, Pause, Sparkles } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
-import type { Language } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 
 export const Hero: React.FC = () => {
   const {
     currentSong,
     isPlaying,
+    currentTime,
     togglePlay,
+    seekTo,
     activeLanguage,
     setActiveLanguage,
+    displayLanguage,
     setDisplayLanguage
   } = useAudioPlayer();
-
-  // Multilingual floating lyric fragments
-  const floatingLyricsByLang: Record<Language, [string, string, string]> = {
-    en: ['I remember when...', 'we were young', '♪ tonight'],
-    hi: ['मुझे याद है वो पल...', 'जब हम बेपरवाह थे', '♪ आज की रात'],
-    te: ['గుర్తుంది నాకు ఆ రోజు...', 'మన యవ్వన కాలం', '♪ ఈ రేయి'],
-    ta: ['எனக்கு நினைவிருக்கிறது...', 'நாம் இளமையாக இருந்தபோது', '♪ இன்று இரவு'],
-    ml: ['എനിക്ക് ഓർമ്മയുണ്ട്...', 'നാം ചെറുപ്പമായിരുന്നപ്പോൾ', '♪ ഇന്ന് രാത്രി']
-  };
-
-  const fragments = floatingLyricsByLang[activeLanguage];
 
   return (
     <section
@@ -265,84 +256,7 @@ export const Hero: React.FC = () => {
             }}
           />
 
-          {/* Floating Lyric Fragment 1 (Top Left) */}
-          <div
-            className="animate-float-1 glass-pill"
-            style={{
-              position: 'absolute',
-              top: '8%',
-              left: '-4%',
-              padding: '8px 18px',
-              boxShadow: 'var(--shadow-subtle)',
-              zIndex: 3,
-              borderColor: 'rgba(231, 165, 141, 0.25)',
-              background: 'rgba(14, 19, 26, 0.85)'
-            }}
-          >
-            <span
-              className="serif-italic"
-              style={{
-                fontSize: '1rem',
-                color: 'var(--accent-cream)',
-                letterSpacing: '0.01em'
-              }}
-            >
-              "{fragments[0]}"
-            </span>
-          </div>
-
-          {/* Floating Lyric Fragment 2 (Right Mid) */}
-          <div
-            className="animate-float-2 glass-pill"
-            style={{
-              position: 'absolute',
-              right: '-6%',
-              top: '46%',
-              padding: '8px 18px',
-              boxShadow: 'var(--shadow-subtle)',
-              zIndex: 3,
-              borderColor: 'rgba(143, 168, 200, 0.3)',
-              background: 'rgba(14, 19, 26, 0.85)'
-            }}
-          >
-            <span
-              className="serif-italic"
-              style={{
-                fontSize: '1.05rem',
-                color: 'var(--secondary-blue)',
-                letterSpacing: '0.01em'
-              }}
-            >
-              "{fragments[1]}"
-            </span>
-          </div>
-
-          {/* Floating Lyric Fragment 3 (Bottom Center-Left) */}
-          <div
-            className="animate-float-3 glass-pill"
-            style={{
-              position: 'absolute',
-              bottom: '6%',
-              left: '8%',
-              padding: '8px 18px',
-              boxShadow: 'var(--shadow-subtle)',
-              zIndex: 3,
-              borderColor: 'rgba(244, 223, 201, 0.2)',
-              background: 'rgba(14, 19, 26, 0.85)'
-            }}
-          >
-            <span
-              style={{
-                fontSize: '0.92rem',
-                fontWeight: 500,
-                color: 'var(--text-primary)'
-              }}
-            >
-              {fragments[2]}
-            </span>
-          </div>
-
-          {/* Beat-Synced Circular Audiophile Visualizer */}
+          {/* Beat-Synced Circular Audiophile Visualizer with Timeline-Driven Floating Lyrics */}
           <div
             style={{
               width: 'clamp(300px, 36vw, 420px)',
@@ -360,6 +274,11 @@ export const Hero: React.FC = () => {
               mode="hero"
               songTitle={currentSong.title}
               songArtist={currentSong.artist}
+              song={currentSong}
+              currentTime={currentTime}
+              displayLanguage={displayLanguage}
+              onSeek={seekTo}
+              showFloatingLyrics={true}
               size="100%"
             />
           </div>

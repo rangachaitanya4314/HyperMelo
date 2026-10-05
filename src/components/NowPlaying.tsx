@@ -570,6 +570,11 @@ export const NowPlaying: React.FC = () => {
               mode="fullscreen"
               songTitle={currentSong.title}
               songArtist={currentSong.artist}
+              song={currentSong}
+              currentTime={currentTime}
+              displayLanguage={displayLanguage}
+              onSeek={seekTo}
+              showFloatingLyrics={true}
               onTogglePlay={togglePlay}
               interactive={true}
             />

@@ -126,7 +126,7 @@ interface AudioPlayerContextType {
   addSongToCatalog: (song: Song) => void;
 }
 
-const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
+export const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
 // Canonical featured track: Verified legitimate full-length reference recording ("Shot Down" by Josh Woodward, 255s)
 const INITIAL_FEATURED_SONG: Song = JOSH_WOODWARD_SHOT_DOWN;
