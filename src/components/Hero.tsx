@@ -8,12 +8,9 @@ export const Hero: React.FC = () => {
   const {
     currentSong,
     isPlaying,
-    currentTime,
     togglePlay,
-    seekTo,
     activeLanguage,
     setActiveLanguage,
-    displayLanguage,
     setDisplayLanguage
   } = useAudioPlayer();
 
@@ -274,11 +271,6 @@ export const Hero: React.FC = () => {
               mode="hero"
               songTitle={currentSong.title}
               songArtist={currentSong.artist}
-              song={currentSong}
-              currentTime={currentTime}
-              displayLanguage={displayLanguage}
-              onSeek={seekTo}
-              showFloatingLyrics={true}
               size="100%"
             />
           </div>

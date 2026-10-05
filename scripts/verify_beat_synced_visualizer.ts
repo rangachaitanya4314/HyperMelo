@@ -469,8 +469,34 @@ async function runVisualizerVerification() {
     assert(Math.abs(parseFloat(boundsCheck.ratio) - 1.0) <= 0.05, `Aspect ratio is strictly square 1:1 (width: ${boundsCheck.width}px, height: ${boundsCheck.height}px, ratio: ${boundsCheck.ratio})`);
     assert(boundsCheck.isInViewport, 'Visualizer is positioned within viewport without clipping');
 
+    // =========================================================================
+    // CHECK 10: Verify Complete Absence of Floating Lyric Bubbles
+    // =========================================================================
+    console.log('\n[Check 10] Verifying Complete Absence of Floating Lyric Bubbles...');
+    const floatingBubblesCheck = await cdp.eval(`
+      (() => {
+        const container = document.getElementById('visualizer-floating-lyrics-container');
+        const topLeft = document.getElementById('floating-lyric-top-left');
+        const right = document.getElementById('floating-lyric-right');
+        const bottom = document.getElementById('floating-lyric-bottom');
+        const anyBubble = document.querySelector('.floating-lyric-bubble');
+        return {
+          hasContainer: !!container,
+          hasTopLeft: !!topLeft,
+          hasRight: !!right,
+          hasBottom: !!bottom,
+          hasAnyBubble: !!anyBubble
+        };
+      })()
+    `);
+    assert(floatingBubblesCheck?.hasContainer === false, 'Floating lyrics container #visualizer-floating-lyrics-container is completely removed');
+    assert(floatingBubblesCheck?.hasTopLeft === false, 'Top-left lyric bubble is completely removed');
+    assert(floatingBubblesCheck?.hasRight === false, 'Right lyric bubble is completely removed');
+    assert(floatingBubblesCheck?.hasBottom === false, 'Bottom lyric bubble is completely removed');
+    assert(floatingBubblesCheck?.hasAnyBubble === false, 'Zero floating lyric bubbles exist around visualizer');
+
     console.log('\n======================================================================');
-    console.log('ALL 9 BEAT-SYNCHRONIZED CIRCULAR VISUALIZER CHECKS PASSED!');
+    console.log('ALL 10 BEAT-SYNCHRONIZED CIRCULAR VISUALIZER CHECKS PASSED!');
     console.log('======================================================================\n');
   } finally {
     try {

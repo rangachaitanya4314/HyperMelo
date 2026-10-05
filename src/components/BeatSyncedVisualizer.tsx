@@ -1,9 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback, useContext } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause } from 'lucide-react';
-import type { ArtworkStyle, Song, Language } from '../types/music';
+import type { ArtworkStyle } from '../types/music';
 import { playbackService } from '../services/audio/playbackService';
-import { AudioPlayerContext } from '../context/AudioPlayerContext';
-import { VisualizerFloatingLyrics } from './VisualizerFloatingLyrics';
 
 interface BeatSyncedVisualizerProps {
   artwork?: ArtworkStyle;
@@ -16,11 +14,6 @@ interface BeatSyncedVisualizerProps {
   mode?: 'hero' | 'fullscreen' | 'compact';
   songTitle?: string;
   songArtist?: string;
-  song?: Song | null;
-  currentTime?: number;
-  displayLanguage?: Language;
-  onSeek?: (time: number) => void;
-  showFloatingLyrics?: boolean;
 }
 
 interface OrbitalParticle {
@@ -49,23 +42,9 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
   onTogglePlay,
   interactive = true,
   mode = 'hero',
-  songTitle: propSongTitle,
-  songArtist: propSongArtist,
-  song,
-  currentTime,
-  displayLanguage,
-  onSeek,
-  showFloatingLyrics
+  songTitle = 'NARO',
+  songArtist = 'Music Experience'
 }) => {
-  const playerContext = useContext(AudioPlayerContext);
-  const activeSong = song !== undefined ? song : playerContext?.currentSong;
-  const activeTime = currentTime !== undefined ? currentTime : (playerContext?.currentTime || 0);
-  const activeDisplayLang = displayLanguage || playerContext?.displayLanguage || 'en';
-  const handleSeek = onSeek || playerContext?.seekTo;
-  const shouldShowFloatingLyrics = showFloatingLyrics !== undefined ? showFloatingLyrics : (mode !== 'compact');
-
-  const songTitle = propSongTitle || activeSong?.title || 'NARO';
-  const songArtist = propSongArtist || activeSong?.artist || 'Music Experience';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const centerDiscRef = useRef<HTMLDivElement | null>(null);
@@ -663,16 +642,6 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Floating Lyrics: Contextual memorable bubbles following playback timeline */}
-      {shouldShowFloatingLyrics && (
-        <VisualizerFloatingLyrics
-          song={activeSong}
-          currentTime={activeTime}
-          displayLanguage={activeDisplayLang}
-          onSeek={handleSeek}
-        />
-      )}
     </div>
   );
 };
