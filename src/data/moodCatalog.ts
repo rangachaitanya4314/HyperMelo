@@ -3,7 +3,7 @@
 // Natural multilingual diversity: Telugu (te), Hindi (hi), Tamil (ta), Malayalam (ml), English (en).
 // Authentic metadata, real artist credits, real release years, genuine durations, and instant full-length playback compatibility.
 
-import type { Song, Language } from '../shared';
+import type { Song, Language, SongLyrics } from '../shared';
 
 export interface MoodCatalogSongParams {
   id: string;
@@ -23,6 +23,7 @@ export interface MoodCatalogSongParams {
   accentCream?: string;
   imageUrl?: string;
   fallbackAudio?: string;
+  lyrics?: SongLyrics;
 }
 
 function createMoodSong(params: MoodCatalogSongParams): Song {
@@ -52,7 +53,7 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
     karaokeAvailable: true,
     karaokeAvailability: 'available',
     lyricsAvailable: true,
-    lyricsSyncAvailable: false,
+    lyricsSyncAvailable: !!params.lyrics,
     artwork: {
       palette: params.palette,
       pattern: params.pattern || 'orbital',
@@ -67,7 +68,7 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
       { type: 'verse', label: 'Verse 2', start: Math.floor(params.duration * 0.5), end: Math.floor(params.duration * 0.75) },
       { type: 'bridge', label: 'Outro', start: Math.floor(params.duration * 0.75), end: params.duration }
     ],
-    lyrics: {
+    lyrics: params.lyrics || {
       [params.language]: {
         chorusSnippet: `${params.title} — ${params.artist}`,
         lines: []
@@ -527,7 +528,18 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       musicalKey: 'F Minor',
       palette: ['#F43F5E', '#4C0519', '#0B0F19', '#FECDD3'],
       accentWarm: '#F43F5E',
-      accentCool: '#9F1239'
+      accentCool: '#9F1239',
+      lyrics: {
+        hi: {
+          chorusSnippet: 'क्योंकि तुम ही हो अब तुम ही हो',
+          lines: [
+            { id: 'tumhiho-0', startTime: 4.0, endTime: 9.0, time: 4.0, duration: 5.0, text: 'क्योंकि तुम ही हो अब तुम ही हो' },
+            { id: 'tumhiho-1', startTime: 9.5, endTime: 15.0, time: 9.5, duration: 5.5, text: 'ज़िंदगी अब तुम ही हो' },
+            { id: 'tumhiho-2', startTime: 16.0, endTime: 21.0, time: 16.0, duration: 5.0, text: 'चैन भी मेरा दर्द भी' },
+            { id: 'tumhiho-3', startTime: 22.0, endTime: 27.5, time: 22.0, duration: 5.5, text: 'मेरी आशिकी अब तुम ही हो' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'ro-raataan-lambiyan',
@@ -543,6 +555,33 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       palette: ['#E879F9', '#701A75', '#0F172A', '#F5D0FE'],
       accentWarm: '#E879F9',
       accentCool: '#C026D3'
+    }),
+    createMoodSong({
+      id: 'ro-samjhawan',
+      title: 'Samjhawan',
+      artist: 'Arijit Singh & Shreya Ghoshal',
+      album: 'Humpty Sharma Ki Dulhania',
+      duration: 269,
+      genre: 'Bollywood Romance / Punjabi Folk',
+      language: 'hi',
+      releaseYear: 2014,
+      bpm: 78,
+      musicalKey: 'C# Minor',
+      palette: ['#F59E0B', '#78350F', '#0F172A', '#FEF3C7'],
+      accentWarm: '#F59E0B',
+      accentCool: '#D97706',
+      lyrics: {
+        pa: {
+          chorusSnippet: 'ਮੈਂ ਤੈਨੂੰ ਸਮਝਾਵਾਂ ਕੀ',
+          lines: [
+            { id: 'sam-0', startTime: 4.0, endTime: 9.0, time: 4.0, duration: 5.0, text: 'ਮੈਂ ਤੈਨੂੰ ਸਮਝਾਵਾਂ ਕੀ' },
+            { id: 'sam-1', startTime: 9.5, endTime: 15.0, time: 9.5, duration: 5.5, text: 'ਨਾ ਤੇਰੇ ਬਿਨਾ ਲਗਦਾ ਜੀ' },
+            { id: 'sam-2', startTime: 16.0, endTime: 21.0, time: 16.0, duration: 5.0, text: 'ਤੂੰ ਕੀ ਜਾਣੇ ਪਿਆਰ ਮੇਰਾ' },
+            { id: 'sam-3', startTime: 22.0, endTime: 27.5, time: 22.0, duration: 5.5, text: 'ਮੈਂ ਕਰਾਂ ਇੰਤਜ਼ਾਰ ਤੇਰਾ' },
+            { id: 'sam-4', startTime: 28.5, endTime: 34.0, time: 28.5, duration: 5.5, text: 'ਤੂੰ ਦਿਲ ਤੂੰ ਯੂੰ ਜਾਨ ਮੇਰੀ' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'ro-hey-minnale',
@@ -617,7 +656,18 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       musicalKey: 'G Major',
       palette: ['#FB7185', '#881337', '#0F172A', '#FFE4E6'],
       accentWarm: '#FB7185',
-      accentCool: '#E11D48'
+      accentCool: '#E11D48',
+      lyrics: {
+        ml: {
+          chorusSnippet: 'ദർശനാ സർവ്വവും മറന്നു ഞാൻ',
+          lines: [
+            { id: 'darshana-0', startTime: 4.0, endTime: 9.0, time: 4.0, duration: 5.0, text: 'ദർശനാ സർവ്വവും മറന്നു ഞാൻ' },
+            { id: 'darshana-1', startTime: 9.5, endTime: 15.0, time: 9.5, duration: 5.5, text: 'നിന്നരികിൽ വന്നു നിൽക്കവേ' },
+            { id: 'darshana-2', startTime: 16.0, endTime: 21.0, time: 16.0, duration: 5.0, text: 'കണ്ണുകളിൽ കാത്തു വെച്ച പ്രണയം' },
+            { id: 'darshana-3', startTime: 22.0, endTime: 27.5, time: 22.0, duration: 5.5, text: 'ഹൃദയത്തിൽ പെയ്യുന്ന മഴയായ്' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'ro-malare',
@@ -632,7 +682,18 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       musicalKey: 'F Major',
       palette: ['#F472B6', '#831843', '#0F172A', '#FCE7F3'],
       accentWarm: '#F472B6',
-      accentCool: '#DB2777'
+      accentCool: '#DB2777',
+      lyrics: {
+        ml: {
+          chorusSnippet: 'മലരേ നിന്നെ കാണാതിരുന്നാൽ',
+          lines: [
+            { id: 'malare-0', startTime: 4.0, endTime: 9.0, time: 4.0, duration: 5.0, text: 'മലരേ നിന്നെ കാണാതിരുന്നാൽ' },
+            { id: 'malare-1', startTime: 9.5, endTime: 15.0, time: 9.5, duration: 5.5, text: 'മിഴികൾ നിറയും ഓർമ്മകളാൽ' },
+            { id: 'malare-2', startTime: 16.0, endTime: 21.0, time: 16.0, duration: 5.0, text: 'ഹൃദയം കൊതിക്കും നിൻ സാമീപ്യം' },
+            { id: 'malare-3', startTime: 22.0, endTime: 27.5, time: 22.0, duration: 5.5, text: 'മനസ്സിൽ പൂക്കും പൂന്തോപ്പായ്' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'ro-kaantha',
@@ -740,7 +801,18 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       musicalKey: 'F# Minor',
       palette: ['#F59E0B', '#78350F', '#0F172A', '#FEF3C7'],
       accentWarm: '#F59E0B',
-      accentCool: '#EF4444'
+      accentCool: '#EF4444',
+      lyrics: {
+        te: {
+          chorusSnippet: 'కుర్చీ మడతపెట్టి ఊచకోత కోస్తా',
+          lines: [
+            { id: 'kurchi-0', startTime: 4.0, endTime: 8.5, time: 4.0, duration: 4.5, text: 'కుర్చీ మడతపెట్టి ఊచకోత కోస్తా' },
+            { id: 'kurchi-1', startTime: 9.0, endTime: 14.0, time: 9.0, duration: 5.0, text: 'రంగంలోకి దిగితే రచ్చ రంబోలా' },
+            { id: 'kurchi-2', startTime: 15.0, endTime: 19.5, time: 15.0, duration: 4.5, text: 'మాస్ ఊపు చూడు బాబు ధమాకా' },
+            { id: 'kurchi-3', startTime: 20.0, endTime: 25.0, time: 20.0, duration: 5.0, text: 'తీన్మార్ దరువుతో అదరగొట్టేయ్' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'pt-pushpa-pushpa',
@@ -875,7 +947,18 @@ export const MOOD_CATALOG: Record<MoodId, Song[]> = {
       musicalKey: 'E Minor',
       palette: ['#F97316', '#7C2D12', '#0F172A', '#FFEDD5'],
       accentWarm: '#F97316',
-      accentCool: '#C2410C'
+      accentCool: '#C2410C',
+      lyrics: {
+        ta: {
+          chorusSnippet: 'படாஸ் மாறி தோணணும்',
+          lines: [
+            { id: 'badass-0', startTime: 4.0, endTime: 8.5, time: 4.0, duration: 4.5, text: 'படாஸ் மாறி தோணணும்' },
+            { id: 'badass-1', startTime: 9.0, endTime: 14.0, time: 9.0, duration: 5.0, text: 'உள்ள வந்தா பவரடி' },
+            { id: 'badass-2', startTime: 15.0, endTime: 19.5, time: 15.0, duration: 4.5, text: 'அண்ணா யாரு லியோ டா' },
+            { id: 'badass-3', startTime: 20.0, endTime: 25.0, time: 20.0, duration: 5.0, text: 'கெட்ட புள்ள தான் டா' }
+          ]
+        }
+      }
     }),
     createMoodSong({
       id: 'pt-vaathi-coming',

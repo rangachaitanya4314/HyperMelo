@@ -35,6 +35,8 @@ interface AudioPlayerContextType {
   micLevel: number;
   nativeLanguage: Language;
   displayLanguage: Language;
+  sourceLanguage: string;
+  selectedLanguage: Language;
   lyricsRevision: number;
 
   // NARO Immersive Sound Engine
@@ -355,6 +357,11 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return lyricsService.detectSongLanguage(currentSong);
   }, [currentSong]);
 
+  // Actual source language detected from lyric text/script
+  const sourceLanguage: string = useMemo(() => {
+    return lyricsService.getSongSourceLanguage(currentSong);
+  }, [currentSong]);
+
   // Recalculate default lyrics language when song changes & resolve canonical lyrics
   useEffect(() => {
     if (!currentSong) return;
@@ -498,22 +505,26 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setDisplayLanguage = useCallback((lang: Language) => {
     manualLangRef.current = { songId: currentSong.id, lang };
-    const origLang = lyricsService.detectSongLanguage(currentSong);
-    // Clear translation cache if re-selecting same language or switching to force fresh resolution
-    lyricsService.clearTranslationCache(currentSong.id, origLang, lang);
+    const srcLang = lyricsService.getSongSourceLanguage(currentSong);
+    // If re-selecting same language, invalidate cache to force fresh resolution
+    if (lang === displayLanguage) {
+      lyricsService.clearTranslationCache(currentSong.id, srcLang, lang);
+    }
     setDisplayLanguageState(lang);
     setActiveLanguageState(lang);
     setLyricsRevision((prev) => prev + 1);
-  }, [currentSong]);
+  }, [currentSong, displayLanguage]);
 
   const setActiveLanguage = useCallback((lang: Language) => {
     manualLangRef.current = { songId: currentSong.id, lang };
-    const origLang = lyricsService.detectSongLanguage(currentSong);
-    lyricsService.clearTranslationCache(currentSong.id, origLang, lang);
+    const srcLang = lyricsService.getSongSourceLanguage(currentSong);
+    if (lang === displayLanguage) {
+      lyricsService.clearTranslationCache(currentSong.id, srcLang, lang);
+    }
     setActiveLanguageState(lang);
     setDisplayLanguageState(lang);
     setLyricsRevision((prev) => prev + 1);
-  }, [currentSong]);
+  }, [currentSong, displayLanguage]);
 
   const setSelectedSection = useCallback((sec: SongSection) => {
     setSelectedSectionState(sec);
@@ -668,6 +679,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_is_now_playing_open?: () => boolean;
         __naro_set_display_language?: (lang: Language) => void;
         __naro_get_display_language?: () => Language;
+        __naro_get_source_language?: () => string;
+        __naro_get_selected_language?: () => Language;
         __naro_get_current_time?: () => number;
         __naro_is_playing?: () => boolean;
         __naro_get_canonical_lines?: () => TimedLyricLine[];
@@ -702,6 +715,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_is_now_playing_open = () => nowPlayingOpen;
       win.__naro_set_display_language = setDisplayLanguage;
       win.__naro_get_display_language = () => displayLanguage;
+      win.__naro_get_source_language = () => sourceLanguage;
+      win.__naro_get_selected_language = () => displayLanguage;
       win.__naro_get_current_time = () => playbackController.getCurrentClock().currentTime;
       win.__naro_is_playing = () => playbackController.getCurrentClock().isPlaying;
       win.__naro_get_canonical_lines = () => lyricsService.getCanonicalLyricLines(currentSong);
@@ -767,6 +782,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         micLevel,
         nativeLanguage,
         displayLanguage,
+        sourceLanguage,
+        selectedLanguage: displayLanguage,
         lyricsRevision,
         soundMode,
         soundPreset,

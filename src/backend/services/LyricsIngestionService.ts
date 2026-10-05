@@ -7,10 +7,13 @@ import {
   type LanguageLyrics,
   type TimedLyricLine,
   type ILyricsService,
-  type Language,
-  detectLanguage
+  type Language
 } from '../../shared';
 import { validateScriptForLanguage } from '../../services/lyrics/translationService';
+import {
+  detectLyricLinesLanguage,
+  sourceLanguageToDefaultDisplay
+} from '../../services/lyrics/languageDetectionService';
 
 interface LrclibRecord {
   id?: number;
@@ -70,7 +73,7 @@ export class LyricsIngestionService implements ILyricsService {
       const next = parsed[i + 1];
       const duration = next ? Math.max(0.8, next.time - current.time) : Math.max(2, totalDuration - current.time);
 
-      const detected = detectLanguage(current.text);
+      const detected = sourceLanguageToDefaultDisplay(detectLyricLinesLanguage([{ text: current.text } as TimedLyricLine]));
       const translations: Record<string, string> = {};
       if (validateScriptForLanguage(current.text, detected)) {
         translations[detected] = current.text;
@@ -103,7 +106,7 @@ export class LyricsIngestionService implements ILyricsService {
     if (rawLines.length === 0) return [];
 
     return rawLines.map((text, idx) => {
-      const detected = detectLanguage(text);
+      const detected = sourceLanguageToDefaultDisplay(detectLyricLinesLanguage([{ text } as TimedLyricLine]));
       const translations: Record<string, string> = {};
       if (validateScriptForLanguage(text, detected)) {
         translations[detected] = text;
@@ -200,7 +203,7 @@ export class LyricsIngestionService implements ILyricsService {
   private buildSongLyricsFromRecord(
     record: LrclibRecord,
     duration: number,
-    originalLanguage?: Language
+    _originalLanguage?: Language
   ): SongLyrics | null {
     let lines: TimedLyricLine[] = [];
 
@@ -215,30 +218,9 @@ export class LyricsIngestionService implements ILyricsService {
     const middleIdx = Math.floor(lines.length / 2);
     const chorusSnippet = lines[middleIdx]?.text || lines[0]?.text || '';
 
-    // Step 1: Check script from parsed lines
-    const sampleText = lines.slice(0, 10).map((l) => l.text).join(' ');
-    let detectedLang: Language = detectLanguage(sampleText);
-
-    // Step 2: If script is English/Latin, determine language from metadata or provided originalLanguage
-    if (detectedLang === 'en') {
-      if (originalLanguage && (['en', 'hi', 'te', 'ta', 'ml'] as string[]).includes(originalLanguage)) {
-        detectedLang = originalLanguage;
-      } else {
-        const meta = `${record.trackName} ${record.artistName} ${record.albumName || ''}`.toLowerCase();
-        if (meta.includes('tamil') || meta.includes('kollywood') || meta.includes('leo') || meta.includes('badass') || meta.includes('kuthu') || meta.includes('hukum') || meta.includes('kaavaalaa') || meta.includes('vaathi') || meta.includes('jailer')) {
-          detectedLang = 'ta';
-        } else if (meta.includes('telugu') || meta.includes('tollywood') || meta.includes('devara') || meta.includes('neeve') || meta.includes('vennela') || meta.includes('fear song') || meta.includes('chuttamalle') || meta.includes('naatu')) {
-          detectedLang = 'te';
-        } else if (meta.includes('hindi') || meta.includes('bollywood') || meta.includes('arijit') || meta.includes('pritam') || meta.includes('channa') || meta.includes('apna') || meta.includes('kesariya')) {
-          detectedLang = 'hi';
-        } else if (meta.includes('malayalam') || meta.includes('mollywood') || meta.includes('illuminati') || meta.includes('aavesham')) {
-          detectedLang = 'ml';
-        } else if (meta.includes('anirudh')) {
-          // Anirudh Ravichander is primarily a Tamil composer
-          detectedLang = 'ta';
-        }
-      }
-    }
+    // Step 1: Detect actual source language from parsed lines (script-first, text-first)
+    const detectedSource = detectLyricLinesLanguage(lines);
+    const detectedLang: Language = sourceLanguageToDefaultDisplay(detectedSource);
 
     // Attach detected language to each line's translations dictionary strictly when validated
     lines.forEach((l) => {

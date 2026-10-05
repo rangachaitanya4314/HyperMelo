@@ -18,7 +18,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import { lyricsService } from '../services/lyrics/lyricsService';
-import { validateScriptForLanguage, transliterateIndic } from '../services/lyrics/translationService';
+import { validateScriptForLanguage } from '../services/lyrics/translationService';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 import './NowPlaying.css';
@@ -76,6 +76,7 @@ export const NowPlaying: React.FC = () => {
     isLoopingSection,
     setIsLoopingSection,
     displayLanguage,
+    sourceLanguage,
     setDisplayLanguage,
     lyricsRevision,
     soundMode,
@@ -103,16 +104,12 @@ export const NowPlaying: React.FC = () => {
     return lyricsService.getCanonicalLyricLines(currentSong);
   }, [currentSong?.id, currentSong?.lyrics]);
 
-  const originalLanguage = useMemo(() => {
-    return lyricsService.detectSongLanguage(currentSong);
-  }, [currentSong?.id, currentSong?.language, currentSong?.originalLanguage]);
-
   // Displayed lines state - initialized with canonical lines
   const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLyricLines);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const translationRequestRef = useRef<number>(0);
 
-  // Synchronize displayedLines when canonicalLyricLines or displayLanguage or originalLanguage changes
+  // Synchronize displayedLines when canonicalLyricLines or displayLanguage or sourceLanguage changes
   useEffect(() => {
     const requestId = ++translationRequestRef.current;
 
@@ -122,15 +119,15 @@ export const NowPlaying: React.FC = () => {
       return;
     }
 
-    // 1. If target language is original language, use canonical lines directly
-    if (displayLanguage === originalLanguage) {
+    // 1. If target language is source language, use canonical lines directly
+    if (displayLanguage === sourceLanguage) {
       setDisplayedLines(canonicalLyricLines);
       setIsTranslating(false);
       return;
     }
 
     // 2. Check if already cached synchronously (0ms delay)
-    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, displayLanguage, currentSong.id, originalLanguage);
+    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, displayLanguage, currentSong.id, sourceLanguage);
     if (cached) {
       setDisplayedLines(cached);
       setIsTranslating(false);
@@ -139,7 +136,7 @@ export const NowPlaying: React.FC = () => {
 
     // 3. Otherwise fetch translation asynchronously (< 1 second)
     setIsTranslating(true);
-    lyricsService.translateLyricLines(canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id, true)
+    lyricsService.translateLyricLines(canonicalLyricLines, displayLanguage, sourceLanguage, currentSong.id, true)
       .then((translated) => {
         if (translationRequestRef.current === requestId) {
           setDisplayedLines(translated);
@@ -151,7 +148,7 @@ export const NowPlaying: React.FC = () => {
           setIsTranslating(false);
         }
       });
-  }, [canonicalLyricLines, displayLanguage, originalLanguage, currentSong.id, lyricsRevision]);
+  }, [canonicalLyricLines, displayLanguage, sourceLanguage, currentSong.id, lyricsRevision]);
 
   const hasLyrics = displayedLines.length > 0 && lyricsCapability !== 'LYRICS_UNAVAILABLE';
 
@@ -784,18 +781,18 @@ export const NowPlaying: React.FC = () => {
               displayedLines.map((line, idx) => {
                 const isActive = idx === activeLyricIndex;
                 const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : line.time;
-                const translation = lyricsService.getLineTranslation(line, displayLanguage, originalLanguage);
-                const isTargetOriginal = displayLanguage === originalLanguage;
-                const candidateText = (translation.isAvailable && validateScriptForLanguage(translation.text, displayLanguage, originalLanguage))
+                const translation = lyricsService.getLineTranslation(line, displayLanguage, sourceLanguage);
+                const isTargetOriginal = displayLanguage === sourceLanguage;
+                const candidateText = (translation.isAvailable && validateScriptForLanguage(translation.text, displayLanguage, sourceLanguage))
                   ? translation.text
-                  : (validateScriptForLanguage(line.text, displayLanguage, originalLanguage)
+                  : (validateScriptForLanguage(line.text, displayLanguage, sourceLanguage)
                       ? line.text
-                      : (line.translations?.[displayLanguage] && validateScriptForLanguage(line.translations[displayLanguage], displayLanguage, originalLanguage)
+                      : (line.translations?.[displayLanguage] && validateScriptForLanguage(line.translations[displayLanguage], displayLanguage, sourceLanguage)
                           ? line.translations[displayLanguage]
-                          : (isTargetOriginal ? line.text : transliterateIndic(line.text, displayLanguage))));
+                          : (isTargetOriginal ? line.text : line.text)));
                 const displayText = candidateText;
                 const originalText = canonicalLyricLines[idx]?.text || line.text;
-                const showSubtitle = displayLanguage !== originalLanguage && originalText && originalText !== displayText;
+                const showSubtitle = displayLanguage !== sourceLanguage && originalText && originalText !== displayText;
 
                 return (
                   <div
