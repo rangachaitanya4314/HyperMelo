@@ -1,0 +1,305 @@
+/* Home Moods Section & Responsive Horizontal Shelf Styling */
+
+.home-moods-section {
+  position: relative;
+  padding: clamp(32px, 4.5vw, 64px) clamp(16px, 4vw, 48px);
+  max-width: 1360px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.home-moods-atmosphere {
+  border-radius: var(--radius-xl, 24px);
+  padding: clamp(20px, 3.5vw, 36px);
+  border: 1px solid rgba(244, 240, 235, 0.08);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: background 0.45s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.45s ease;
+}
+
+.home-moods-glow {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  filter: blur(50px);
+  pointer-events: none;
+  transition: background 0.5s ease;
+}
+
+/* Header & Controls */
+.home-moods-header {
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 2;
+}
+
+.home-moods-pill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.home-moods-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-moods-kicker {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.home-moods-kicker-line {
+  width: 32px;
+  height: 1px;
+}
+
+/* Shelf Navigation Controls (Desktop / Tablet) */
+.home-moods-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-moods-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(244, 240, 235, 0.06);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  color: var(--text-primary, #F4F0EB);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+}
+
+.home-moods-nav-btn:hover:not(:disabled) {
+  background: rgba(244, 240, 235, 0.14);
+  border-color: rgba(231, 165, 141, 0.4);
+  color: var(--accent-warm, #E7A58D);
+  transform: scale(1.06);
+}
+
+.home-moods-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.home-moods-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.home-moods-heading {
+  font-size: clamp(1.85rem, 3.2vw, 2.6rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text-primary, #F4F0EB);
+  margin: 0;
+}
+
+.home-moods-tagline {
+  color: var(--text-muted, #94A3B8);
+  font-size: 0.95rem;
+  margin-top: 6px;
+  margin-bottom: 0;
+  max-width: 580px;
+}
+
+.home-moods-meta-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.home-moods-atmosphere-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(244, 240, 235, 0.05);
+  border: 1px solid rgba(244, 240, 235, 0.1);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.home-moods-count-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full, 9999px);
+  background: rgba(244, 240, 235, 0.04);
+  border: 1px solid rgba(244, 240, 235, 0.08);
+  font-size: 0.74rem;
+  color: var(--text-dim, #64748B);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Mood Tablist */
+.home-moods-tablist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 2;
+}
+
+.home-moods-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-full, 9999px);
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.home-moods-tab:hover {
+  transform: translateY(-1px);
+}
+
+.home-moods-description {
+  color: var(--text-dim, #94A3B8);
+  font-size: 0.88rem;
+  margin: 0 0 20px 0;
+  position: relative;
+  z-index: 2;
+}
+
+/* Horizontal Music Shelf */
+.mood-shelf-wrapper {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mood-shelf-track {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 2px 20px 2px;
+  margin: 0;
+  box-sizing: border-box;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+.mood-shelf-track::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Edge */
+}
+
+/* Active mood fade transition */
+@keyframes moodShelfFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mood-shelf-active {
+  animation: moodShelfFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Card sizing per viewport specification:
+   Desktop: ~5-7 visible cards
+   Tablet: ~3-4 visible cards
+   Mobile: ~1.5-2.2 visible cards with touch-snap
+*/
+.mood-shelf-card-item {
+  flex: 0 0 clamp(190px, 15vw, 220px);
+  min-width: 0;
+  scroll-snap-align: start;
+  box-sizing: border-box;
+}
+
+/* Tablet adjustments (max-width: 1024px) */
+@media (max-width: 1024px) {
+  .mood-shelf-track {
+    gap: 16px;
+    padding-bottom: 16px;
+  }
+
+  .mood-shelf-card-item {
+    flex: 0 0 clamp(170px, 26vw, 205px);
+  }
+}
+
+/* Mobile adjustments (max-width: 640px) */
+@media (max-width: 640px) {
+  .home-moods-section {
+    padding: 24px 12px;
+  }
+
+  .home-moods-atmosphere {
+    padding: 16px 12px;
+    border-radius: var(--radius-lg, 16px);
+  }
+
+  .home-moods-pill-row {
+    margin-bottom: 8px;
+  }
+
+  .home-moods-heading {
+    font-size: 1.55rem;
+  }
+
+  .home-moods-tablist {
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+
+  .home-moods-tab {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    gap: 6px;
+  }
+
+  .mood-shelf-track {
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+
+  /* ~1.5-2.2 cards visible on mobile with snap */
+  .mood-shelf-card-item {
+    flex: 0 0 clamp(145px, 48vw, 175px);
+  }
+
+  .home-moods-nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
