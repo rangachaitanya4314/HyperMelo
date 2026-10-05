@@ -10,7 +10,10 @@ import {
   Repeat,
   Loader2,
   AlertCircle,
-  Maximize2
+  Maximize2,
+  Heart,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
@@ -34,8 +37,16 @@ export const BottomPlayer: React.FC = () => {
     toggleLyricsDrawer,
     openNowPlaying,
     isLoopingSection,
-    setIsLoopingSection
+    setIsLoopingSection,
+    soundMode,
+    setSoundMode,
+    soundPreset,
+    toggleLikeSong,
+    isSongLiked,
+    openAddToPlaylist
   } = useAudioPlayer();
+
+  const isLiked = isSongLiked(currentSong.id);
 
   const [prevVolume, setPrevVolume] = useState<number>(0.8);
 
@@ -217,6 +228,45 @@ export const BottomPlayer: React.FC = () => {
             />
           </div>
         </div>
+
+        {/* Quick Like & Add to Playlist Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          <button
+            type="button"
+            id="bottom-player-like-btn"
+            data-testid="bottom-player-like-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLikeSong(currentSong);
+            }}
+            aria-label={isLiked ? 'Unlike song' : 'Like song'}
+            className="btn-icon"
+            style={{ width: '34px', height: '34px' }}
+            title={isLiked ? 'Unlike song' : 'Save to Liked Songs'}
+          >
+            <Heart
+              size={17}
+              fill={isLiked ? 'var(--accent-warm)' : 'none'}
+              color={isLiked ? 'var(--accent-warm)' : 'var(--text-muted)'}
+            />
+          </button>
+
+          <button
+            type="button"
+            id="bottom-player-add-playlist-btn"
+            data-testid="bottom-player-add-playlist-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              openAddToPlaylist(currentSong);
+            }}
+            aria-label="Add to playlist"
+            className="btn-icon"
+            style={{ width: '34px', height: '34px' }}
+            title="Add to playlist"
+          >
+            <Plus size={17} color="var(--text-muted)" />
+          </button>
+        </div>
       </div>
 
       {/* Center: Hi-Fi Studio Controls & Central Clock Scrubber */}
@@ -269,6 +319,7 @@ export const BottomPlayer: React.FC = () => {
           {/* Master Play/Pause with Loading/Buffering feedback */}
           <button
             id="bottom-play-btn"
+            data-testid="bottom-play-btn"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
             style={{
@@ -430,6 +481,37 @@ export const BottomPlayer: React.FC = () => {
           width: '320px'
         }}
       >
+        {/* NARO Immersive Sound Profile Pill */}
+        <button
+          id="sound-profile-toggle-btn"
+          data-testid="sound-profile-toggle-btn"
+          onClick={() => {
+            const nextMode = soundMode === 'original' ? 'immersive' : 'original';
+            setSoundMode(nextMode);
+          }}
+          aria-label={`Sound profile: ${soundMode === 'immersive' ? soundPreset : 'Original'}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 12px',
+            borderRadius: 'var(--radius-full)',
+            backgroundColor: soundMode === 'immersive' ? 'rgba(231, 165, 141, 0.18)' : 'rgba(244, 240, 235, 0.05)',
+            border: soundMode === 'immersive' ? '1px solid var(--border-warm)' : '1px solid rgba(244, 240, 235, 0.08)',
+            color: soundMode === 'immersive' ? 'var(--accent-cream)' : 'var(--text-dim)',
+            fontSize: '0.74rem',
+            fontWeight: 600,
+            letterSpacing: '0.04em',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            whiteSpace: 'nowrap'
+          }}
+          title={soundMode === 'immersive' ? `NARO Immersive (${soundPreset.toUpperCase()}) - Click to bypass` : 'Original (Bypassed) - Click to activate NARO Immersive'}
+        >
+          <Sparkles size={13} color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'var(--text-dim)'} />
+          <span>{soundMode === 'immersive' ? 'IMMERSIVE' : 'ORIGINAL'}</span>
+        </button>
+
         {/* Expand Now Playing Button */}
         <button
           id="expand-now-playing-btn"

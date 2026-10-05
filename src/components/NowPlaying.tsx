@@ -11,10 +11,12 @@ import {
   Heart,
   CloudRain,
   Sun,
-  Moon
+  Moon,
+  Plus,
+  Sliders
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { AbstractArtwork } from './AbstractArtwork';
+import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import { lyricsService } from '../services/lyrics/lyricsService';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
@@ -72,7 +74,14 @@ export const NowPlaying: React.FC = () => {
     isLoopingSection,
     setIsLoopingSection,
     displayLanguage,
-    setDisplayLanguage
+    setDisplayLanguage,
+    soundMode,
+    soundPreset,
+    setSoundMode,
+    setSoundPreset,
+    toggleLikeSong,
+    isSongLiked,
+    openAddToPlaylist
   } = useAudioPlayer();
 
   const [prevVolume, setPrevVolume] = useState<number>(0.8);
@@ -537,22 +546,33 @@ export const NowPlaying: React.FC = () => {
             width: '100%'
           }}
         >
-          {/* Expanded Artwork with Ambient Outer Glow */}
+          {/* Expanded Artwork with Ambient Outer Glow and Beat-Synced Visualizer */}
           <div
             id="now-playing-artwork-container"
             style={{
               position: 'relative',
-              width: 'clamp(240px, 32vw, 380px)',
-              height: 'clamp(240px, 32vw, 380px)',
-              borderRadius: '24px',
-              overflow: 'hidden',
+              width: 'clamp(260px, 32vw, 360px)',
+              height: 'clamp(260px, 32vw, 360px)',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               boxShadow: isPlaying
                 ? '0 24px 60px rgba(0, 0, 0, 0.8), 0 0 80px rgba(245, 158, 11, 0.2)'
                 : '0 20px 40px rgba(0, 0, 0, 0.7)',
               transition: 'box-shadow 0.6s ease'
             }}
           >
-            <AbstractArtwork artwork={currentSong.artwork} isPlaying={isPlaying} size={380} />
+            <BeatSyncedVisualizer
+              artwork={currentSong.artwork}
+              isPlaying={isPlaying}
+              size={360}
+              mode="fullscreen"
+              songTitle={currentSong.title}
+              songArtist={currentSong.artist}
+              onTogglePlay={togglePlay}
+              interactive={true}
+            />
           </div>
 
           {/* Song Metadata */}
@@ -622,6 +642,142 @@ export const NowPlaying: React.FC = () => {
                 >
                   {currentSong.attribution.license}
                 </span>
+              )}
+            </div>
+
+            {/* Action Row: Like, Add to Playlist */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                marginTop: '16px'
+              }}
+            >
+              <button
+                id="now-playing-like-btn"
+                data-testid="now-playing-like-btn"
+                onClick={() => toggleLikeSong(currentSong)}
+                className="btn-icon"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(244, 240, 235, 0.08)',
+                  color: isSongLiked(currentSong.id) ? '#EF4444' : 'var(--text-muted)'
+                }}
+                title={isSongLiked(currentSong.id) ? 'Unlike' : 'Like'}
+              >
+                <Heart size={18} fill={isSongLiked(currentSong.id) ? '#EF4444' : 'none'} />
+              </button>
+
+              <button
+                id="now-playing-add-playlist-btn"
+                data-testid="now-playing-add-playlist-btn"
+                onClick={() => openAddToPlaylist(currentSong)}
+                className="btn-icon"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(244, 240, 235, 0.08)',
+                  color: 'var(--text-primary)'
+                }}
+                title="Add to Playlist"
+              >
+                <Plus size={18} />
+              </button>
+            </div>
+
+            {/* NARO Immersive Sound Engine Controls */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '16px'
+              }}
+            >
+              <button
+                id="now-playing-sound-btn"
+                data-testid="now-playing-sound-btn"
+                onClick={() => {
+                  setSoundMode(soundMode === 'immersive' ? 'original' : 'immersive');
+                }}
+                className="glass-pill"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor:
+                    soundMode === 'immersive'
+                      ? 'rgba(231, 165, 141, 0.25)'
+                      : 'rgba(244, 240, 235, 0.06)',
+                  border:
+                    soundMode === 'immersive'
+                      ? '1px solid var(--accent-warm)'
+                      : '1px solid rgba(244, 240, 235, 0.12)',
+                  color:
+                    soundMode === 'immersive'
+                      ? 'var(--accent-cream)'
+                      : 'var(--text-muted)',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <Sliders
+                  size={14}
+                  color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'currentColor'}
+                />
+                <span>
+                  {soundMode === 'immersive'
+                    ? `Immersive • ${soundPreset.toUpperCase()}`
+                    : 'Original Sound'}
+                </span>
+              </button>
+
+              {soundMode === 'immersive' && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    justifyContent: 'center',
+                    marginTop: '2px'
+                  }}
+                >
+                  {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map(
+                    (preset) => {
+                      const isSelected = soundPreset === preset;
+                      return (
+                        <button
+                          key={preset}
+                          onClick={() => setSoundPreset(preset)}
+                          style={{
+                            padding: '3px 10px',
+                            borderRadius: 'var(--radius-full)',
+                            background: isSelected
+                              ? 'var(--accent-warm)'
+                              : 'rgba(244, 240, 235, 0.05)',
+                            color: isSelected ? '#080B10' : 'var(--text-dim)',
+                            border: 'none',
+                            fontSize: '0.74rem',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize'
+                          }}
+                        >
+                          {preset}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -726,7 +882,7 @@ export const NowPlaying: React.FC = () => {
                     id={`now-playing-lang-${lang.code}`}
                     role="radio"
                     aria-checked={isSelected}
-                    data-active={isSelected ? 'true' : 'false'}
+                    data-selected={isSelected ? 'true' : 'false'}
                     className={isSelected ? 'active' : ''}
                     onClick={() => setDisplayLanguage(lang.code)}
                     style={{

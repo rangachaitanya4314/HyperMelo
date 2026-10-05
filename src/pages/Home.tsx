@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Hero } from '../components/Hero';
+import { HomeMoods } from '../components/HomeMoods';
 import { MusicGrid } from '../components/MusicGrid';
 import { CoreFeatureSection } from '../components/CoreFeatureSection';
 import { Footer } from '../components/Footer';
@@ -31,6 +32,7 @@ export const Home: React.FC<HomeProps> = ({ onReplayIntro }) => {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Hero />
+      <HomeMoods />
       <MusicGrid />
       <CoreFeatureSection />
       <Footer onReplayIntro={onReplayIntro} />

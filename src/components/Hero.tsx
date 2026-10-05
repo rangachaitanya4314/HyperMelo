@@ -1,7 +1,7 @@
 import React from 'react';
 import { Play, Pause, Sparkles } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { AbstractArtwork } from './AbstractArtwork';
+import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import type { Language } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 
@@ -342,23 +342,24 @@ export const Hero: React.FC = () => {
             </span>
           </div>
 
-          {/* Abstract Circular Record / Disc */}
+          {/* Beat-Synced Circular Audiophile Visualizer */}
           <div
             style={{
-              width: 'clamp(280px, 32vw, 380px)',
-              height: 'clamp(280px, 32vw, 380px)',
+              width: 'clamp(300px, 36vw, 420px)',
+              height: 'clamp(300px, 36vw, 420px)',
               position: 'relative',
               zIndex: 2,
-              filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.75))',
-              cursor: 'pointer'
+              filter: 'drop-shadow(0 20px 40px rgba(0, 0, 0, 0.75))'
             }}
-            onClick={togglePlay}
-            title={isPlaying ? 'Click to Pause' : 'Click to Play'}
           >
-            <AbstractArtwork
+            <BeatSyncedVisualizer
               artwork={currentSong.artwork}
-              isVinyl={true}
               isPlaying={isPlaying}
+              onTogglePlay={togglePlay}
+              interactive={true}
+              mode="hero"
+              songTitle={currentSong.title}
+              songArtist={currentSong.artist}
               size="100%"
             />
           </div>

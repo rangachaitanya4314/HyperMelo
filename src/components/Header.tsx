@@ -6,13 +6,18 @@ import { NaroLogo } from './NaroLogo';
 export const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const {
     setSearchModalOpen,
     searchQuery,
     isPlaying,
     isOnline,
     currentView,
-    setCurrentView
+    setCurrentView,
+    currentUser,
+    isAuthenticated,
+    openAuthModal,
+    logout
   } = useAudioPlayer();
 
   useEffect(() => {
@@ -184,23 +189,129 @@ export const Header: React.FC = () => {
             </span>
           </div>
 
-          {/* Profile / Avatar */}
-          <div
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(244, 240, 235, 0.08)',
-              border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-muted)',
-              cursor: 'pointer'
-            }}
-            title="NARO Account"
-          >
-            <User size={18} />
+          {/* Profile / Avatar / Auth Button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => {
+                if (isAuthenticated) {
+                  setProfileMenuOpen((prev) => !prev);
+                } else {
+                  openAuthModal('signin');
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: isAuthenticated ? '4px 10px 4px 6px' : '6px 14px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: isAuthenticated ? 'rgba(231, 165, 141, 0.15)' : 'rgba(244, 240, 235, 0.08)',
+                border: isAuthenticated ? '1px solid var(--border-warm)' : '1px solid var(--border-subtle)',
+                color: isAuthenticated ? 'var(--accent-cream)' : 'var(--text-primary)',
+                fontSize: '0.82rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              title={isAuthenticated ? currentUser?.name || 'Account' : 'Sign in to NARO'}
+            >
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  backgroundColor: isAuthenticated ? 'var(--accent-warm)' : 'rgba(244, 240, 235, 0.12)',
+                  color: isAuthenticated ? '#080B10' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.78rem'
+                }}
+              >
+                {isAuthenticated ? (currentUser?.name?.charAt(0).toUpperCase() || 'U') : <User size={15} />}
+              </div>
+              <span>{isAuthenticated ? currentUser?.name?.split(' ')[0] : 'Sign In'}</span>
+            </button>
+
+            {/* Authenticated User Menu Dropdown */}
+            {profileMenuOpen && isAuthenticated && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '115%',
+                  right: 0,
+                  width: '220px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(14, 19, 28, 0.98)',
+                  border: '1px solid rgba(244, 240, 235, 0.1)',
+                  boxShadow: '0 15px 40px rgba(0, 0, 0, 0.8)',
+                  backdropFilter: 'blur(20px)',
+                  padding: '12px',
+                  zIndex: 200,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ padding: '4px 8px 8px', borderBottom: '1px solid rgba(244, 240, 235, 0.08)' }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {currentUser?.name}
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {currentUser?.email}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setCurrentView('library');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.84rem',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Library size={16} color="var(--accent-warm)" />
+                  <span>My Library</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setProfileMenuOpen(false);
+                    await logout();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#F87171',
+                    fontSize: '0.84rem',
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile hamburger menu toggle */}

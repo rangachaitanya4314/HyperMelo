@@ -512,6 +512,7 @@ export class PlaybackController {
         ...this.currentClock,
         currentTime: time
       };
+      this.handleClockEvent(this.currentClock);
     }
   }
 
@@ -605,6 +606,26 @@ export class PlaybackController {
 
   public setMicEnabled(enabled: boolean): void {
     karaokeMixer.setMicEnabled(enabled);
+  }
+
+  // =========================================================================
+  // NARO IMMERSIVE SOUND ENGINE COORDINATION
+  // =========================================================================
+
+  public setSoundMode(mode: 'original' | 'immersive'): void {
+    karaokeMixer.setSoundMode(mode);
+  }
+
+  public getSoundMode(): 'original' | 'immersive' {
+    return karaokeMixer.getSoundMode();
+  }
+
+  public setSoundPreset(preset: 'immersive' | 'deep' | 'vocal' | 'wide' | 'night'): void {
+    karaokeMixer.setSoundPreset(preset);
+  }
+
+  public getSoundPreset(): 'immersive' | 'deep' | 'vocal' | 'wide' | 'night' {
+    return karaokeMixer.getSoundPreset();
   }
 
   // =========================================================================

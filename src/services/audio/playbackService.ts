@@ -165,6 +165,22 @@ export class PlaybackService {
     this.controller.setMicEnabled(enabled);
   }
 
+  public setSoundMode(mode: 'original' | 'immersive'): void {
+    this.controller.setSoundMode(mode);
+  }
+
+  public getSoundMode(): 'original' | 'immersive' {
+    return this.controller.getSoundMode();
+  }
+
+  public setSoundPreset(preset: 'immersive' | 'deep' | 'vocal' | 'wide' | 'night'): void {
+    this.controller.setSoundPreset(preset);
+  }
+
+  public getSoundPreset(): 'immersive' | 'deep' | 'vocal' | 'wide' | 'night' {
+    return this.controller.getSoundPreset();
+  }
+
   public getCurrentClock(): PlaybackClockEvent {
     return this.controller.getCurrentClock();
   }

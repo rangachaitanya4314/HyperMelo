@@ -3,6 +3,7 @@
 // Conforms to NARO Master Core Architecture Sections 8, 9, 10, 11
 
 import { WebAudioVocalSuppressor } from './vocalSeparation/WebAudioVocalSuppressor';
+import { naroImmersiveEngine, type SoundMode, type SoundPreset } from './naroImmersiveEngine';
 
 class KaraokeMixer {
   private ctx: AudioContext | null = null;
@@ -62,7 +63,7 @@ class KaraokeMixer {
     this.masterOutputGain.gain.setValueAtTime(1.0, this.ctx.currentTime);
 
     this.masterAnalyser = this.ctx.createAnalyser();
-    this.masterAnalyser.fftSize = 64;
+    this.masterAnalyser.fftSize = 128;
     this.masterAnalyser.smoothingTimeConstant = 0.8;
 
     this.masterOutputGain.connect(this.masterAnalyser);
@@ -74,7 +75,8 @@ class KaraokeMixer {
     this.bgmGainNode.gain.setValueAtTime(this.bgmVolume, this.ctx.currentTime);
 
     this.vocalSuppressor.getOutput().connect(this.bgmGainNode);
-    this.bgmGainNode.connect(this.masterOutputGain);
+    // Route BGM path through NARO Immersive Engine into master output
+    naroImmersiveEngine.init(this.ctx, this.bgmGainNode, this.masterOutputGain);
 
     // Microphone Path
     this.micGainNode = this.ctx.createGain();
@@ -231,6 +233,22 @@ class KaraokeMixer {
     const data = new Uint8Array(this.masterAnalyser.frequencyBinCount);
     this.masterAnalyser.getByteFrequencyData(data);
     return data;
+  }
+
+  public setSoundMode(mode: SoundMode): void {
+    naroImmersiveEngine.setMode(mode);
+  }
+
+  public getSoundMode(): SoundMode {
+    return naroImmersiveEngine.getMode();
+  }
+
+  public setSoundPreset(preset: SoundPreset): void {
+    naroImmersiveEngine.setPreset(preset);
+  }
+
+  public getSoundPreset(): SoundPreset {
+    return naroImmersiveEngine.getPreset();
   }
 }
 

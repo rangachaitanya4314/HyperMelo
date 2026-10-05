@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause } from 'lucide-react';
+import { Play, Pause, Heart, Plus } from 'lucide-react';
 import type { Song } from '../types/music';
 import { getCanonicalTrackDuration } from '../shared/track';
 import { AbstractArtwork } from './AbstractArtwork';
@@ -11,7 +11,17 @@ interface MusicCardProps {
 
 export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const { currentSong, isPlaying, playSong, togglePlay } = useAudioPlayer();
+  const {
+    currentSong,
+    isPlaying,
+    playSong,
+    togglePlay,
+    toggleLikeSong,
+    isSongLiked,
+    openAddToPlaylist
+  } = useAudioPlayer();
+
+  const isLiked = isSongLiked(song.id);
 
   const isCurrent = currentSong.id === song.id;
   const isThisPlaying = isCurrent && isPlaying;
@@ -86,6 +96,75 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
           }}
         >
           <AbstractArtwork artwork={song.artwork} isPlaying={isThisPlaying} size="100%" />
+        </div>
+
+        {/* Top-Right Quick Actions: Like & Add to Playlist */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: isHovered || isLiked ? 1 : 0,
+            transition: 'opacity 0.2s ease',
+            zIndex: 4
+          }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLikeSong(song);
+            }}
+            aria-label={isLiked ? `Unlike ${song.title}` : `Like ${song.title}`}
+            style={{
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              backgroundColor: isLiked ? 'rgba(231, 165, 141, 0.25)' : 'rgba(8, 11, 16, 0.65)',
+              border: isLiked ? '1px solid var(--border-warm)' : '1px solid rgba(244, 240, 235, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: isLiked ? 'scale(1.05)' : 'scale(1)'
+            }}
+          >
+            <Heart
+              size={15}
+              fill={isLiked ? 'var(--accent-warm)' : 'none'}
+              color={isLiked ? 'var(--accent-warm)' : 'var(--text-muted)'}
+            />
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openAddToPlaylist(song);
+            }}
+            aria-label={`Add ${song.title} to playlist`}
+            style={{
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(8, 11, 16, 0.65)',
+              border: '1px solid rgba(244, 240, 235, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(8px)',
+              transition: 'all 0.2s ease'
+            }}
+            title="Add to playlist"
+          >
+            <Plus size={15} color="var(--text-muted)" />
+          </button>
         </div>
 
         {/* Play overlay button on artwork */}

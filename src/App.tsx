@@ -15,6 +15,8 @@ import { SearchModal } from './components/SearchModal';
 import { BottomPlayer } from './components/BottomPlayer';
 import { AccountConnectionModal } from './components/AccountConnectionModal';
 import { NowPlaying } from './components/NowPlaying';
+import { AuthModal } from './components/AuthModal';
+import { AddToPlaylistModal } from './components/AddToPlaylistModal';
 
 export const AppContent: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => {
@@ -22,7 +24,17 @@ export const AppContent: React.FC = () => {
     return !sessionStorage.getItem('naro_intro_seen');
   });
 
-  const { currentView, accountModalOpen, setAccountModalOpen } = useAudioPlayer();
+  const {
+    currentView,
+    accountModalOpen,
+    setAccountModalOpen,
+    authModalOpen,
+    authModalMode,
+    setAuthModalOpen,
+    addToPlaylistModalOpen,
+    playlistTargetSong,
+    setAddToPlaylistModalOpen
+  } = useAudioPlayer();
 
   const handleIntroComplete = React.useCallback(() => {
     sessionStorage.setItem('naro_intro_seen', 'true');
@@ -59,6 +71,16 @@ export const AppContent: React.FC = () => {
       <AccountConnectionModal
         isOpen={accountModalOpen}
         onClose={() => setAccountModalOpen(false)}
+      />
+      <AuthModal
+        isOpen={authModalOpen}
+        initialMode={authModalMode}
+        onClose={() => setAuthModalOpen(false)}
+      />
+      <AddToPlaylistModal
+        isOpen={addToPlaylistModalOpen}
+        song={playlistTargetSong}
+        onClose={() => setAddToPlaylistModalOpen(false)}
       />
       <NowPlaying />
 

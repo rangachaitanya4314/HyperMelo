@@ -416,24 +416,44 @@ async function runLyricsSyncTests() {
     // =========================================================================
     console.log('\n[Scenario 6] Auto-Scroll Active Line into Center Viewport...');
     // Resume play and seek to 11.0s (Line 1)
-    await cdp.eval(`
+    const resumeRes = await cdp.eval(`
       (() => {
-        if (window.__naro_seek) window.__naro_seek(11.0);
-        const playBtn = document.querySelector('aside button[aria-label="Play"], aside button[data-testid="bottom-play-btn"]');
-        if (playBtn) playBtn.click();
+        if (typeof window.__naro_seek === 'function') {
+          window.__naro_seek(11.0);
+        }
+        if (window.__naro_audio && window.__naro_audio.paused) {
+          window.__naro_audio.play().catch(() => {});
+        }
+        return {
+          time: window.__naro_get_current_time ? window.__naro_get_current_time() : -1,
+          audioTime: window.__naro_audio?.currentTime ?? -1
+        };
       })()
     `);
     await new Promise((r) => setTimeout(r, 600));
 
     const autoScrollCheck = await cdp.eval(`
       (() => {
+        const dialog = document.querySelector('div[role="dialog"][aria-label="Floating lyrics drawer"]');
         const activeLine = document.querySelector('[data-testid="active-lyric-line"], [data-active="true"]');
-        if (!activeLine) return { found: false };
+        const allLines = dialog ? Array.from(dialog.querySelectorAll('[data-testid="lyric-line"], [data-testid="active-lyric-line"]')).map(l => ({
+          active: l.getAttribute('data-active'),
+          testid: l.getAttribute('data-testid'),
+          text: l.textContent?.slice(0, 30)
+        })) : [];
+        const currentTime = window.__naro_get_current_time ? window.__naro_get_current_time() : (window.__naro_audio?.currentTime || 0);
+        const isPlaying = window.__naro_is_playing ? window.__naro_is_playing() : false;
+        if (!activeLine) {
+          return { found: false, debug: { hasDialog: !!dialog, lineCount: allLines.length, allLines, currentTime, isPlaying } };
+        }
         const rect = activeLine.getBoundingClientRect();
         const isInViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
         return { found: true, isInViewport, top: rect.top, text: activeLine.textContent?.slice(0, 40) };
       })()
     `);
+    if (!autoScrollCheck?.found) {
+      console.error('Scenario 6 DEBUG info:', JSON.stringify(autoScrollCheck?.debug, null, 2));
+    }
     assert(autoScrollCheck?.found === true, 'Active lyric line found in DOM');
     assert(autoScrollCheck?.isInViewport === true, `Active lyric line is visible inside container viewport (top: ${autoScrollCheck?.top?.toFixed(0)}px)`);
 

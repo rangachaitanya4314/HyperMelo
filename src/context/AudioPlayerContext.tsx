@@ -2,11 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { Song, Language, SongSection, RecordedTake, PlaybackState, TimedLyricLine } from '../types/music';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
 import { playbackController } from '../services/audio/PlaybackController';
-import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
-import { getCanonicalTrackDuration } from '../shared/track';
+import { personalLibraryStore, type User, type Playlist, type RecentlyPlayedItem } from '../services/storage/personalLibraryStore';
+import { authService } from '../services/auth/authService';
+import type { SoundMode, SoundPreset } from '../services/audio/naroImmersiveEngine';
 
 export type AppView = 'home' | 'discover' | 'karaoke' | 'library' | 'downloads';
 
@@ -35,6 +36,12 @@ interface AudioPlayerContextType {
   nativeLanguage: Language;
   displayLanguage: Language;
 
+  // NARO Immersive Sound Engine
+  soundMode: SoundMode;
+  soundPreset: SoundPreset;
+  setSoundMode: (mode: SoundMode) => void;
+  setSoundPreset: (preset: SoundPreset) => void;
+
   // Modals & UI States
   karaokeModalOpen: boolean;
   isRecordingActive: boolean;
@@ -46,6 +53,40 @@ interface AudioPlayerContextType {
   isLoopingSection: boolean;
   accountModalOpen: boolean;
   nowPlayingOpen: boolean;
+
+  // NARO Personal Account & Auth
+  currentUser: User | null;
+  isAuthenticated: boolean;
+  authModalOpen: boolean;
+  authModalMode: 'signin' | 'signup';
+  setAuthModalOpen: (open: boolean) => void;
+  openAuthModal: (mode?: 'signin' | 'signup') => void;
+  logout: () => Promise<void>;
+
+  // Personal Library: Likes & Playlists
+  likedSongIds: string[];
+  toggleLikeSong: (song: Song) => void;
+  isSongLiked: (songId: string) => boolean;
+  playlists: Playlist[];
+  createPlaylist: (name: string, description?: string) => Playlist;
+  renamePlaylist: (id: string, name: string) => void;
+  deletePlaylist: (id: string) => void;
+  addSongToPlaylist: (playlistId: string, songId: string) => void;
+  removeSongFromPlaylist: (playlistId: string, songId: string) => void;
+  reorderPlaylistSongs: (playlistId: string, songIds: string[]) => void;
+  playPlaylist: (playlist: Playlist) => void;
+
+  // Add to Playlist Modal
+  addToPlaylistModalOpen: boolean;
+  playlistTargetSong: Song | null;
+  setAddToPlaylistModalOpen: (open: boolean) => void;
+  openAddToPlaylist: (song: Song) => void;
+
+  // Personal Library: Recently Played & Downloads
+  recentlyPlayed: RecentlyPlayedItem[];
+  downloadedSongs: Song[];
+  downloadSong: (song: Song) => void;
+  isSongDownloaded: (songId: string) => boolean;
 
   // Actions
   playSong: (song: Song, startTime?: number) => void;
@@ -71,6 +112,7 @@ interface AudioPlayerContextType {
   dismissReviewModal: () => void;
   saveTakeToLibrary: (take: RecordedTake) => Promise<void>;
   deleteTakeFromLibrary: (takeId: string) => Promise<void>;
+  renameTakeInLibrary: (takeId: string, newLabel: string) => Promise<void>;
   downloadTake: (take: RecordedTake) => void;
   toggleLyricsDrawer: () => void;
   openNowPlaying: () => void;
@@ -87,11 +129,9 @@ interface AudioPlayerContextType {
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
 // Canonical featured track: Verified legitimate full-length reference recording ("Shot Down" by Josh Woodward, 255s)
-// Legitimate open-license master, complete vocal MP3 and dedicated NoVox instrumental MP3.
 const INITIAL_FEATURED_SONG: Song = JOSH_WOODWARD_SHOT_DOWN;
 
 // Consumer catalog contains ONLY verified, legitimate full-length playable tracks.
-// Dev fixtures and unverified previews are strictly excluded from the consumer catalog.
 const INITIAL_SONGS: Song[] = [
   JOSH_WOODWARD_SHOT_DOWN
 ];
@@ -109,6 +149,197 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [currentView, setCurrentView] = useState<AppView>('home');
   const [savedTakes, setSavedTakes] = useState<RecordedTake[]>([]);
   const [isOnline, setIsOnline] = useState<boolean>(connectivityService.isOnline);
+
+  // Sound Engine state (Phase 2)
+  const [soundMode, setSoundModeState] = useState<SoundMode>('original');
+  const [soundPreset, setSoundPresetState] = useState<SoundPreset>('immersive');
+
+  const setSoundMode = useCallback((mode: SoundMode) => {
+    setSoundModeState(mode);
+    playbackController.setSoundMode(mode);
+  }, []);
+
+  const setSoundPreset = useCallback((preset: SoundPreset) => {
+    setSoundPresetState(preset);
+    playbackController.setSoundPreset(preset);
+  }, []);
+
+  // Personal Account & Auth state (Phase 3)
+  const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
+
+  const openAuthModal = useCallback((mode: 'signin' | 'signup' = 'signin') => {
+    setAuthModalMode(mode);
+    setAuthModalOpen(true);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await authService.logout();
+    setCurrentUser(null);
+    setLikedSongIds(personalLibraryStore.getLikedSongIds());
+    setPlaylists(personalLibraryStore.getPlaylists());
+    setRecentlyPlayed(personalLibraryStore.getRecentlyPlayed());
+  }, []);
+
+  // Subscribe to auth service session updates
+  useEffect(() => {
+    const unsub = authService.subscribe((user) => {
+      setCurrentUser(user);
+      const uid = user?.id;
+      setLikedSongIds(personalLibraryStore.getLikedSongIds(uid));
+      setPlaylists(personalLibraryStore.getPlaylists(uid));
+      setRecentlyPlayed(personalLibraryStore.getRecentlyPlayed(uid));
+    });
+    return unsub;
+  }, []);
+
+  // Personal Library state: Likes, Playlists, Recently Played, Downloads
+  const [likedSongIds, setLikedSongIds] = useState<string[]>(() =>
+    personalLibraryStore.getLikedSongIds(authService.getCurrentUser()?.id)
+  );
+
+  const [playlists, setPlaylists] = useState<Playlist[]>(() =>
+    personalLibraryStore.getPlaylists(authService.getCurrentUser()?.id)
+  );
+
+  const [recentlyPlayed, setRecentlyPlayed] = useState<RecentlyPlayedItem[]>(() =>
+    personalLibraryStore.getRecentlyPlayed(authService.getCurrentUser()?.id)
+  );
+
+  const [downloadedSongs, setDownloadedSongs] = useState<Song[]>(() =>
+    personalLibraryStore.getDownloadedSongs()
+  );
+
+  // Add to Playlist modal state
+  const [addToPlaylistModalOpen, setAddToPlaylistModalOpen] = useState(false);
+  const [playlistTargetSong, setPlaylistTargetSong] = useState<Song | null>(null);
+
+  const openAddToPlaylist = useCallback((song: Song) => {
+    setPlaylistTargetSong(song);
+    setAddToPlaylistModalOpen(true);
+  }, []);
+
+  const toggleLikeSong = useCallback((song: Song) => {
+    const uid = currentUser?.id;
+    const isCurrentlyLiked = personalLibraryStore.isLiked(song.id, uid);
+    if (isCurrentlyLiked) {
+      personalLibraryStore.removeLikedSong(song.id, uid);
+    } else {
+      personalLibraryStore.addLikedSong(song.id, uid);
+    }
+    setLikedSongIds(personalLibraryStore.getLikedSongIds(uid));
+  }, [currentUser]);
+
+  const isSongLiked = useCallback(
+    (songId: string) => {
+      return likedSongIds.includes(songId);
+    },
+    [likedSongIds]
+  );
+
+  const createPlaylist = useCallback(
+    (name: string, description?: string): Playlist => {
+      const uid = currentUser?.id;
+      const pl: Playlist = {
+        id: `pl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        userId: uid,
+        name,
+        description,
+        songIds: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      personalLibraryStore.savePlaylist(pl, uid);
+      setPlaylists(personalLibraryStore.getPlaylists(uid));
+      return pl;
+    },
+    [currentUser]
+  );
+
+  const renamePlaylist = useCallback(
+    (id: string, name: string) => {
+      const uid = currentUser?.id;
+      const target = playlists.find((p) => p.id === id);
+      if (target) {
+        personalLibraryStore.savePlaylist({ ...target, name }, uid);
+        setPlaylists(personalLibraryStore.getPlaylists(uid));
+      }
+    },
+    [currentUser, playlists]
+  );
+
+  const deletePlaylist = useCallback(
+    (id: string) => {
+      const uid = currentUser?.id;
+      personalLibraryStore.deletePlaylist(id, uid);
+      setPlaylists(personalLibraryStore.getPlaylists(uid));
+    },
+    [currentUser]
+  );
+
+  const addSongToPlaylist = useCallback(
+    (playlistId: string, songId: string) => {
+      const uid = currentUser?.id;
+      const target = playlists.find((p) => p.id === playlistId);
+      if (target && !target.songIds.includes(songId)) {
+        const updated = { ...target, songIds: [...target.songIds, songId] };
+        personalLibraryStore.savePlaylist(updated, uid);
+        setPlaylists(personalLibraryStore.getPlaylists(uid));
+      }
+    },
+    [currentUser, playlists]
+  );
+
+  const removeSongFromPlaylist = useCallback(
+    (playlistId: string, songId: string) => {
+      const uid = currentUser?.id;
+      const target = playlists.find((p) => p.id === playlistId);
+      if (target) {
+        const updated = { ...target, songIds: target.songIds.filter((id) => id !== songId) };
+        personalLibraryStore.savePlaylist(updated, uid);
+        setPlaylists(personalLibraryStore.getPlaylists(uid));
+      }
+    },
+    [currentUser, playlists]
+  );
+
+  const reorderPlaylistSongs = useCallback(
+    (playlistId: string, songIds: string[]) => {
+      const uid = currentUser?.id;
+      const target = playlists.find((p) => p.id === playlistId);
+      if (target) {
+        const updated = { ...target, songIds };
+        personalLibraryStore.savePlaylist(updated, uid);
+        setPlaylists(personalLibraryStore.getPlaylists(uid));
+      }
+    },
+    [currentUser, playlists]
+  );
+
+  const playPlaylist = useCallback(
+    (playlist: Playlist) => {
+      if (!playlist || playlist.songIds.length === 0) return;
+      const firstId = playlist.songIds[0];
+      const match = songs.find((s) => s.id === firstId) || JOSH_WOODWARD_SHOT_DOWN;
+      playbackController.load(match, 0).then(() => {
+        playbackController.play();
+      });
+    },
+    [songs]
+  );
+
+  const downloadSong = useCallback((song: Song) => {
+    personalLibraryStore.addDownloadedSong(song);
+    setDownloadedSongs(personalLibraryStore.getDownloadedSongs());
+  }, []);
+
+  const isSongDownloaded = useCallback(
+    (songId: string) => {
+      return downloadedSongs.some((s) => s.id === songId);
+    },
+    [downloadedSongs]
+  );
 
   // On-demand Karaoke Mode & Mixer states
   const [isKaraokeMode, setIsKaraokeMode] = useState<boolean>(false);
@@ -130,7 +361,6 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       prevSongIdRef.current = currentSong.id;
       manualLangRef.current = null;
       const detected = lyricsService.detectSongLanguage(currentSong);
-      console.log('[AudioPlayerContext] Song changed to:', currentSong.id, 'detected lang:', detected);
       setDisplayLanguageState(detected);
       setActiveLanguage(detected);
     }
@@ -148,8 +378,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const defaultChorus = INITIAL_FEATURED_SONG.sections.find((s) => s.type === 'chorus') || INITIAL_FEATURED_SONG.sections[0];
   const [selectedSection, setSelectedSectionState] = useState<SongSection>(defaultChorus);
 
-  // Modals - strict initial false state
-  const [nowPlayingOpen, setNowPlayingOpen] = useState<boolean>(false);
+  // Modals & UI States
   const [karaokeModalOpen, setKaraokeModalOpen] = useState<boolean>(false);
   const [isRecordingActive, setIsRecordingActive] = useState<boolean>(false);
   const [recordedTake, setRecordedTake] = useState<RecordedTake | null>(null);
@@ -158,103 +387,62 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [searchModalOpen, setSearchModalOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [accountModalOpen, setAccountModalOpen] = useState<boolean>(false);
+  const [nowPlayingOpen, setNowPlayingOpen] = useState<boolean>(false);
 
-  const openNowPlaying = useCallback(() => setNowPlayingOpen(true), []);
-  const closeNowPlaying = useCallback(() => setNowPlayingOpen(false), []);
-  const toggleNowPlaying = useCallback(() => setNowPlayingOpen((prev) => !prev), []);
-
-  const isRecordingActiveRef = useRef<boolean>(false);
+  // Track listened history (> 5 seconds elapsed while playing)
+  const lastRecordedSongIdRef = useRef<string | null>(null);
   useEffect(() => {
-    isRecordingActiveRef.current = isRecordingActive;
-  }, [isRecordingActive]);
-
-  // Synchronize catalog list with PlaybackController queue
-  useEffect(() => {
-    playbackController.setQueue(songs);
-  }, [songs]);
-
-  // 1. Subscribe to central authoritative playback clock from PlaybackController
-  useEffect(() => {
-    const unsubscribeClock = playbackController.subscribeClock((clockEvent) => {
-      // If karaoke recording is active, do not allow normal playback to override karaoke clock
-      if (isRecordingActiveRef.current) return;
-
-      setCurrentTime(clockEvent.currentTime);
-      if (clockEvent.duration > 0) {
-        setDuration(clockEvent.duration);
+    if (isPlaying && currentSong) {
+      if (currentTime > 5 && lastRecordedSongIdRef.current !== currentSong.id) {
+        lastRecordedSongIdRef.current = currentSong.id;
+        personalLibraryStore.addRecentlyPlayed(currentSong, currentUser?.id);
+        setRecentlyPlayed(personalLibraryStore.getRecentlyPlayed(currentUser?.id));
       }
-      setBufferedTime(clockEvent.bufferedTime);
-      setIsPlaying(clockEvent.isPlaying);
-      setPlaybackState(clockEvent.state);
-      setPlaybackError(clockEvent.error || null);
+    }
+  }, [isPlaying, currentTime, currentSong, currentUser]);
+
+  // Sync with central PlaybackController clock
+  useEffect(() => {
+    const unsubscribe = playbackController.subscribeClock((event) => {
+      setCurrentTime(event.currentTime);
+      if (event.duration > 0) {
+        setDuration(event.duration);
+      }
+      setBufferedTime(event.bufferedTime);
+      setIsPlaying(event.isPlaying);
+      setPlaybackState(event.state);
+      setPlaybackError(event.error || null);
     });
 
     return () => {
-      unsubscribeClock();
+      unsubscribe();
     };
   }, []);
 
-  const targetSongIdRef = useRef<string>(INITIAL_FEATURED_SONG.id);
-
-  // 1a. Subscribe to current track updates from PlaybackController
+  // Update selected section when song changes
   useEffect(() => {
-    const unsubscribeTrack = playbackController.subscribeTrack((track) => {
-      if (track) {
-        if (targetSongIdRef.current && track.id !== targetSongIdRef.current) {
-          console.warn('[AudioPlayerContext] Stale track emitted from controller ignored:', track.id, 'expected:', targetSongIdRef.current);
-          return;
-        }
-        setCurrentSong(track);
-        setDuration(track.duration);
-        const chorus = track.sections?.find((s) => s.type === 'chorus') || track.sections?.[0];
-        if (chorus) {
-          setSelectedSectionState(chorus);
-          playbackController.setLoopSection(chorus, isLoopingSection);
-        }
-      }
-    });
+    if (!currentSong) return;
+    const chorus = currentSong.sections?.find((s) => s.type === 'chorus') || currentSong.sections?.[0];
+    if (chorus) {
+      setSelectedSectionState(chorus);
+    }
+  }, [currentSong]);
 
-    return () => {
-      unsubscribeTrack();
-    };
-  }, [isLoopingSection]);
-
-  // 1b. Subscribe to central playback clock for Karaoke Backing Playback
+  // Sync online status
   useEffect(() => {
-    const unsubscribeKaraokeClock = karaokePlaybackService.subscribe((kClock) => {
-      if (!isRecordingActiveRef.current) return;
-
-      setCurrentTime(kClock.currentTime);
-      if (kClock.duration > 0) {
-        setDuration(kClock.duration);
-      }
-      setIsPlaying(kClock.isPlaying);
-      setPlaybackState(kClock.isPlaying ? 'playing' : kClock.isReady ? 'ready' : 'idle');
-      setPlaybackError(kClock.error || null);
+    const unsub = connectivityService.subscribe((status) => {
+      setIsOnline(status);
     });
-
-    return () => {
-      unsubscribeKaraokeClock();
-    };
+    return unsub;
   }, []);
 
-  // 2. Subscribe to connectivity service
-  useEffect(() => {
-    const unsubscribeConnectivity = connectivityService.subscribe((online) => {
-      setIsOnline(online);
-    });
-    return () => {
-      unsubscribeConnectivity();
-    };
-  }, []);
-
-  // 3. Load user library moments via backend boundary
+  // Load saved takes on mount
   const refreshLibrary = useCallback(async () => {
     try {
       const takes = await userLibraryService.getAllTakes();
       setSavedTakes(takes);
     } catch (err) {
-      console.warn('Failed to load library moments from persistence layer:', err);
+      console.warn('Error loading saved takes:', err);
     }
   }, []);
 
@@ -262,102 +450,18 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     refreshLibrary();
   }, [refreshLibrary]);
 
-  const addSongToCatalog = useCallback((song: Song) => {
+  const addSongToCatalog = useCallback((newSong: Song) => {
     setSongs((prev) => {
-      if (prev.some((s) => s.id === song.id)) return prev;
-      return [song, ...prev];
+      if (prev.some((s) => s.id === newSong.id)) return prev;
+      return [...prev, newSong];
     });
-    playbackController.addToQueue(song);
   }, []);
 
-  // Section and loop handlers delegating to PlaybackController
-  const setIsLoopingSection = useCallback((loop: boolean) => {
-    setIsLoopingSectionState(loop);
-    playbackController.setIsLooping(loop);
-  }, []);
-
-  const setSelectedSection = useCallback(
-    (sec: SongSection) => {
-      setSelectedSectionState(sec);
-      playbackController.setLoopSection(sec, isLoopingSection);
-    },
-    [isLoopingSection]
-  );
-
-  const playSong = useCallback(
-    (song: Song, startTime = 0) => {
-      targetSongIdRef.current = song.id;
-      const isNew = song.id !== currentSong.id;
-      setCurrentSong(song);
-      setDuration(getCanonicalTrackDuration(song));
-      addSongToCatalog(song);
-
-      if (isNew) {
-        manualLangRef.current = null;
-        const songLang = lyricsService.detectSongLanguage(song);
-        console.log('[playSong] new song:', song.id, 'songLang:', songLang);
-        setDisplayLanguageState(songLang);
-        setActiveLanguage(songLang);
-      }
-
-      const chorus = song.sections?.find((s) => s.type === 'chorus') || song.sections?.[0];
-      if (isNew && chorus) {
-        setSelectedSectionState(chorus);
-        playbackController.setLoopSection(chorus, isLoopingSection);
-      }
-
-      // Normal listening is ALWAYS default when starting any song
-      playbackController.setKaraokeMode(false);
-      setIsKaraokeMode(false);
-
-      playbackController.loadAndPlay(song, startTime);
-
-      // Background enrichment: fetch real synced lyrics if missing
-      if (!song.lyrics?.en?.lines?.length && song.playbackSource?.provider === 'apple-music') {
-        lyricsService.fetchLyrics(song.title, song.artist, song.duration, song.album).then((fetched) => {
-          const hasLines = Boolean(
-            (fetched?.en?.lines && fetched.en.lines.length > 0) ||
-            (fetched?.hi?.lines && fetched.hi.lines.length > 0) ||
-            (fetched?.te?.lines && fetched.te.lines.length > 0) ||
-            (fetched?.ta?.lines && fetched.ta.lines.length > 0) ||
-            (fetched?.ml?.lines && fetched.ml.lines.length > 0)
-          );
-          if (fetched && hasLines) {
-            setCurrentSong((prev) => {
-              if (prev.id === song.id) {
-                return {
-                  ...prev,
-                  lyrics: fetched,
-                  lyricsAvailable: true,
-                  lyricsSyncAvailable: true,
-                  capabilities: { ...prev.capabilities, lyrics: true, lyricsAvailable: true, lyricsSyncAvailable: true, playback: true, recording: false, karaoke: false, karaokeAvailable: false }
-                };
-              }
-              return prev;
-            });
-            setSongs((prev) =>
-              prev.map((s) =>
-                s.id === song.id
-                  ? {
-                      ...s,
-                      lyrics: fetched,
-                      lyricsAvailable: true,
-                      lyricsSyncAvailable: true,
-                      capabilities: { ...s.capabilities, lyrics: true, lyricsAvailable: true, lyricsSyncAvailable: true, playback: true, recording: false, karaoke: false, karaokeAvailable: false }
-                    }
-                  : s
-              )
-            );
-          }
-        }).catch(() => {});
-      }
-    },
-    [currentSong.id, addSongToCatalog, isLoopingSection]
-  );
-
-  // Preload initial featured track on startup
-  useEffect(() => {
-    playbackController.load(INITIAL_FEATURED_SONG);
+  const playSong = useCallback((song: Song, startTime = 0) => {
+    setCurrentSong(song);
+    playbackController.load(song, startTime).then(() => {
+      playbackController.play();
+    });
   }, []);
 
   const togglePlay = useCallback(() => {
@@ -365,24 +469,34 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [currentSong]);
 
   const seekTo = useCallback((time: number) => {
-    setCurrentTime(time);
     playbackController.seek(time);
-    if (isRecordingActiveRef.current) {
-      karaokePlaybackService.seek(time);
-    }
   }, []);
 
   const setVolume = useCallback((vol: number) => {
-    setVolumeState(vol);
-    playbackController.setVolume(vol);
+    const clamped = Math.max(0, Math.min(1, vol));
+    setVolumeState(clamped);
+    playbackController.setVolume(clamped);
   }, []);
 
   const nextSong = useCallback(() => {
-    playbackController.nextTrack();
-  }, []);
+    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
+    const nextIndex = (currentIndex + 1) % songs.length;
+    playSong(songs[nextIndex], 0);
+  }, [songs, currentSong, playSong]);
 
   const prevSong = useCallback(() => {
-    playbackController.prevTrack();
+    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
+    const prevIndex = (currentIndex - 1 + songs.length) % songs.length;
+    playSong(songs[prevIndex], 0);
+  }, [songs, currentSong, playSong]);
+
+  const setDisplayLanguage = useCallback((lang: Language) => {
+    manualLangRef.current = { songId: currentSong.id, lang };
+    setDisplayLanguageState(lang);
+  }, [currentSong?.id]);
+
+  const setSelectedSection = useCallback((sec: SongSection) => {
+    setSelectedSectionState(sec);
   }, []);
 
   const toggleKaraokeMode = useCallback(() => {
@@ -399,13 +513,15 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const setBgmVolume = useCallback((vol: number) => {
-    setBgmVolumeState(vol);
-    playbackController.setBgmVolume(vol);
+    const clamped = Math.max(0, Math.min(1, vol));
+    setBgmVolumeState(clamped);
+    playbackController.setBgmVolume(clamped);
   }, []);
 
   const setVoiceVolume = useCallback((vol: number) => {
-    setVoiceVolumeState(vol);
-    playbackController.setVoiceVolume(vol);
+    const clamped = Math.max(0, Math.min(1, vol));
+    setVoiceVolumeState(clamped);
+    playbackController.setVoiceVolume(clamped);
   }, []);
 
   const toggleMic = useCallback(() => {
@@ -416,64 +532,32 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   }, []);
 
-  const setDisplayLanguage = useCallback((lang: Language) => {
-    setDisplayLanguageState(lang);
-    setActiveLanguage(lang);
-    if (currentSong?.id) {
-      manualLangRef.current = { songId: currentSong.id, lang };
+  const openKaraokeForSong = useCallback((song?: Song, section?: SongSection) => {
+    if (song && song.id !== currentSong.id) {
+      setCurrentSong(song);
+      playbackController.load(song, 0);
     }
-  }, [currentSong?.id]);
-
-  const openKaraokeForSong = useCallback(
-    (song?: Song, section?: SongSection) => {
-      const targetSong = song || currentSong;
-      if (targetSong.id !== currentSong.id) {
-        playSong(targetSong);
-      }
-      addSongToCatalog(targetSong);
-
-      if (section) {
-        setSelectedSectionState(section);
-        playbackController.setLoopSection(section, isLoopingSection);
-      } else {
-        const chorus = targetSong.sections.find((s) => s.type === 'chorus') || targetSong.sections[0];
-        if (chorus) {
-          setSelectedSectionState(chorus);
-          playbackController.setLoopSection(chorus, isLoopingSection);
-        }
-      }
-
-      // Engage real-time vocal suppression on active track
-      playbackController.setKaraokeMode(true);
-      setIsKaraokeMode(true);
-      setKaraokeModalOpen(true);
-    },
-    [currentSong, playSong, addSongToCatalog, isLoopingSection]
-  );
+    if (section) {
+      setSelectedSectionState(section);
+    }
+    setKaraokeModalOpen(true);
+  }, [currentSong]);
 
   const closeKaraokeModal = useCallback(() => {
     setKaraokeModalOpen(false);
   }, []);
 
-  const startKaraokeRecording = useCallback(
-    (section: SongSection) => {
-      setSelectedSectionState(section);
-      playbackController.setLoopSection(section, isLoopingSection);
-      playbackController.setKaraokeMode(true);
-      setIsKaraokeMode(true);
-      setKaraokeModalOpen(false);
-      setIsRecordingActive(true);
-    },
-    [isLoopingSection]
-  );
+  const startKaraokeRecording = useCallback((section: SongSection) => {
+    setSelectedSectionState(section);
+    setKaraokeModalOpen(false);
+    setIsRecordingActive(true);
+  }, []);
 
   const stopKaraokeRecording = useCallback(() => {
-    karaokePlaybackService.stop();
     setIsRecordingActive(false);
   }, []);
 
   const finishTake = useCallback((take: RecordedTake) => {
-    karaokePlaybackService.stop();
     setRecordedTake(take);
     setIsRecordingActive(false);
     setReviewModalOpen(true);
@@ -499,6 +583,17 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [refreshLibrary]
   );
 
+  const renameTakeInLibrary = useCallback(
+    async (takeId: string, newLabel: string) => {
+      const take = savedTakes.find((t) => t.id === takeId);
+      if (!take) return;
+      const updated: RecordedTake = { ...take, sectionLabel: newLabel };
+      await userLibraryService.saveTake(updated);
+      await refreshLibrary();
+    },
+    [savedTakes, refreshLibrary]
+  );
+
   const downloadTake = useCallback((take: RecordedTake) => {
     userLibraryService.triggerDownload(take);
   }, []);
@@ -507,10 +602,28 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setLyricsDrawerOpen((prev) => !prev);
   }, []);
 
+  const openNowPlaying = useCallback(() => {
+    setNowPlayingOpen(true);
+  }, []);
+
+  const closeNowPlaying = useCallback(() => {
+    setNowPlayingOpen(false);
+  }, []);
+
+  const toggleNowPlaying = useCallback(() => {
+    setNowPlayingOpen((prev) => !prev);
+  }, []);
+
+  const setIsLoopingSection = useCallback((loop: boolean) => {
+    setIsLoopingSectionState(loop);
+  }, []);
+
+  // Window test bindings & facade exposure
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const win = window as unknown as {
         __naro_play_song?: (s: Song, st?: number) => void;
+        __naro_toggle_play?: () => void;
         __naro_current_song?: Song;
         __naro_set_karaoke?: (enabled: boolean) => void;
         __naro_toggle_karaoke?: () => void;
@@ -528,8 +641,17 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_is_playing?: () => boolean;
         __naro_get_canonical_lines?: () => TimedLyricLine[];
         __naro_playback_controller?: typeof playbackController;
+        __naro_set_sound_mode?: (mode: SoundMode) => void;
+        __naro_get_sound_mode?: () => SoundMode;
+        __naro_set_sound_preset?: (preset: SoundPreset) => void;
+        __naro_get_sound_preset?: () => SoundPreset;
+        __naro_toggle_like?: (s: Song) => void;
+        __naro_is_liked?: (id: string) => boolean;
+        __naro_get_playlists?: () => Playlist[];
       };
+
       win.__naro_play_song = playSong;
+      win.__naro_toggle_play = togglePlay;
       win.__naro_playback_controller = playbackController;
       win.__naro_current_song = currentSong;
       win.__naro_set_karaoke = setKaraokeMode;
@@ -547,6 +669,13 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_get_current_time = () => currentTime;
       win.__naro_is_playing = () => isPlaying;
       win.__naro_get_canonical_lines = () => lyricsService.getCanonicalLyricLines(currentSong);
+      win.__naro_set_sound_mode = setSoundMode;
+      win.__naro_get_sound_mode = () => soundMode;
+      win.__naro_set_sound_preset = setSoundPreset;
+      win.__naro_get_sound_preset = () => soundPreset;
+      win.__naro_toggle_like = toggleLikeSong;
+      win.__naro_is_liked = isSongLiked;
+      win.__naro_get_playlists = () => playlists;
     }
   }, [
     playSong,
@@ -563,7 +692,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setDisplayLanguage,
     displayLanguage,
     currentTime,
-    isPlaying
+    isPlaying,
+    soundMode,
+    soundPreset,
+    setSoundMode,
+    setSoundPreset,
+    toggleLikeSong,
+    isSongLiked,
+    playlists
   ]);
 
   return (
@@ -590,6 +726,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         micLevel,
         nativeLanguage,
         displayLanguage,
+        soundMode,
+        soundPreset,
+        setSoundMode,
+        setSoundPreset,
         nowPlayingOpen,
         karaokeModalOpen,
         isRecordingActive,
@@ -600,6 +740,32 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         searchQuery,
         isLoopingSection,
         accountModalOpen,
+        currentUser,
+        isAuthenticated: currentUser !== null,
+        authModalOpen,
+        authModalMode,
+        setAuthModalOpen,
+        openAuthModal,
+        logout,
+        likedSongIds,
+        toggleLikeSong,
+        isSongLiked,
+        playlists,
+        createPlaylist,
+        renamePlaylist,
+        deletePlaylist,
+        addSongToPlaylist,
+        removeSongFromPlaylist,
+        reorderPlaylistSongs,
+        playPlaylist,
+        addToPlaylistModalOpen,
+        playlistTargetSong,
+        setAddToPlaylistModalOpen,
+        openAddToPlaylist,
+        recentlyPlayed,
+        downloadedSongs,
+        downloadSong,
+        isSongDownloaded,
         playSong,
         togglePlay,
         seekTo,
@@ -623,6 +789,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         dismissReviewModal,
         saveTakeToLibrary,
         deleteTakeFromLibrary,
+        renameTakeInLibrary,
         downloadTake,
         toggleLyricsDrawer,
         openNowPlaying,

@@ -166,7 +166,7 @@ export const LyricsDrawer: React.FC = () => {
                 data-testid={`drawer-lang-${lang.code}`}
                 role="radio"
                 aria-checked={isSelected}
-                data-active={isSelected ? 'true' : 'false'}
+                data-selected={isSelected ? 'true' : 'false'}
                 className={isSelected ? 'active' : ''}
                 onClick={() => {
                   setDisplayLanguage(lang.code);
