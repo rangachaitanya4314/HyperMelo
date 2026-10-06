@@ -1,0 +1,457 @@
+/* =========================================================================
+   NARO BOTTOM PLAYER — STUDIO HI-FI AUDIO BAR & DELIBERATE MOBILE LAYOUT
+   ========================================================================= */
+
+:root {
+  --bottom-player-height-desktop: 86px;
+  --bottom-player-height-mobile: calc(154px + env(safe-area-inset-bottom, 0px));
+  --bottom-player-height: var(--bottom-player-height-desktop);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --bottom-player-height: var(--bottom-player-height-mobile);
+  }
+}
+
+.bottom-player-aside {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 90;
+  background-color: rgba(8, 11, 16, 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(244, 240, 235, 0.08);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.75);
+  box-sizing: border-box;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Subtle Top Accent Trim */
+.bottom-player-accent-trim {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(231, 165, 141, 0.4) 30%,
+    rgba(244, 223, 201, 0.5) 50%,
+    rgba(143, 168, 200, 0.4) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* General interactive button touch target guarantee */
+.player-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(244, 240, 235, 0.06);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  touch-action: manipulation;
+  padding: 0;
+}
+
+.player-icon-btn:hover {
+  background: rgba(244, 240, 235, 0.14);
+  border-color: rgba(244, 240, 235, 0.24);
+  color: var(--accent-cream);
+  transform: scale(1.05);
+}
+
+.player-icon-btn:active {
+  transform: scale(0.96);
+}
+
+/* Play/Pause Master Button */
+.player-master-play-btn {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 50%;
+  background-color: var(--text-primary);
+  color: #080B10;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+  box-shadow: 0 4px 18px rgba(244, 240, 235, 0.35);
+  flex-shrink: 0;
+  touch-action: manipulation;
+  padding: 0;
+}
+
+.player-master-play-btn:hover {
+  transform: scale(1.08);
+}
+
+.player-master-play-btn:active {
+  transform: scale(0.96);
+}
+
+/* -------------------------------------------------------------------------
+   DESKTOP VIEWPORT (min-width: 769px)
+   ------------------------------------------------------------------------- */
+@media (min-width: 769px) {
+  .bottom-player-aside {
+    height: 86px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 clamp(16px, 4vw, 40px);
+  }
+
+  .player-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 320px;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  .player-artwork-box {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    position: relative;
+    touch-action: manipulation;
+  }
+
+  .player-track-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    cursor: pointer;
+  }
+
+  .player-track-title {
+    font-size: 0.94rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+  }
+
+  .player-track-sub {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .player-track-artist {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .player-left-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .player-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    max-width: 580px;
+    min-width: 0;
+  }
+
+  .player-buttons-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .player-control-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-muted);
+    transition: color 0.2s ease, transform 0.15s ease;
+    touch-action: manipulation;
+  }
+
+  .player-control-icon-btn:hover {
+    color: var(--text-primary);
+    transform: scale(1.08);
+  }
+
+  .player-control-icon-btn:active {
+    transform: scale(0.95);
+  }
+
+  .player-scrubber-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .player-time-display {
+    font-size: 0.74rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    width: 38px;
+  }
+
+  .player-time-current {
+    text-align: right;
+  }
+
+  .player-time-duration {
+    text-align: left;
+  }
+
+  .player-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    width: 320px;
+    flex-shrink: 0;
+  }
+
+  .player-volume-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+/* -------------------------------------------------------------------------
+   DELIBERATE MOBILE LAYOUT (max-width: 768px)
+   Organized 3-region vertical hierarchy:
+   Region 1: Full-width dedicated Scrubber Row at top
+   Region 2: Artwork & Metadata (left) + Like, Add, Expand buttons (right)
+   Region 3: Dominant centered Playback Controls with ample spacing
+   ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .bottom-player-aside {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "progress progress"
+      "info     actions"
+      "controls controls";
+    row-gap: 6px;
+    column-gap: 8px;
+    padding: 8px clamp(10px, 3.5vw, 18px) calc(8px + env(safe-area-inset-bottom, 0px)) clamp(10px, 3.5vw, 18px);
+    height: auto;
+    min-height: calc(128px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Unbox .player-center to distribute scrubber and buttons into their own grid areas */
+  .player-center {
+    display: contents !important;
+  }
+
+  /* 1. DEDICATED PROGRESS ROW (Top of mobile player) */
+  .player-scrubber-row {
+    grid-area: progress;
+    width: 100% !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    padding: 2px 0;
+  }
+
+  .player-time-display {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    width: 34px;
+    flex-shrink: 0;
+  }
+
+  .player-time-current {
+    text-align: right;
+  }
+
+  .player-time-duration {
+    text-align: left;
+  }
+
+  /* 2. TRACK ARTWORK & METADATA (Left column of middle row) */
+  .player-left {
+    grid-area: info;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    width: 100% !important;
+    overflow: hidden;
+  }
+
+  .player-artwork-box {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    position: relative;
+    touch-action: manipulation;
+  }
+
+  .player-track-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .player-track-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
+  }
+
+  .player-track-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .player-track-artist {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .player-left-actions {
+    display: none !important; /* Like/add moved to actions area on mobile */
+  }
+
+  /* 2b. SECONDARY ACTIONS: LIKE & EXPAND (Right column of middle row) */
+  .player-right {
+    grid-area: actions;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    width: auto !important;
+    flex-shrink: 0;
+  }
+
+  /* Volume slider and Mute button hidden on mobile — hardware keys are used */
+  .player-volume-wrap {
+    display: none !important;
+  }
+
+  /* Desktop-only sound mode pill hidden from header row on mobile */
+  .player-desktop-sound-pill {
+    display: none !important;
+  }
+
+  /* 3. PRIMARY PLAYBACK CONTROLS (Bottom row: Shuffle, Prev, Play/Pause, Next, Repeat) */
+  .player-buttons-row {
+    grid-area: controls;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(8px, 3.2vw, 24px);
+    width: 100%;
+    padding: 2px 0;
+  }
+
+  .player-control-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--text-muted);
+    transition: color 0.2s ease, transform 0.15s ease;
+    touch-action: manipulation;
+  }
+
+  .player-master-play-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    box-shadow: 0 4px 18px rgba(244, 240, 235, 0.4) !important;
+  }
+
+  /* On narrow screens (<= 400px), hide auxiliary badges to ensure 100% collision-free text */
+  @media (max-width: 400px) {
+    #player-attribution-badge,
+    .player-track-spectrum {
+      display: none !important;
+    }
+  }
+
+  /* On ultra-narrow screens (<= 340px) */
+  @media (max-width: 340px) {
+    .bottom-player-aside {
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 8px;
+    }
+    .player-buttons-row {
+      gap: 10px;
+    }
+  }
+}

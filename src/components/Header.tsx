@@ -17,7 +17,9 @@ export const Header: React.FC = () => {
     currentUser,
     isAuthenticated,
     openAuthModal,
-    logout
+    logout,
+    nowPlayingOpen,
+    closeNowPlaying
   } = useAudioPlayer();
 
   useEffect(() => {
@@ -29,6 +31,9 @@ export const Header: React.FC = () => {
   }, []);
 
   const handleNavClick = (view: AppView) => {
+    if (nowPlayingOpen) {
+      closeNowPlaying();
+    }
     setMobileMenuOpen(false);
     setCurrentView(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -44,6 +49,8 @@ export const Header: React.FC = () => {
           left: 0,
           right: 0,
           zIndex: 100,
+          pointerEvents: nowPlayingOpen ? 'none' : 'auto',
+          visibility: nowPlayingOpen ? 'hidden' : 'visible',
           height: '72px',
           display: 'flex',
           alignItems: 'center',

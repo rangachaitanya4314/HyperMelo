@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, WifiOff, Loader2, Sparkles, TrendingUp, Music, Globe, Users, Flame, Disc } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { MusicCard } from '../components/MusicCard';
+import { HomeMoods } from '../components/HomeMoods';
 import { appleMusicCatalogProvider } from '../services/providers/AppleMusicCatalogProvider';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
 import type { Song } from '../types/music';
@@ -178,7 +179,7 @@ export const DiscoverPage: React.FC = () => {
     return [
       {
         id: 'trending',
-        title: 'Trending Now',
+        title: 'Trending',
         subtitle: 'The hottest tracks currently playing across the globe.',
         songs: trendingSongs,
         icon: <Flame size={20} color="#F59E0B" />
@@ -246,7 +247,8 @@ export const DiscoverPage: React.FC = () => {
 
   const filterTabs = [
     { id: 'all', label: 'All Discoveries' },
-    { id: 'trending', label: 'Trending Now' },
+    { id: 'trending', label: 'Trending' },
+    { id: 'moods', label: 'Moods' },
     { id: 'hindi', label: 'Top 10 Hindi' },
     { id: 'telugu', label: 'Top 10 Telugu' },
     { id: 'tamil', label: 'Top 10 Tamil' },
@@ -404,6 +406,13 @@ export const DiscoverPage: React.FC = () => {
             You&apos;re offline. Showing fallback catalog. Connect to the internet to stream live
             global discoveries.
           </span>
+        </div>
+      )}
+
+      {/* Moods Atmospheric Shelf (shown on 'all' or 'moods' tab) */}
+      {(activeTab === 'all' || activeTab === 'moods') && (
+        <div style={{ marginBottom: '48px' }}>
+          <HomeMoods title="Moods" id="home-moods" />
         </div>
       )}
 

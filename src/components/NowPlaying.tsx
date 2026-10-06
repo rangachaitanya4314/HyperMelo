@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
-  ChevronDown,
+  ChevronLeft,
   Play,
   Pause,
   SkipBack,
@@ -8,6 +8,7 @@ import {
   Volume2,
   VolumeX,
   Repeat,
+  Shuffle,
   Heart,
   CloudRain,
   Sun,
@@ -85,9 +86,11 @@ export const NowPlaying: React.FC = () => {
     setSoundPreset,
     toggleLikeSong,
     isSongLiked,
-    openAddToPlaylist
+    openAddToPlaylist,
+    setCurrentView
   } = useAudioPlayer();
 
+  const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [prevVolume, setPrevVolume] = useState<number>(0.8);
   const activeLyricRef = useRef<HTMLDivElement | null>(null);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -168,13 +171,61 @@ export const NowPlaying: React.FC = () => {
     }
   }, [activeLyricIndex]);
 
-  // Keyboard accessibility: Escape to minimize, Space to toggle play
+  const isPopStateClosingRef = useRef<boolean>(false);
+
+  // Reliable, universal exit mechanism: Closes expanded Now Playing, exits browser fullscreen if active, cleanly handles browser history
+  const handleExit = React.useCallback(() => {
+    // 1. Exit native browser fullscreen if active
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+
+    // 2. Immediately close Now Playing overlay
+    closeNowPlaying();
+
+    // 3. Clean up history entry without creating navigation loops
+    if (typeof window !== 'undefined' && window.history.state?.naroNowPlaying && !isPopStateClosingRef.current) {
+      isPopStateClosingRef.current = true;
+      window.history.back();
+      setTimeout(() => {
+        isPopStateClosingRef.current = false;
+      }, 100);
+    }
+  }, [closeNowPlaying]);
+
+  // Synchronize with mobile browser back gesture / browser back button
+  useEffect(() => {
+    if (!nowPlayingOpen) return;
+
+    // Push history state if not already pushed
+    if (typeof window !== 'undefined' && !window.history.state?.naroNowPlaying) {
+      window.history.pushState({ naroNowPlaying: true }, '', window.location.href);
+    }
+
+    const handlePopState = () => {
+      isPopStateClosingRef.current = true;
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      closeNowPlaying();
+      setTimeout(() => {
+        isPopStateClosingRef.current = false;
+      }, 100);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [nowPlayingOpen, closeNowPlaying]);
+
+  // Keyboard accessibility: Escape to exit expanded Now Playing, Space to toggle play
   useEffect(() => {
     if (!nowPlayingOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        closeNowPlaying();
+        handleExit();
       } else if (
         e.key === ' ' &&
         document.activeElement?.tagName !== 'INPUT' &&
@@ -187,7 +238,17 @@ export const NowPlaying: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nowPlayingOpen, closeNowPlaying, togglePlay]);
+  }, [nowPlayingOpen, handleExit, togglePlay]);
+
+  // Lock background document scroll while Now Playing overlay is active
+  useEffect(() => {
+    if (!nowPlayingOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [nowPlayingOpen]);
 
   if (!nowPlayingOpen) return null;
 
@@ -425,20 +486,32 @@ export const NowPlaying: React.FC = () => {
           Minimize button, Playing context, Capability badge
           ========================================================================= */}
       <header className="now-playing-header">
-        {/* Minimize Button */}
+        {/* Persistent Obvious Close/Back Control (Top-Left, min 44x44px touch target) */}
         <button
           id="minimize-now-playing-btn"
           data-testid="minimize-now-playing-btn"
-          onClick={closeNowPlaying}
-          aria-label="Minimize Now Playing"
+          data-close-now-playing="true"
+          onClick={handleExit}
+          aria-label="Close full screen player"
           className="now-playing-minimize-btn"
-          title="Minimize Now Playing (Esc)"
+          title="Close full screen player (Esc)"
         >
-          <ChevronDown size={24} />
+          <ChevronLeft size={24} />
         </button>
 
         {/* Center Title Context */}
-        <div className="now-playing-header-center">
+        <div
+          className="now-playing-header-center"
+          onClick={() => {
+            handleExit();
+            setCurrentView('home');
+          }}
+          style={{ cursor: 'pointer' }}
+          role="button"
+          tabIndex={0}
+          title="NARO Home (Click to return to Home)"
+          aria-label="NARO Home"
+        >
           <span className="now-playing-header-eyebrow">
             PLAYING FROM NARO
           </span>
@@ -925,17 +998,44 @@ export const NowPlaying: React.FC = () => {
 
         {/* Action Controls Row */}
         <div className="now-playing-controls-row">
-          {/* Left: Moment Repeat */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* Left: Shuffle & Moment Repeat */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              onClick={() => setIsShuffle(!isShuffle)}
+              aria-label={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
+              className="now-playing-control-btn"
+              style={{
+                background: 'none',
+                border: 'none',
+                color: isShuffle ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)',
+                cursor: 'pointer',
+                minWidth: '44px',
+                minHeight: '44px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation'
+              }}
+              title={isShuffle ? 'Shuffle active' : 'Shuffle tracks'}
+            >
+              <Shuffle size={18} />
+            </button>
+
             <button
               onClick={() => setIsLoopingSection(!isLoopingSection)}
               aria-label="Repeat Section"
+              className="now-playing-control-btn"
               style={{
                 background: 'none',
                 border: 'none',
                 color: isLoopingSection ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)',
                 cursor: 'pointer',
-                padding: '8px'
+                minWidth: '44px',
+                minHeight: '44px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation'
               }}
               title={isLoopingSection ? 'Moment looping active' : 'Repeat moment'}
             >
@@ -944,16 +1044,22 @@ export const NowPlaying: React.FC = () => {
           </div>
 
           {/* Center: Prev, Play/Pause, Next */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(12px, 3.5vw, 24px)' }}>
             <button
               onClick={prevSong}
               aria-label="Previous Track"
+              className="now-playing-control-btn"
               style={{
                 background: 'none',
                 border: 'none',
                 color: '#F4F0EB',
                 cursor: 'pointer',
-                padding: '8px'
+                minWidth: '44px',
+                minHeight: '44px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation'
               }}
             >
               <SkipBack size={22} />
@@ -965,6 +1071,7 @@ export const NowPlaying: React.FC = () => {
               onClick={togglePlay}
               aria-label={isPlaying ? 'Pause' : 'Play'}
               className="now-playing-play-btn"
+              style={{ touchAction: 'manipulation' }}
             >
               {isPlaying ? <Pause size={24} fill="#080B10" /> : <Play size={24} fill="#080B10" style={{ marginLeft: '3px' }} />}
             </button>
@@ -972,12 +1079,18 @@ export const NowPlaying: React.FC = () => {
             <button
               onClick={nextSong}
               aria-label="Next Track"
+              className="now-playing-control-btn"
               style={{
                 background: 'none',
                 border: 'none',
                 color: '#F4F0EB',
                 cursor: 'pointer',
-                padding: '8px'
+                minWidth: '44px',
+                minHeight: '44px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation'
               }}
             >
               <SkipForward size={22} />
@@ -985,16 +1098,22 @@ export const NowPlaying: React.FC = () => {
           </div>
 
           {/* Right: Master Volume */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
               onClick={handleMuteToggle}
               aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+              className="now-playing-control-btn"
               style={{
                 background: 'none',
                 border: 'none',
                 color: 'var(--text-muted, #CBD5E1)',
                 cursor: 'pointer',
-                padding: '4px'
+                minWidth: '44px',
+                minHeight: '44px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                touchAction: 'manipulation'
               }}
             >
               {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
@@ -1009,12 +1128,11 @@ export const NowPlaying: React.FC = () => {
               step={0.02}
               value={volume}
               onChange={(e) => setVolume(parseFloat(e.target.value))}
-              aria-label="Volume Slider"
+              aria-label="Master volume"
               style={{
-                width: '75px',
+                width: '85px',
                 accentColor: 'var(--accent-warm, #E7A58D)',
-                cursor: 'pointer',
-                height: '4px'
+                cursor: 'pointer'
               }}
             />
           </div>

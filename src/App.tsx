@@ -54,7 +54,15 @@ export const AppContent: React.FC = () => {
       <Header />
 
       {/* Active Navigation View */}
-      <main style={{ minHeight: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
+      <main
+        className="app-main-content"
+        style={{
+          minHeight: 'calc(100vh - 160px)',
+          display: 'flex',
+          flexDirection: 'column',
+          paddingBottom: 'calc(var(--bottom-player-height, 160px) + 32px)'
+        }}
+      >
         {currentView === 'home' && <Home onReplayIntro={handleReplayIntro} />}
         {currentView === 'discover' && <DiscoverPage />}
         {currentView === 'karaoke' && <KaraokePage />}

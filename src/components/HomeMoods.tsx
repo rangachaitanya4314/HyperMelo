@@ -112,7 +112,12 @@ const MOODS: MoodConfig[] = [
   }
 ];
 
-export const HomeMoods: React.FC = () => {
+export interface HomeMoodsProps {
+  title?: string;
+  id?: string;
+}
+
+export const HomeMoods: React.FC<HomeMoodsProps> = ({ title = 'MOODS', id = 'home-moods' }) => {
   const [activeMood, setActiveMood] = useState<MoodType>('Late Nights');
   const shelfRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -183,9 +188,9 @@ export const HomeMoods: React.FC = () => {
 
   return (
     <section
-      id="home-moods"
+      id={id}
       className="home-moods-section"
-      aria-label="Home Moods"
+      aria-label={title}
     >
       {/* Atmosphere background container */}
       <div
@@ -211,7 +216,7 @@ export const HomeMoods: React.FC = () => {
                 className="home-moods-kicker"
                 style={{ color: currentConfig.accentColor }}
               >
-                HOME MOODS
+                {title}
               </span>
               <span
                 className="home-moods-kicker-line"

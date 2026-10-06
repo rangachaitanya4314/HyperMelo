@@ -40,7 +40,15 @@ export const Footer: React.FC<FooterProps> = ({ onReplayIntro }) => {
           {/* Brand info */}
           <div style={{ maxWidth: '380px' }}>
             <div style={{ marginBottom: '8px' }}>
-              <NaroLogo variant="compact" showSpectrum={true} showTagline={false} />
+              <NaroLogo
+                variant="compact"
+                showSpectrum={true}
+                showTagline={false}
+                onClick={() => {
+                  setCurrentView('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
             </div>
 
             <p className="font-editorial" style={{ fontStyle: 'italic', fontSize: '1.2rem', color: 'var(--accent-cream)', margin: '0 0 10px 0' }}>

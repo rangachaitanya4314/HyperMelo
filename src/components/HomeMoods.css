@@ -2,7 +2,7 @@
 
 .home-moods-section {
   position: relative;
-  padding: clamp(32px, 4.5vw, 64px) clamp(16px, 4vw, 48px);
+  padding: clamp(16px, 3vw, 40px) 0;
   max-width: 1360px;
   margin: 0 auto;
   width: 100%;

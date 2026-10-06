@@ -1,7 +1,5 @@
 import React, { useEffect } from 'react';
 import { Hero } from '../components/Hero';
-import { HomeMoods } from '../components/HomeMoods';
-import { MusicGrid } from '../components/MusicGrid';
 import { CoreFeatureSection } from '../components/CoreFeatureSection';
 import { Footer } from '../components/Footer';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
@@ -30,12 +28,10 @@ export const Home: React.FC<HomeProps> = ({ onReplayIntro }) => {
   }, [togglePlay, karaokeModalOpen, isRecordingActive, reviewModalOpen, searchModalOpen]);
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
       <Hero />
-      <HomeMoods />
-      <MusicGrid />
       <CoreFeatureSection />
       <Footer onReplayIntro={onReplayIntro} />
-    </main>
+    </div>
   );
 };

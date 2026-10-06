@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Play,
   Pause,
@@ -8,6 +8,7 @@ import {
   VolumeX,
   FileText,
   Repeat,
+  Shuffle,
   Loader2,
   AlertCircle,
   Maximize2,
@@ -18,6 +19,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
 import { MulticolorSpectrum } from './MulticolorSpectrum';
+import './BottomPlayer.css';
 
 export const BottomPlayer: React.FC = () => {
   const {
@@ -49,6 +51,30 @@ export const BottomPlayer: React.FC = () => {
   const isLiked = isSongLiked(currentSong.id);
 
   const [prevVolume, setPrevVolume] = useState<number>(0.8);
+  const [isShuffle, setIsShuffle] = useState<boolean>(false);
+  const asideRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const el = asideRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.height > 0) {
+        document.documentElement.style.setProperty('--bottom-player-height', `${Math.ceil(rect.height)}px`);
+      }
+    };
+    updateHeight();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateHeight);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, []);
 
   const formatPlaybackError = (raw: string | null): string | null => {
     if (!raw) return null;
@@ -96,61 +122,25 @@ export const BottomPlayer: React.FC = () => {
 
   return (
     <aside
+      ref={asideRef}
       role="region"
       aria-label="NARO Studio Audio Player"
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '86px',
-        backgroundColor: 'rgba(8, 11, 16, 0.96)',
-        backdropFilter: 'blur(24px)',
-        WebkitBackdropFilter: 'blur(24px)',
-        borderTop: '1px solid rgba(244, 240, 235, 0.08)',
-        zIndex: 90,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 clamp(16px, 4vw, 40px)',
-        boxShadow: '0 -10px 40px rgba(0, 0, 0, 0.75)'
-      }}
+      className="bottom-player-aside"
     >
       {/* Subtle Studio Metallic Top Accent Trim */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '1px',
-          background: 'linear-gradient(90deg, transparent 0%, rgba(231, 165, 141, 0.4) 30%, rgba(244, 223, 201, 0.5) 50%, rgba(143, 168, 200, 0.4) 70%, transparent 100%)'
-        }}
-      />
+      <div className="bottom-player-accent-trim" />
 
-      {/* Left: Artwork, Title, Artist, Multicolor Spectrum Visualizer */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-          width: '320px',
-          minWidth: 0
-        }}
-      >
+      {/* =====================================================================
+          REGION 1 (Mobile Row 2 Left / Desktop Left): Artwork & Track Metadata
+          ===================================================================== */}
+      <div className="player-left">
         <div
-          style={{
-            width: '50px',
-            height: '50px',
-            borderRadius: '10px',
-            overflow: 'hidden',
-            flexShrink: 0,
-            cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(0,0,0,0.6)',
-            position: 'relative'
-          }}
+          className="player-artwork-box"
           onClick={togglePlay}
           title="Toggle playback"
+          aria-label="Toggle playback"
+          role="button"
+          tabIndex={0}
         >
           <AbstractArtwork artwork={currentSong.artwork} isPlaying={isPlaying} size={50} />
         </div>
@@ -159,41 +149,17 @@ export const BottomPlayer: React.FC = () => {
           id="bottom-player-track-info"
           data-testid="bottom-player-track-info"
           onClick={openNowPlaying}
-          style={{
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '2px',
-            flex: 1,
-            cursor: 'pointer'
-          }}
+          className="player-track-info"
           title="Expand Now Playing"
+          role="button"
+          tabIndex={0}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              style={{
-                fontSize: '0.94rem',
-                fontWeight: 600,
-                color: 'var(--text-primary)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              {currentSong.title}
-            </span>
-          </div>
+          <span className="player-track-title">
+            {currentSong.title}
+          </span>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
-              style={{
-                fontSize: '0.78rem',
-                color: 'var(--text-muted)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
+          <div className="player-track-sub">
+            <span className="player-track-artist">
               {currentSong.artist}
             </span>
 
@@ -219,18 +185,20 @@ export const BottomPlayer: React.FC = () => {
             )}
 
             {/* Multicolor Audio Spectrum */}
-            <MulticolorSpectrum
-              isPlaying={isPlaying}
-              barCount={7}
-              height={14}
-              barWidth={2.5}
-              gap={2}
-            />
+            <div className="player-track-spectrum">
+              <MulticolorSpectrum
+                isPlaying={isPlaying}
+                barCount={7}
+                height={14}
+                barWidth={2.5}
+                gap={2}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Quick Like & Add to Playlist Actions */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        {/* Quick Like Action (desktop left cluster) */}
+        <div className="player-left-actions">
           <button
             type="button"
             id="bottom-player-like-btn"
@@ -240,12 +208,11 @@ export const BottomPlayer: React.FC = () => {
               toggleLikeSong(currentSong);
             }}
             aria-label={isLiked ? 'Unlike song' : 'Like song'}
-            className="btn-icon"
-            style={{ width: '34px', height: '34px' }}
+            className="player-icon-btn"
             title={isLiked ? 'Unlike song' : 'Save to Liked Songs'}
           >
             <Heart
-              size={17}
+              size={18}
               fill={isLiked ? 'var(--accent-warm)' : 'none'}
               color={isLiked ? 'var(--accent-warm)' : 'var(--text-muted)'}
             />
@@ -260,123 +227,89 @@ export const BottomPlayer: React.FC = () => {
               openAddToPlaylist(currentSong);
             }}
             aria-label="Add to playlist"
-            className="btn-icon"
-            style={{ width: '34px', height: '34px' }}
+            className="player-icon-btn"
             title="Add to playlist"
           >
-            <Plus size={17} color="var(--text-muted)" />
+            <Plus size={18} color="var(--text-muted)" />
           </button>
         </div>
       </div>
 
-      {/* Center: Hi-Fi Studio Controls & Central Clock Scrubber */}
-      <div
-        className="player-center"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '6px',
-          flex: 1,
-          maxWidth: '580px'
-        }}
-      >
-        {/* Buttons Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+      {/* =====================================================================
+          REGION 2 (Mobile Row 1: Dedicated Scrubber; Row 3: Buttons)
+          ===================================================================== */}
+      <div className="player-center">
+        {/* Buttons Row (Controls: Shuffle, Prev, Play/Pause, Next, Repeat) */}
+        <div className="player-buttons-row">
           <button
-            onClick={() => setIsLoopingSection(!isLoopingSection)}
-            aria-label="Loop active moment"
+            type="button"
+            onClick={() => setIsShuffle(!isShuffle)}
+            aria-label={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
+            className="player-control-icon-btn"
             style={{
-              background: 'none',
-              border: 'none',
-              color: isLoopingSection ? 'var(--accent-warm)' : 'var(--text-dim)',
-              cursor: 'pointer',
-              padding: '6px',
-              transition: 'color 0.2s ease'
+              color: isShuffle ? 'var(--accent-warm)' : 'var(--text-dim)'
             }}
-            title={isLoopingSection ? 'Looping current moment' : 'Repeat moment'}
+            title={isShuffle ? 'Shuffle active' : 'Shuffle tracks'}
           >
-            <Repeat size={16} />
+            <Shuffle size={18} />
           </button>
 
           <button
+            type="button"
             onClick={prevSong}
             aria-label="Previous track"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '6px',
-              transition: 'color 0.2s ease'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            className="player-control-icon-btn"
+            title="Previous track"
           >
-            <SkipBack size={18} />
+            <SkipBack size={20} />
           </button>
 
           {/* Master Play/Pause with Loading/Buffering feedback */}
           <button
+            type="button"
             id="bottom-play-btn"
             data-testid="bottom-play-btn"
             onClick={togglePlay}
             aria-label={isPlaying ? 'Pause' : 'Play'}
-            style={{
-              width: '42px',
-              height: '42px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--text-primary)',
-              color: '#080B10',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease',
-              boxShadow: '0 2px 14px rgba(244, 240, 235, 0.3)'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.08)')}
-            onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            className="player-master-play-btn"
+            title={isPlaying ? 'Pause' : 'Play'}
           >
             {playbackState === 'loading' || playbackState === 'buffering' ? (
-              <Loader2 size={18} className="animate-spin" color="#080B10" />
+              <Loader2 size={20} className="animate-spin" color="#080B10" />
             ) : isPlaying ? (
-              <Pause size={18} fill="#080B10" />
+              <Pause size={20} fill="#080B10" />
             ) : (
-              <Play size={18} fill="#080B10" style={{ marginLeft: '2px' }} />
+              <Play size={20} fill="#080B10" style={{ marginLeft: '2px' }} />
             )}
           </button>
 
           <button
+            type="button"
             onClick={nextSong}
             aria-label="Next track"
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '6px',
-              transition: 'color 0.2s ease'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+            className="player-control-icon-btn"
+            title="Next track"
           >
-            <SkipForward size={18} />
+            <SkipForward size={20} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsLoopingSection(!isLoopingSection)}
+            aria-label="Loop active moment"
+            className="player-control-icon-btn"
+            style={{
+              color: isLoopingSection ? 'var(--accent-warm)' : 'var(--text-dim)'
+            }}
+            title={isLoopingSection ? 'Looping current moment' : 'Repeat moment'}
+          >
+            <Repeat size={18} />
           </button>
         </div>
 
-        {/* Scrubber progress bar mapped to ACTUAL playback clock */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
-          <span
-            style={{
-              fontSize: '0.74rem',
-              color: 'var(--text-dim)',
-              fontVariantNumeric: 'tabular-nums',
-              width: '38px',
-              textAlign: 'right'
-            }}
-          >
+        {/* Dedicated Scrubber progress bar mapped to actual playback clock */}
+        <div className="player-scrubber-row">
+          <span className="player-time-display player-time-current">
             {formatTime(currentTime)}
           </span>
 
@@ -384,9 +317,11 @@ export const BottomPlayer: React.FC = () => {
             style={{
               position: 'relative',
               flex: 1,
-              height: '4px',
-              backgroundColor: 'rgba(244, 240, 235, 0.12)',
-              borderRadius: '2px'
+              height: '5px',
+              backgroundColor: 'rgba(244, 240, 235, 0.14)',
+              borderRadius: '3px',
+              display: 'flex',
+              alignItems: 'center'
             }}
           >
             {/* Buffer bar */}
@@ -397,8 +332,8 @@ export const BottomPlayer: React.FC = () => {
                 top: 0,
                 bottom: 0,
                 width: `${bufferPercent}%`,
-                backgroundColor: 'rgba(244, 240, 235, 0.18)',
-                borderRadius: '2px'
+                backgroundColor: 'rgba(244, 240, 235, 0.22)',
+                borderRadius: '3px'
               }}
             />
 
@@ -411,11 +346,12 @@ export const BottomPlayer: React.FC = () => {
                 bottom: 0,
                 width: `${progressPercent}%`,
                 backgroundColor: 'var(--accent-warm)',
-                borderRadius: '2px',
-                boxShadow: '0 0 8px rgba(231, 165, 141, 0.4)'
+                borderRadius: '3px',
+                boxShadow: '0 0 8px rgba(231, 165, 141, 0.45)'
               }}
             />
 
+            {/* Seeking input with isolated 44px vertical touch hit area */}
             <input
               id="bottom-seek-slider"
               type="range"
@@ -427,24 +363,20 @@ export const BottomPlayer: React.FC = () => {
               aria-label="Song progress seek"
               style={{
                 position: 'absolute',
-                top: '-8px',
+                top: '-19px',
+                bottom: '-19px',
                 left: 0,
                 width: '100%',
-                height: '20px',
+                height: '44px',
                 opacity: 0,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                touchAction: 'manipulation',
+                margin: 0
               }}
             />
           </div>
 
-          <span
-            style={{
-              fontSize: '0.74rem',
-              color: 'var(--text-dim)',
-              fontVariantNumeric: 'tabular-nums',
-              width: '38px'
-            }}
-          >
+          <span className="player-time-display player-time-duration">
             {formatTime(effectiveDuration)}
           </span>
         </div>
@@ -460,7 +392,8 @@ export const BottomPlayer: React.FC = () => {
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: '0.72rem',
-                color: '#FCA5A5'
+                color: '#FCA5A5',
+                padding: '2px 0'
               }}
             >
               <AlertCircle size={12} />
@@ -470,17 +403,29 @@ export const BottomPlayer: React.FC = () => {
         })()}
       </div>
 
-      {/* Right: Lyrics drawer, Karaoke button, Hi-Fi Volume slider */}
-      <div
-        className="player-right"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: '14px',
-          width: '320px'
-        }}
-      >
+      {/* =====================================================================
+          REGION 3 (Mobile Row 2 Right / Desktop Right): Actions & Studio Volume
+          ===================================================================== */}
+      <div className="player-right">
+        {/* Mobile quick like button when left actions are hidden */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleLikeSong(currentSong);
+          }}
+          aria-label={isLiked ? 'Unlike song' : 'Like song'}
+          className="player-icon-btn mobile-like-btn"
+          title={isLiked ? 'Unlike song' : 'Save to Liked Songs'}
+          style={{ display: 'none' }}
+        >
+          <Heart
+            size={18}
+            fill={isLiked ? 'var(--accent-warm)' : 'none'}
+            color={isLiked ? 'var(--accent-warm)' : 'var(--text-muted)'}
+          />
+        </button>
+
         {/* NARO Immersive Sound Profile Pill */}
         <button
           id="sound-profile-toggle-btn"
@@ -490,11 +435,13 @@ export const BottomPlayer: React.FC = () => {
             setSoundMode(nextMode);
           }}
           aria-label={`Sound profile: ${soundMode === 'immersive' ? soundPreset : 'Original'}`}
+          className="player-desktop-sound-pill"
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '5px 12px',
+            padding: '7px 14px',
+            minHeight: '44px',
             borderRadius: 'var(--radius-full)',
             backgroundColor: soundMode === 'immersive' ? 'rgba(231, 165, 141, 0.18)' : 'rgba(244, 240, 235, 0.05)',
             border: soundMode === 'immersive' ? '1px solid var(--border-warm)' : '1px solid rgba(244, 240, 235, 0.08)',
@@ -504,52 +451,49 @@ export const BottomPlayer: React.FC = () => {
             letterSpacing: '0.04em',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            touchAction: 'manipulation'
           }}
           title={soundMode === 'immersive' ? `NARO Immersive (${soundPreset.toUpperCase()}) - Click to bypass` : 'Original (Bypassed) - Click to activate NARO Immersive'}
         >
-          <Sparkles size={13} color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'var(--text-dim)'} />
+          <Sparkles size={14} color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'var(--text-dim)'} />
           <span>{soundMode === 'immersive' ? 'IMMERSIVE' : 'ORIGINAL'}</span>
-        </button>
-
-        {/* Expand Now Playing Button */}
-        <button
-          id="expand-now-playing-btn"
-          data-testid="expand-now-playing-btn"
-          onClick={openNowPlaying}
-          aria-label="Expand Now Playing"
-          className="btn-icon"
-          style={{ width: '38px', height: '38px' }}
-          title="Expand Immersive Now Playing"
-        >
-          <Maximize2 size={17} />
         </button>
 
         {/* Toggle Lyrics Drawer */}
         <button
+          type="button"
           id="toggle-lyrics-drawer-btn"
           data-testid="toggle-lyrics-drawer-btn"
           onClick={toggleLyricsDrawer}
           aria-label="Toggle floating lyrics"
-          className="btn-icon"
-          style={{ width: '38px', height: '38px' }}
+          className="player-icon-btn"
           title="Floating Synchronized Lyrics"
         >
-          <FileText size={17} />
+          <FileText size={18} />
         </button>
 
-        {/* Studio Volume controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Expand Now Playing Button — Always independently accessible with min 44x44px touch target */}
+        <button
+          type="button"
+          id="expand-now-playing-btn"
+          data-testid="expand-now-playing-btn"
+          onClick={openNowPlaying}
+          aria-label="Expand Now Playing"
+          className="player-icon-btn"
+          title="Expand Immersive Now Playing"
+        >
+          <Maximize2 size={18} />
+        </button>
+
+        {/* Studio Volume controls (Desktop only) */}
+        <div className="player-volume-wrap">
           <button
+            type="button"
             onClick={handleMuteToggle}
             aria-label={volume === 0 ? 'Unmute volume' : 'Mute volume'}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              cursor: 'pointer',
-              padding: '4px'
-            }}
+            className="player-control-icon-btn"
+            style={{ padding: '6px' }}
           >
             {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
           </button>
@@ -573,17 +517,9 @@ export const BottomPlayer: React.FC = () => {
       </div>
 
       <style>{`
-        @media (max-width: 820px) {
-          .player-center {
-            max-width: none !important;
-          }
-          .player-right .btn-icon,
-          .player-right input[type="range"],
-          .player-right button[aria-label*="Mute"] {
-            display: none !important;
-          }
-          .player-right {
-            width: auto !important;
+        @media (max-width: 768px) {
+          .mobile-like-btn {
+            display: inline-flex !important;
           }
         }
       `}</style>

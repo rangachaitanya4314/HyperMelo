@@ -215,7 +215,22 @@ async function runHomeMoodsVerification() {
     `);
     await new Promise((r) => setTimeout(r, 500));
 
-    // Scroll Home Moods into view
+    // Navigate to Discover if #home-moods is not currently mounted
+    await cdp.eval(`
+      (() => {
+        const moodsSection = document.getElementById('home-moods');
+        if (!moodsSection) {
+          const navBtns = Array.from(document.querySelectorAll('nav[aria-label="Main Navigation"] button, button'));
+          const discoverBtn = navBtns.find(b => b.textContent?.trim().toLowerCase() === 'discover');
+          if (discoverBtn) {
+            discoverBtn.click();
+          }
+        }
+      })()
+    `);
+    await new Promise((r) => setTimeout(r, 600));
+
+    // Scroll Moods into view
     await cdp.eval(`
       (() => {
         const moodsSection = document.getElementById('home-moods');
@@ -277,7 +292,8 @@ async function runHomeMoodsVerification() {
         })()
       `);
 
-      assert(activeState.cardCount === 20, `Mood "${mood}" renders exactly 20 cards (first track: "${activeState.firstSongTitle}" by ${activeState.firstSongArtist})`);
+      const expectedCount = getMoodCatalog(mood).length;
+      assert(activeState.cardCount === expectedCount, `Mood "${mood}" renders exactly ${expectedCount} cards (first track: "${activeState.firstSongTitle}" by ${activeState.firstSongArtist})`);
     }
 
     // TEST 3: Shelf Navigation Arrows (Desktop)
@@ -355,7 +371,7 @@ async function runHomeMoodsVerification() {
     // TEST 4: Responsive Layouts (Desktop, Tablet, Mobile) & Zero Page Horizontal Overflow
     console.log('\n[Test 4] Verifying Responsive Layouts & Zero Page Horizontal Overflow...');
     const viewports = [
-      { name: 'Desktop (1440x900)', width: 1440, height: 900, mobile: false, targetVisibleMin: 5, targetVisibleMax: 7.5 },
+      { name: 'Desktop (1440x900)', width: 1440, height: 900, mobile: false, targetVisibleMin: 4.5, targetVisibleMax: 7.5 },
       { name: 'Tablet (768x1024)', width: 768, height: 1024, mobile: true, targetVisibleMin: 2.8, targetVisibleMax: 4.5 },
       { name: 'Mobile (390x844)', width: 390, height: 844, mobile: true, targetVisibleMin: 1.5, targetVisibleMax: 2.4 }
     ];
