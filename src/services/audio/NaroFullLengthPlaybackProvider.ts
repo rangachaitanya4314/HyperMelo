@@ -93,17 +93,20 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
     );
   }
 
-  public setBackingMode(isBacking: boolean, backingUrl: string, vocalUrl?: string): void {
+  public setBackingMode(isBacking: boolean, backingUrl: string, vocalUrl?: string, seekTime?: number): void {
     if (!this.audio || !this.currentSong) return;
     const targetUrl = isBacking
       ? backingUrl
       : (vocalUrl || this.currentSong.playbackSource?.streamUrl);
 
     if (!targetUrl || this.audio.src.endsWith(targetUrl) || this.audio.src === targetUrl) {
+      if (seekTime !== undefined && seekTime >= 0) {
+        this.seek(seekTime);
+      }
       return;
     }
 
-    const currentTime = this.audio.currentTime;
+    const currentTime = seekTime !== undefined && seekTime >= 0 ? seekTime : this.audio.currentTime;
     const isPlaying = !this.audio.paused;
 
     const onLoadedMetadata = () => {

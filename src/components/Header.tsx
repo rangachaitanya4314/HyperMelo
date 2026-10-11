@@ -43,6 +43,7 @@ export const Header: React.FC = () => {
     <>
       <header
         role="banner"
+        className="naro-app-header"
         style={{
           position: 'sticky',
           top: 0,
@@ -55,16 +56,19 @@ export const Header: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 clamp(16px, 4vw, 48px)',
-          backgroundColor: isScrolled ? 'rgba(8, 11, 16, 0.92)' : 'rgba(8, 11, 16, 0.65)',
+          padding: '0 clamp(10px, 3.5vw, 48px)',
+          backgroundColor: isScrolled ? 'rgba(8, 11, 16, 0.95)' : 'rgba(8, 11, 16, 0.75)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderBottom: isScrolled ? '1px solid rgba(244, 240, 235, 0.08)' : '1px solid rgba(244, 240, 235, 0.04)',
-          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+          transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          boxSizing: 'border-box',
+          width: '100%',
+          maxWidth: '100vw'
         }}
       >
         {/* Left: NARO Calligraphic Wordmark & Brand Accent */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+        <div className="header-left-cluster" style={{ display: 'flex', alignItems: 'center', gap: '32px', minWidth: 0, flexShrink: 0 }}>
           <NaroLogo
             variant="header"
             showTagline={true}
@@ -118,34 +122,37 @@ export const Header: React.FC = () => {
           </nav>
         </div>
 
-        {/* Center/Right: Offline Badge + Search Input + Profile */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* Center/Right: Offline Badge + Search Input + Profile + Hamburger */}
+        <div className="header-right-cluster" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
           {/* Offline indicator banner */}
           {!isOnline && (
             <div
+              className="header-offline-badge"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '5px 12px',
+                padding: '5px 10px',
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: 'rgba(239, 68, 68, 0.15)',
                 border: '1px solid rgba(239, 68, 68, 0.4)',
                 color: '#FCA5A5',
-                fontSize: '0.78rem',
+                fontSize: '0.74rem',
                 fontWeight: 600,
-                letterSpacing: '0.02em'
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap'
               }}
               title="You're offline. Connect to the internet to search and stream music."
             >
               <WifiOff size={14} />
-              <span>You&apos;re offline</span>
+              <span className="header-offline-text">Offline</span>
             </div>
           )}
 
-          {/* Search Trigger Bar */}
+          {/* Search Trigger Bar / Button */}
           <div
             id="header-search-bar"
+            data-testid="header-search-bar"
             className="header-search-bar"
             onClick={() => setSearchModalOpen(true)}
             role="button"
@@ -157,6 +164,7 @@ export const Header: React.FC = () => {
               }
             }}
             aria-label="Search music, artists, lyrics"
+            title="Search music, artists, lyrics"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -165,13 +173,15 @@ export const Header: React.FC = () => {
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-full)',
               padding: '8px 16px',
-              width: 'clamp(200px, 22vw, 320px)',
+              minHeight: '44px',
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              touchAction: 'manipulation'
             }}
           >
             <Search size={16} color="var(--text-muted)" />
             <span
+              className="header-search-text"
               style={{
                 fontSize: '0.84rem',
                 color: searchQuery ? 'var(--text-primary)' : 'var(--text-dim)',
@@ -184,6 +194,7 @@ export const Header: React.FC = () => {
               {searchQuery || 'Search music, artists, lyrics'}
             </span>
             <span
+              className="header-search-shortcut"
               style={{
                 fontSize: '0.7rem',
                 color: 'var(--text-dim)',
@@ -197,9 +208,11 @@ export const Header: React.FC = () => {
           </div>
 
           {/* Profile / Avatar / Auth Button */}
-          <div style={{ position: 'relative' }}>
+          <div className="header-auth-wrapper" style={{ position: 'relative' }}>
             <button
               type="button"
+              id="header-auth-btn"
+              data-testid="header-auth-btn"
               onClick={() => {
                 if (isAuthenticated) {
                   setProfileMenuOpen((prev) => !prev);
@@ -207,11 +220,13 @@ export const Header: React.FC = () => {
                   openAuthModal('signin');
                 }
               }}
+              className="header-auth-btn"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 padding: isAuthenticated ? '4px 10px 4px 6px' : '6px 14px',
+                minHeight: '44px',
                 borderRadius: 'var(--radius-full)',
                 backgroundColor: isAuthenticated ? 'rgba(231, 165, 141, 0.15)' : 'rgba(244, 240, 235, 0.08)',
                 border: isAuthenticated ? '1px solid var(--border-warm)' : '1px solid var(--border-subtle)',
@@ -219,14 +234,16 @@ export const Header: React.FC = () => {
                 fontSize: '0.82rem',
                 fontWeight: 500,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                touchAction: 'manipulation'
               }}
               title={isAuthenticated ? currentUser?.name || 'Account' : 'Sign in to NARO'}
+              aria-label={isAuthenticated ? currentUser?.name || 'Account profile' : 'Sign In'}
             >
               <div
                 style={{
-                  width: '26px',
-                  height: '26px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
                   backgroundColor: isAuthenticated ? 'var(--accent-warm)' : 'rgba(244, 240, 235, 0.12)',
                   color: isAuthenticated ? '#080B10' : 'var(--text-muted)',
@@ -234,12 +251,13 @@ export const Header: React.FC = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   fontWeight: 700,
-                  fontSize: '0.78rem'
+                  fontSize: '0.78rem',
+                  flexShrink: 0
                 }}
               >
                 {isAuthenticated ? (currentUser?.name?.charAt(0).toUpperCase() || 'U') : <User size={15} />}
               </div>
-              <span>{isAuthenticated ? currentUser?.name?.split(' ')[0] : 'Sign In'}</span>
+              <span className="header-auth-text">{isAuthenticated ? currentUser?.name?.split(' ')[0] : 'Sign In'}</span>
             </button>
 
             {/* Authenticated User Menu Dropdown */}
@@ -321,36 +339,116 @@ export const Header: React.FC = () => {
             )}
           </div>
 
-          {/* Mobile hamburger menu toggle */}
+          {/* Mobile hamburger menu toggle — Guaranteed >= 44x44px touch target with safe margin */}
           <button
+            id="mobile-hamburger-btn"
+            data-testid="mobile-hamburger-btn"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? 'Close Menu' : 'Open Menu'}
             className="btn-icon mobile-menu-btn"
             style={{ display: 'none' }}
           >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </header>
 
-      {/* Mobile Drawer Navigation */}
+      {/* Mobile Drawer Navigation with Full Navigation & Accessible Account Section */}
       {mobileMenuOpen && (
         <div
+          id="mobile-navigation-drawer"
+          data-testid="mobile-navigation-drawer"
           style={{
             position: 'fixed',
-            top: '72px',
+            top: '64px',
             left: 0,
             right: 0,
             bottom: 0,
             backgroundColor: 'rgba(8, 11, 16, 0.98)',
             backdropFilter: 'blur(25px)',
+            WebkitBackdropFilter: 'blur(25px)',
             zIndex: 99,
             display: 'flex',
             flexDirection: 'column',
-            padding: '24px',
-            gap: '16px'
+            padding: '16px 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px',
+            gap: '12px',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain'
           }}
         >
+          {/* Prominent Account / Sign In card inside mobile drawer */}
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(244, 240, 235, 0.05)',
+              border: '1px solid rgba(244, 240, 235, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              marginBottom: '4px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  minWidth: '38px',
+                  borderRadius: '50%',
+                  backgroundColor: isAuthenticated ? 'var(--accent-warm)' : 'rgba(244, 240, 235, 0.1)',
+                  color: isAuthenticated ? '#080B10' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.95rem'
+                }}
+              >
+                {isAuthenticated ? (currentUser?.name?.charAt(0).toUpperCase() || 'U') : <User size={18} />}
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {isAuthenticated ? currentUser?.name : 'Personal Account'}
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {isAuthenticated ? currentUser?.email : 'Sign in for playlists & likes'}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="mobile-drawer-auth-btn"
+              data-testid="mobile-drawer-auth-btn"
+              onClick={async () => {
+                setMobileMenuOpen(false);
+                if (isAuthenticated) {
+                  await logout();
+                } else {
+                  openAuthModal('signin');
+                }
+              }}
+              style={{
+                padding: '8px 14px',
+                minHeight: '44px',
+                borderRadius: 'var(--radius-full)',
+                backgroundColor: isAuthenticated ? 'rgba(239, 68, 68, 0.12)' : 'var(--accent-warm)',
+                color: isAuthenticated ? '#FCA5A5' : '#080B10',
+                border: isAuthenticated ? '1px solid rgba(239, 68, 68, 0.3)' : 'none',
+                fontWeight: 600,
+                fontSize: '0.84rem',
+                cursor: 'pointer',
+                touchAction: 'manipulation',
+                flexShrink: 0
+              }}
+            >
+              {isAuthenticated ? 'Sign Out' : 'Sign In'}
+            </button>
+          </div>
+
+          {/* Navigation Links */}
           {[
             { id: 'home' as AppView, label: 'Home', icon: HomeIcon },
             { id: 'discover' as AppView, label: 'Discover', icon: Compass },
@@ -365,15 +463,18 @@ export const Header: React.FC = () => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '14px',
-                padding: '14px 18px',
+                padding: '13px 16px',
+                minHeight: '48px',
                 borderRadius: 'var(--radius-md)',
                 backgroundColor: currentView === item.id ? 'rgba(231, 165, 141, 0.15)' : 'rgba(244, 240, 235, 0.03)',
                 color: currentView === item.id ? 'var(--accent-cream)' : 'var(--text-primary)',
-                border: 'none',
-                fontSize: '1.05rem',
+                border: currentView === item.id ? '1px solid rgba(231, 165, 141, 0.3)' : '1px solid transparent',
+                fontSize: '1rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                textAlign: 'left'
+                textAlign: 'left',
+                touchAction: 'manipulation',
+                transition: 'background-color 0.2s ease'
               }}
             >
               <item.icon size={20} color="var(--accent-warm)" />
@@ -384,6 +485,32 @@ export const Header: React.FC = () => {
       )}
 
       <style>{`
+        .naro-app-header {
+          padding-left: max(16px, env(safe-area-inset-left, 16px));
+          padding-right: max(16px, env(safe-area-inset-right, 16px));
+        }
+
+        .header-search-bar {
+          width: clamp(180px, 20vw, 320px);
+        }
+
+        .mobile-menu-btn {
+          min-width: 44px;
+          min-height: 44px;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          align-items: center;
+          justify-content: center;
+          background: rgba(244, 240, 235, 0.06);
+          border: 1px solid rgba(244, 240, 235, 0.12);
+          color: var(--text-primary);
+          touch-action: manipulation;
+          cursor: pointer;
+          flex-shrink: 0;
+          padding: 0;
+        }
+
         @media (max-width: 900px) {
           .desktop-nav {
             display: none !important;
@@ -391,11 +518,63 @@ export const Header: React.FC = () => {
           .mobile-menu-btn {
             display: flex !important;
           }
-          .header-search-bar {
-            width: 160px !important;
+          .naro-app-header {
+            height: 64px !important;
           }
-          .desktop-only {
+          .header-search-bar {
+            width: 150px !important;
+          }
+        }
+
+        @media (max-width: 600px) {
+          .naro-app-header {
+            padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
+            padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
+          }
+          .header-right-cluster {
+            gap: 8px !important;
+          }
+          /* Gracefully collapse search bar to compact 44x44 circular button on mobile */
+          .header-search-bar {
+            width: 44px !important;
+            min-width: 44px !important;
+            height: 44px !important;
+            min-height: 44px !important;
+            padding: 0 !important;
+            border-radius: 50% !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+          }
+          .header-search-text,
+          .header-search-shortcut {
             display: none !important;
+          }
+        }
+
+        @media (max-width: 430px) {
+          .naro-app-header {
+            padding-left: max(10px, env(safe-area-inset-left, 10px)) !important;
+            padding-right: max(10px, env(safe-area-inset-right, 10px)) !important;
+          }
+          .header-right-cluster {
+            gap: 6px !important;
+          }
+          .header-offline-text {
+            display: none !important;
+          }
+          /* Compact account button at narrow widths (touch target preserved at 44x44) */
+          .header-auth-text {
+            display: none !important;
+          }
+          .header-auth-btn {
+            padding: 0 !important;
+            width: 44px !important;
+            min-width: 44px !important;
+            height: 44px !important;
+            min-height: 44px !important;
+            border-radius: 50% !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
           }
         }
       `}</style>

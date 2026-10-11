@@ -6,9 +6,9 @@
 import type { Song, KaraokeSource } from '../../shared';
 import { audioEngine } from '../audioEngine';
 import { playbackService } from './playbackService';
-import { karaokeMixer } from './karaokeMixer';
-
+import { playbackController } from './PlaybackController';
 import { capabilityService } from '../capability/capabilityService';
+import { vocalRemovalService } from './vocalSeparation/vocalRemovalService';
 
 export interface KaraokeClockEvent {
   currentTime: number;
@@ -44,14 +44,14 @@ class KaraokePlaybackService {
       this.audio.preload = 'auto';
 
       this.audio.addEventListener('timeupdate', () => {
-        if (this.audio && !this.isVocalSuppressionMode) {
+        if (this.audio && !this.isVocalSuppressionMode && !this.playbackClockUnsub) {
           this.currentTime = this.audio.currentTime;
           this.emitClock();
         }
       });
 
       this.audio.addEventListener('ended', () => {
-        if (!this.isVocalSuppressionMode) {
+        if (!this.isVocalSuppressionMode && !this.playbackClockUnsub) {
           this.isPlaying = false;
           this.stopTimer();
           this.emitClock();
@@ -59,7 +59,7 @@ class KaraokePlaybackService {
       });
 
       this.audio.addEventListener('error', () => {
-        if (!this.isVocalSuppressionMode) {
+        if (!this.isVocalSuppressionMode && !this.playbackClockUnsub) {
           this.isPlaying = false;
           this.isReady = false;
           this.stopTimer();
@@ -111,7 +111,6 @@ class KaraokePlaybackService {
 
   /**
    * Check if song is eligible for Karaoke.
-   * Every song with an authorized audio stream is Karaoke ready via WebAudio DSP!
    */
   public isAvailableForSong(song: Song): boolean {
     if (!song) return false;
@@ -136,61 +135,91 @@ class KaraokePlaybackService {
     this.currentSong = song;
     this.currentTime = startTime;
 
-    // Check if dedicated instrumental source exists
-    const hasDedicatedSource = song.karaokeAvailable && song.karaokeSource?.availability === 'available';
+    const resolution = vocalRemovalService.resolveMethod(song);
 
-    if (hasDedicatedSource && song.karaokeSource) {
-      const source = song.karaokeSource;
-      this.currentSource = source;
-      this.duration = source.duration || song.duration || 180;
-      this.isVocalSuppressionMode = false;
-      this.isSingAlongMode = false;
-
-      if (source.type === 'licensed_stems' && song.audioSignature) {
-        this.isSynthesizer = true;
-        this.isReady = true;
-        this.emitClock();
-        return;
-      }
-
-      if (source.streamUrl) {
-        this.isSynthesizer = false;
-        if (!this.audio) {
-          this.audio = new Audio();
-        }
-        this.audio.src = source.streamUrl;
-        this.audio.currentTime = startTime;
-
-        return new Promise((resolve, reject) => {
-          if (!this.audio) {
-            reject(new Error('Audio element not initialized'));
-            return;
-          }
-
-          const onCanPlay = () => {
-            this.audio?.removeEventListener('canplay', onCanPlay);
-            this.isReady = true;
-            this.emitClock();
-            resolve();
-          };
-
-          const onError = () => {
-            this.audio?.removeEventListener('canplay', onCanPlay);
-            this.isReady = false;
-            this.emitClock('Instrumental audio stream failed to load.');
-            reject(new Error('Instrumental stream load failed'));
-          };
-
-          this.audio.addEventListener('canplay', onCanPlay, { once: true });
-          this.audio.addEventListener('error', onError, { once: true });
-          this.audio.load();
-        });
-      }
+    // If song is not the current track in playbackController, load it at startTime
+    if (playbackController.getCurrentTrack()?.id !== song.id) {
+      await playbackController.load(song, startTime);
     }
 
+    // PRIORITY 1: Verified Instrumental or Vocal-Separated Backing Track
+    if (resolution.type === 'verified_instrumental' && resolution.backingStreamUrl) {
+      this.currentSource = song.karaokeSource || {
+        type: 'dedicated-instrumental',
+        provider: song.playbackSource?.provider || 'naro',
+        streamUrl: resolution.backingStreamUrl,
+        availability: 'available'
+      };
+      this.duration = song.karaokeSource?.duration || song.duration || 180;
+      this.isVocalSuppressionMode = false;
+      this.isSingAlongMode = false;
+      this.isSynthesizer = false;
+
+      // Automatically activate instrumental backing track on the authoritative controller
+      playbackController.setKaraokeMode(true, startTime);
+      playbackService.seek(startTime);
+
+      this.isReady = true;
+
+      // Subscribe to authoritative playback clock
+      if (this.playbackClockUnsub) {
+        this.playbackClockUnsub();
+      }
+      this.playbackClockUnsub = playbackService.subscribeClock((pClock) => {
+        this.currentTime = pClock.currentTime;
+        if (pClock.duration > 0) this.duration = pClock.duration;
+        this.isPlaying = pClock.isPlaying;
+        this.emitClock(pClock.error);
+      });
+
+      this.emitClock();
+      return;
+    }
+
+    // PRIORITY 2: Source Separation Stems (e.g. procedural synthesizer)
+    if (resolution.type === 'source_separation' && song.audioSignature) {
+      this.isSynthesizer = true;
+      this.isReady = true;
+      this.duration = song.duration || 180;
+      this.emitClock();
+      return;
+    }
+
+    // PRIORITY 3: Ordinary Stereo Stream -> Center-Channel Vocal Reduction Fallback
+    if (resolution.type === 'center_channel_reduction') {
+      this.isSingAlongMode = false;
+      this.isVocalSuppressionMode = true;
+      this.isSynthesizer = false;
+      this.currentSource = {
+        type: 'instrumental',
+        provider: song.playbackSource?.provider || 'naro',
+        availability: 'available'
+      };
+      this.duration = song.duration || 180;
+      this.isReady = true;
+
+      playbackController.setKaraokeMode(true, startTime);
+      playbackService.seek(startTime);
+
+      if (this.playbackClockUnsub) {
+        this.playbackClockUnsub();
+      }
+      this.playbackClockUnsub = playbackService.subscribeClock((pClock) => {
+        if (this.isVocalSuppressionMode) {
+          this.currentTime = pClock.currentTime;
+          if (pClock.duration > 0) this.duration = pClock.duration;
+          this.isPlaying = pClock.isPlaying;
+          this.emitClock(pClock.error);
+        }
+      });
+
+      this.emitClock();
+      return;
+    }
+
+    // PRIORITY 4: Protected Provider -> SING-ALONG (Original playback, live mic & synced lyrics)
     const karaokeCap = capabilityService.getKaraokeCapability(song);
     if (karaokeCap === 'SING_ALONG') {
-      // Protected provider track where vocal suppression cannot be performed -> SING-ALONG
       this.isSingAlongMode = true;
       this.isVocalSuppressionMode = false;
       this.isSynthesizer = false;
@@ -202,6 +231,9 @@ class KaraokePlaybackService {
       };
       this.duration = song.duration || 180;
       this.isReady = true;
+
+      playbackController.setKaraokeMode(false, startTime);
+      playbackService.seek(startTime);
 
       if (this.playbackClockUnsub) {
         this.playbackClockUnsub();
@@ -219,33 +251,9 @@ class KaraokePlaybackService {
       return;
     }
 
-    // Default & Master NARO Mode: Real-time Web Audio DSP Vocal Suppression on active track
-    this.isSingAlongMode = false;
-    this.isVocalSuppressionMode = true;
-    this.isSynthesizer = false;
-    this.currentSource = {
-      type: 'provider_karaoke',
-      provider: song.playbackSource?.provider || 'apple-music',
-      providerTrackId: song.playbackSource?.providerTrackId || song.id,
-      availability: 'available'
-    };
-    this.duration = song.duration || 180;
-    this.isReady = true;
-
-    // Listen to playbackService clock while in vocal suppression mode
-    if (this.playbackClockUnsub) {
-      this.playbackClockUnsub();
-    }
-    this.playbackClockUnsub = playbackService.subscribeClock((pClock) => {
-      if (this.isVocalSuppressionMode) {
-        this.currentTime = pClock.currentTime;
-        if (pClock.duration > 0) this.duration = pClock.duration;
-        this.isPlaying = pClock.isPlaying;
-        this.emitClock(pClock.error);
-      }
-    });
-
-    this.emitClock();
+    this.isReady = false;
+    this.emitClock('Karaoke unavailable for this track.');
+    throw new Error('Karaoke unavailable for this track.');
   }
 
   public async playFrom(startTime: number): Promise<void> {
@@ -258,9 +266,11 @@ class KaraokePlaybackService {
     this.startTime = Date.now();
     this.isPlaying = true;
 
-    if (this.isSingAlongMode) {
-      // Vocal suppression is disabled to respect DRM / protected stream; microphone is live and lyrics synced
-      karaokeMixer.setKaraokeMode(false);
+    const resolution = vocalRemovalService.resolveMethod(this.currentSong);
+
+    if (resolution.type === 'verified_instrumental') {
+      // Prioritize verified instrumental backing track
+      playbackController.setKaraokeMode(true, startTime);
       playbackService.seek(startTime);
       await playbackService.play();
       this.emitClock();
@@ -268,8 +278,17 @@ class KaraokePlaybackService {
     }
 
     if (this.isVocalSuppressionMode) {
-      // Engage zero-latency vocal suppression DSP on the playing track
-      karaokeMixer.setKaraokeMode(true);
+      // Engage zero-latency center-channel vocal reduction DSP on the playing track
+      playbackController.setKaraokeMode(true, startTime);
+      playbackService.seek(startTime);
+      await playbackService.play();
+      this.emitClock();
+      return;
+    }
+
+    if (this.isSingAlongMode) {
+      // Protected provider: vocal suppression disabled to respect DRM, microphone live
+      playbackController.setKaraokeMode(false, startTime);
       playbackService.seek(startTime);
       await playbackService.play();
       this.emitClock();
@@ -326,7 +345,7 @@ class KaraokePlaybackService {
 
   public seek(time: number): void {
     this.currentTime = Math.max(0, time);
-    if (this.isVocalSuppressionMode || this.isSingAlongMode) {
+    if (this.playbackClockUnsub || this.isVocalSuppressionMode || this.isSingAlongMode) {
       playbackService.seek(time);
     } else if (this.audio) {
       this.audio.currentTime = time;
@@ -342,7 +361,7 @@ class KaraokePlaybackService {
     this.isPlaying = false;
     this.stopTimer();
 
-    if (this.isVocalSuppressionMode || this.isSingAlongMode) {
+    if (this.playbackClockUnsub || this.isVocalSuppressionMode || this.isSingAlongMode) {
       playbackService.pause();
     } else if (this.isSynthesizer) {
       audioEngine.pause();
@@ -365,18 +384,19 @@ class KaraokePlaybackService {
       this.playbackClockUnsub = null;
     }
 
-    if (this.isVocalSuppressionMode) {
-      this.isVocalSuppressionMode = false;
-      // Note: do not forcefully turn off karaokeMixer if user wants to keep singing
-    }
-    if (this.isSingAlongMode) {
-      this.isSingAlongMode = false;
-    } else if (this.isSynthesizer) {
+    this.isVocalSuppressionMode = false;
+    this.isSingAlongMode = false;
+
+    if (this.isSynthesizer) {
       audioEngine.stop();
     } else if (this.audio) {
       this.audio.pause();
       this.audio.src = '';
     }
+
+    // Restore normal playback behavior on the authoritative controller
+    playbackController.setKaraokeMode(false);
+
     this.emitClock();
   }
 }

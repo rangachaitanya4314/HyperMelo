@@ -14,6 +14,7 @@ import { NaroFullLengthPlaybackProvider } from './NaroFullLengthPlaybackProvider
 import { Html5AudioPlaybackProvider } from './Html5AudioPlaybackProvider';
 import { YouTubeIframePlaybackProvider } from './YouTubeIframePlaybackProvider';
 import { PlaybackController, playbackController } from './PlaybackController';
+import type { SoundMode, SoundPreset } from './naroImmersiveEngine';
 
 export class PlaybackService {
   private controller: PlaybackController;
@@ -145,8 +146,8 @@ export class PlaybackService {
     return this.controller.getAudioElement();
   }
 
-  public setKaraokeMode(enabled: boolean): void {
-    this.controller.setKaraokeMode(enabled);
+  public setKaraokeMode(enabled: boolean, seekTime?: number): void {
+    this.controller.setKaraokeMode(enabled, seekTime);
   }
 
   public isKaraokeMode(): boolean {
@@ -165,19 +166,31 @@ export class PlaybackService {
     this.controller.setMicEnabled(enabled);
   }
 
-  public setSoundMode(mode: 'original' | 'immersive'): void {
+  public setSoundMode(mode: SoundMode): void {
     this.controller.setSoundMode(mode);
   }
 
-  public getSoundMode(): 'original' | 'immersive' {
+  public getSoundMode(): SoundMode {
     return this.controller.getSoundMode();
   }
 
-  public setSoundPreset(preset: 'immersive' | 'deep' | 'vocal' | 'wide' | 'night'): void {
+  public setBassIntensity(intensity: number): void {
+    this.controller.setBassIntensity(intensity);
+  }
+
+  public getBassIntensity(): number {
+    return this.controller.getBassIntensity();
+  }
+
+  public isDspSupported(): boolean {
+    return this.controller.isDspSupported();
+  }
+
+  public setSoundPreset(preset: SoundPreset): void {
     this.controller.setSoundPreset(preset);
   }
 
-  public getSoundPreset(): 'immersive' | 'deep' | 'vocal' | 'wide' | 'night' {
+  public getSoundPreset(): SoundPreset {
     return this.controller.getSoundPreset();
   }
 

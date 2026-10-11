@@ -148,6 +148,12 @@ export class YouTubeIframePlaybackProvider implements MusicPlaybackProvider {
       return;
     }
 
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      this.state = 'ready';
+      this.emitClock();
+      return;
+    }
+
     this.ensureContainer();
 
     // Wait until YT API is ready if loading

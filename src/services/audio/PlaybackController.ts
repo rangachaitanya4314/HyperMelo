@@ -18,8 +18,10 @@ import { NaroFullLengthPlaybackProvider } from './NaroFullLengthPlaybackProvider
 import { AppleMusicPlaybackProvider } from './AppleMusicPlaybackProvider';
 import { connectivityService } from '../connectivity/connectivityService';
 import { karaokeMixer } from './karaokeMixer';
+import type { SoundMode, SoundPreset } from './naroImmersiveEngine';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
 import { playbackSourceResolver } from './playbackSourceResolver';
+import { vocalRemovalService } from './vocalSeparation/vocalRemovalService';
 
 export interface PlaybackControllerOptions {
   naroFullLengthProvider?: NaroFullLengthPlaybackProvider;
@@ -264,10 +266,14 @@ export class PlaybackController {
   }
 
   private syncActiveAudioElement(): void {
+    const isSupported = this.activeProvider?.capabilities.supportsWebAudioRouting ?? false;
+    karaokeMixer.setDspSupported(isSupported);
+
     if (typeof window !== 'undefined' && this.activeProvider && 'getAudioElement' in this.activeProvider) {
       const audio = (this.activeProvider as unknown as { getAudioElement(): HTMLAudioElement }).getAudioElement();
       if (audio) {
         (window as unknown as { __naro_audio?: HTMLAudioElement }).__naro_audio = audio;
+        karaokeMixer.connectAudioElement(audio);
       }
     }
   }
@@ -574,24 +580,43 @@ export class PlaybackController {
   // (Maintains compatibility without migrating Karaoke into PlaybackController)
   // =========================================================================
 
-  public setKaraokeMode(enabled: boolean): void {
+  public setKaraokeMode(enabled: boolean, seekTime?: number): void {
     this.isKaraokeActive = enabled;
-    const isDedicatedInstrumental =
-      this.currentTrack?.karaokeSource?.type === 'dedicated-instrumental' &&
-      Boolean(this.currentTrack.karaokeSource.streamUrl);
+    if (!this.currentTrack) return;
 
-    if (isDedicatedInstrumental && this.currentTrack?.karaokeSource?.streamUrl) {
-      // Dedicated instrumental backing track:
-      // Switch active provider to dedicated NoVox instrumental without DSP vocal cancellation
-      this.activeProvider?.setBackingMode?.(
-        enabled,
-        this.currentTrack.karaokeSource.streamUrl,
-        this.currentTrack.playbackSource?.streamUrl
-      );
+    const resolution = vocalRemovalService.resolveMethod(this.currentTrack);
+
+    if (!enabled) {
+      // Leaving karaoke -> Restore normal music playback
+      if (resolution.type === 'verified_instrumental' && resolution.backingStreamUrl) {
+        this.activeProvider?.setBackingMode?.(
+          false,
+          resolution.backingStreamUrl,
+          this.currentTrack.playbackSource?.streamUrl,
+          seekTime
+        );
+      }
       karaokeMixer.setKaraokeMode(false);
+      return;
+    }
+
+    // Entering karaoke -> Automatically activate best genuinely available vocal-removal method
+    if (resolution.type === 'verified_instrumental' && resolution.backingStreamUrl) {
+      // Prioritize verified instrumental backing track: play it automatically instead of original vocal recording
+      this.activeProvider?.setBackingMode?.(
+        true,
+        resolution.backingStreamUrl,
+        this.currentTrack.playbackSource?.streamUrl,
+        seekTime
+      );
+      // Lead vocal is already absent from the backing track asset, so bypass center-channel cancellation
+      karaokeMixer.setKaraokeMode(false);
+    } else if (resolution.type === 'center_channel_reduction') {
+      // Ordinary stereo audio fallback: engage real-time center-channel vocal reduction
+      karaokeMixer.setKaraokeMode(true);
     } else {
-      // Standard track: Engage real-time WebAudio center-channel vocal suppression DSP
-      karaokeMixer.setKaraokeMode(enabled);
+      // Protected provider or unavailable: respect provider restrictions; do not attempt Web Audio DSP
+      karaokeMixer.setKaraokeMode(false);
     }
   }
 
@@ -615,20 +640,32 @@ export class PlaybackController {
   // NARO IMMERSIVE SOUND ENGINE COORDINATION
   // =========================================================================
 
-  public setSoundMode(mode: 'original' | 'immersive'): void {
+  public setSoundMode(mode: SoundMode): void {
     karaokeMixer.setSoundMode(mode);
   }
 
-  public getSoundMode(): 'original' | 'immersive' {
+  public getSoundMode(): SoundMode {
     return karaokeMixer.getSoundMode();
   }
 
-  public setSoundPreset(preset: 'immersive' | 'deep' | 'vocal' | 'wide' | 'night'): void {
+  public setSoundPreset(preset: SoundPreset): void {
     karaokeMixer.setSoundPreset(preset);
   }
 
-  public getSoundPreset(): 'immersive' | 'deep' | 'vocal' | 'wide' | 'night' {
+  public getSoundPreset(): SoundPreset {
     return karaokeMixer.getSoundPreset();
+  }
+
+  public setBassIntensity(intensity: number): void {
+    karaokeMixer.setBassIntensity(intensity);
+  }
+
+  public getBassIntensity(): number {
+    return karaokeMixer.getBassIntensity();
+  }
+
+  public isDspSupported(): boolean {
+    return this.activeProvider?.capabilities.supportsWebAudioRouting ?? false;
   }
 
   // =========================================================================

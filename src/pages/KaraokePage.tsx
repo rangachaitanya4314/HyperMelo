@@ -312,6 +312,8 @@ export const KaraokePage: React.FC = () => {
         <button
           onClick={() => handleSingSong(song)}
           className="btn-primary"
+          data-action="start-karaoke"
+          aria-label={`Start Karaoke for ${song.title}`}
           style={{
             width: '100%',
             justifyContent: 'center',

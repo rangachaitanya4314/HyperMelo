@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { Song, Language, SongSection, RecordedTake, PlaybackState, TimedLyricLine } from '../types/music';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
 import { playbackController } from '../services/audio/PlaybackController';
+import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
@@ -39,11 +40,15 @@ interface AudioPlayerContextType {
   selectedLanguage: Language;
   lyricsRevision: number;
 
-  // NARO Immersive Sound Engine
+  // NARO Immersive Sound Engine & Bass Enhancement
   soundMode: SoundMode;
   soundPreset: SoundPreset;
+  bassIntensity: number;
+  isDspSupported: boolean;
   setSoundMode: (mode: SoundMode) => void;
   setSoundPreset: (preset: SoundPreset) => void;
+  setBassIntensity: (intensity: number) => void;
+  cycleSoundMode: () => void;
 
   // Modals & UI States
   karaokeModalOpen: boolean;
@@ -154,18 +159,39 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [savedTakes, setSavedTakes] = useState<RecordedTake[]>([]);
   const [isOnline, setIsOnline] = useState<boolean>(connectivityService.isOnline);
 
-  // Sound Engine state (Phase 2)
+  // Sound Engine state (Phase 2 & 3)
   const [soundMode, setSoundModeState] = useState<SoundMode>('original');
   const [soundPreset, setSoundPresetState] = useState<SoundPreset>('immersive');
+  const [bassIntensity, setBassIntensityState] = useState<number>(0);
+  const [isDspSupported, setIsDspSupported] = useState<boolean>(() => playbackController.isDspSupported());
 
   const setSoundMode = useCallback((mode: SoundMode) => {
     setSoundModeState(mode);
     playbackController.setSoundMode(mode);
+    setIsDspSupported(playbackController.isDspSupported());
   }, []);
 
   const setSoundPreset = useCallback((preset: SoundPreset) => {
     setSoundPresetState(preset);
     playbackController.setSoundPreset(preset);
+  }, []);
+
+  const setBassIntensity = useCallback((intensity: number) => {
+    const clamped = Math.max(-5, Math.min(5, Math.round(intensity)));
+    setBassIntensityState(clamped);
+    playbackController.setBassIntensity(clamped);
+  }, []);
+
+  const cycleSoundMode = useCallback(() => {
+    setSoundModeState((prev) => {
+      let next: SoundMode;
+      if (prev === 'original') next = 'immersive';
+      else if (prev === 'immersive') next = 'punch';
+      else next = 'original';
+      playbackController.setSoundMode(next);
+      return next;
+    });
+    setIsDspSupported(playbackController.isDspSupported());
   }, []);
 
   // Personal Account & Auth state (Phase 3)
@@ -425,6 +451,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setIsPlaying(event.isPlaying);
       setPlaybackState(event.state);
       setPlaybackError(event.error || null);
+      setIsDspSupported(playbackController.isDspSupported());
     });
 
     return () => {
@@ -576,26 +603,39 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const closeKaraokeModal = useCallback(() => {
     setKaraokeModalOpen(false);
+    karaokePlaybackService.stop();
+    playbackController.setKaraokeMode(false);
+    setIsKaraokeMode(false);
   }, []);
 
   const startKaraokeRecording = useCallback((section: SongSection) => {
     setSelectedSectionState(section);
     setKaraokeModalOpen(false);
     setIsRecordingActive(true);
+    playbackController.setKaraokeMode(true, section.start);
+    setIsKaraokeMode(true);
   }, []);
 
   const stopKaraokeRecording = useCallback(() => {
     setIsRecordingActive(false);
+    karaokePlaybackService.stop();
+    playbackController.setKaraokeMode(false);
+    setIsKaraokeMode(false);
   }, []);
 
   const finishTake = useCallback((take: RecordedTake) => {
     setRecordedTake(take);
     setIsRecordingActive(false);
     setReviewModalOpen(true);
+    karaokePlaybackService.stop();
+    playbackController.setKaraokeMode(false);
+    setIsKaraokeMode(false);
   }, []);
 
   const dismissReviewModal = useCallback(() => {
     setReviewModalOpen(false);
+    playbackController.setKaraokeMode(false);
+    setIsKaraokeMode(false);
   }, []);
 
   const saveTakeToLibrary = useCallback(
@@ -689,6 +729,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_get_sound_mode?: () => SoundMode;
         __naro_set_sound_preset?: (preset: SoundPreset) => void;
         __naro_get_sound_preset?: () => SoundPreset;
+        __naro_set_bass_intensity?: (intensity: number) => void;
+        __naro_get_bass_intensity?: () => number;
+        __naro_cycle_sound_mode?: () => void;
+        __naro_is_dsp_supported?: () => boolean;
         __naro_refresh_lyrics?: () => void;
         __naro_get_lyrics_revision?: () => number;
         __naro_toggle_like?: (s: Song) => void;
@@ -726,6 +770,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_get_sound_mode = () => soundMode;
       win.__naro_set_sound_preset = setSoundPreset;
       win.__naro_get_sound_preset = () => soundPreset;
+      win.__naro_set_bass_intensity = setBassIntensity;
+      win.__naro_get_bass_intensity = () => bassIntensity;
+      win.__naro_cycle_sound_mode = cycleSoundMode;
+      win.__naro_is_dsp_supported = () => playbackController.isDspSupported();
       win.__naro_toggle_like = toggleLikeSong;
       win.__naro_is_liked = isSongLiked;
       win.__naro_get_playlists = () => playlists;
@@ -751,8 +799,12 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     isPlaying,
     soundMode,
     soundPreset,
+    bassIntensity,
+    isDspSupported,
     setSoundMode,
     setSoundPreset,
+    setBassIntensity,
+    cycleSoundMode,
     toggleLikeSong,
     isSongLiked,
     playlists
@@ -787,8 +839,12 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         lyricsRevision,
         soundMode,
         soundPreset,
+        bassIntensity,
+        isDspSupported,
         setSoundMode,
         setSoundPreset,
+        setBassIntensity,
+        cycleSoundMode,
         nowPlayingOpen,
         karaokeModalOpen,
         isRecordingActive,

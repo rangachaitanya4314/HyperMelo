@@ -7,6 +7,7 @@ import { lyricsService } from '../services/lyrics/lyricsService';
 import { WaveformTimeline } from './WaveformTimeline';
 import type { TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
+import { vocalRemovalService } from '../services/audio/vocalSeparation/vocalRemovalService';
 
 export const KaraokeModal: React.FC = () => {
   const {
@@ -31,6 +32,7 @@ export const KaraokeModal: React.FC = () => {
 
   const capabilities = capabilityService.evaluate(currentSong);
   const karaokeCap = capabilities.karaoke;
+  const vocalResolution = vocalRemovalService.resolveMethod(currentSong);
   const isKaraokeEligible = karaokeCap !== 'UNAVAILABLE';
   const isSingAlong = karaokeCap === 'SING_ALONG';
   const [backingStatus, setBackingStatus] = useState<'verifying' | 'ready' | 'unavailable'>(() =>
@@ -305,6 +307,55 @@ export const KaraokeModal: React.FC = () => {
             onChangeSection={setSelectedSection}
             height={48}
           />
+        </div>
+
+        {/* Automatic Vocal Removal Fidelity Status Banner */}
+        <div
+          data-testid="vocal-removal-status-banner"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-lg)',
+            backgroundColor: vocalResolution.type === 'verified_instrumental'
+              ? 'rgba(74, 222, 128, 0.08)'
+              : vocalResolution.type === 'center_channel_reduction'
+              ? 'rgba(245, 158, 11, 0.08)'
+              : 'rgba(239, 68, 68, 0.08)',
+            border: `1px solid ${
+              vocalResolution.type === 'verified_instrumental'
+                ? 'rgba(74, 222, 128, 0.25)'
+                : vocalResolution.type === 'center_channel_reduction'
+                ? 'rgba(245, 158, 11, 0.25)'
+                : 'rgba(239, 68, 68, 0.25)'
+            }`,
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, minWidth: '220px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  color: vocalResolution.badgeColor,
+                  textTransform: 'uppercase'
+                }}
+              >
+                {vocalResolution.badgeLabel}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>•</span>
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                {vocalResolution.methodName}
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+              {vocalResolution.description}
+            </p>
+          </div>
         </div>
 
         {/* LYRIC-FIRST SYNCHRONIZED LYRICS VIEWER */}
@@ -650,8 +701,10 @@ export const KaraokeModal: React.FC = () => {
               <button
                 id="sing-moment-btn"
                 data-testid="karaoke-launch-btn"
+                data-action="start-karaoke"
                 onClick={handleGo}
-                aria-label="Sing This Moment"
+                aria-label="Start Karaoke Recording"
+                title="Start Karaoke"
                 style={{
                   width: '100%',
                   padding: '16px',
@@ -680,13 +733,17 @@ export const KaraokeModal: React.FC = () => {
                 }}
               >
                 <Sparkles size={18} fill="#080B10" />
-                <span>Sing This Moment</span>
+                <span>Start Karaoke</span>
               </button>
 
               <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-dim)', margin: 0 }}>
-                {isSingAlong
+                {vocalResolution.type === 'verified_instrumental'
+                  ? `Verified instrumental backing active • Lead vocal absent • Starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
+                  : vocalResolution.type === 'center_channel_reduction'
+                  ? `Center-channel vocal reduction fallback active (approximate) • Starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
+                  : isSingAlong
                   ? `Live microphone monitoring & synced lyrics active • Backing starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
-                  : `Instrumental backing active • Backing starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`}
+                  : `Karaoke starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`}
               </p>
             </>
           )}

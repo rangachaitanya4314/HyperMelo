@@ -41,8 +41,9 @@ export const BottomPlayer: React.FC = () => {
     isLoopingSection,
     setIsLoopingSection,
     soundMode,
-    setSoundMode,
     soundPreset,
+    isDspSupported,
+    cycleSoundMode,
     toggleLikeSong,
     isSongLiked,
     openAddToPlaylist
@@ -426,15 +427,13 @@ export const BottomPlayer: React.FC = () => {
           />
         </button>
 
-        {/* NARO Immersive Sound Profile Pill */}
+        {/* NARO Audiophile Sound Profile Pill */}
         <button
           id="sound-profile-toggle-btn"
           data-testid="sound-profile-toggle-btn"
-          onClick={() => {
-            const nextMode = soundMode === 'original' ? 'immersive' : 'original';
-            setSoundMode(nextMode);
-          }}
-          aria-label={`Sound profile: ${soundMode === 'immersive' ? soundPreset : 'Original'}`}
+          onClick={cycleSoundMode}
+          disabled={!isDspSupported}
+          aria-label={!isDspSupported ? 'Sound processing unavailable for current source' : `Sound profile: ${soundMode.toUpperCase()}`}
           className="player-desktop-sound-pill"
           style={{
             display: 'flex',
@@ -443,21 +442,67 @@ export const BottomPlayer: React.FC = () => {
             padding: '7px 14px',
             minHeight: '44px',
             borderRadius: 'var(--radius-full)',
-            backgroundColor: soundMode === 'immersive' ? 'rgba(231, 165, 141, 0.18)' : 'rgba(244, 240, 235, 0.05)',
-            border: soundMode === 'immersive' ? '1px solid var(--border-warm)' : '1px solid rgba(244, 240, 235, 0.08)',
-            color: soundMode === 'immersive' ? 'var(--accent-cream)' : 'var(--text-dim)',
+            backgroundColor: !isDspSupported
+              ? 'rgba(244, 240, 235, 0.03)'
+              : soundMode === 'punch'
+              ? 'rgba(245, 158, 11, 0.18)'
+              : soundMode === 'immersive'
+              ? 'rgba(231, 165, 141, 0.18)'
+              : 'rgba(244, 240, 235, 0.05)',
+            border: !isDspSupported
+              ? '1px dashed rgba(244, 240, 235, 0.15)'
+              : soundMode === 'punch'
+              ? '1px solid rgba(245, 158, 11, 0.4)'
+              : soundMode === 'immersive'
+              ? '1px solid var(--border-warm)'
+              : '1px solid rgba(244, 240, 235, 0.08)',
+            color: !isDspSupported
+              ? 'var(--text-dim)'
+              : soundMode === 'punch'
+              ? '#FCD34D'
+              : soundMode === 'immersive'
+              ? 'var(--accent-cream)'
+              : 'var(--text-dim)',
             fontSize: '0.74rem',
             fontWeight: 600,
             letterSpacing: '0.04em',
-            cursor: 'pointer',
+            cursor: !isDspSupported ? 'not-allowed' : 'pointer',
+            opacity: !isDspSupported ? 0.6 : 1,
             transition: 'all 0.2s ease',
             whiteSpace: 'nowrap',
             touchAction: 'manipulation'
           }}
-          title={soundMode === 'immersive' ? `NARO Immersive (${soundPreset.toUpperCase()}) - Click to bypass` : 'Original (Bypassed) - Click to activate NARO Immersive'}
+          title={
+            !isDspSupported
+              ? 'DSP processing unavailable for this playback stream (DRM/External iframe)'
+              : soundMode === 'punch'
+              ? 'Punch Mode (Punchy bass & energetic clarity) - Click to cycle'
+              : soundMode === 'immersive'
+              ? `Immersive Mode (${soundPreset.toUpperCase()}) - Click to cycle`
+              : 'Original Mode (Faithful source bypass) - Click to cycle'
+          }
         >
-          <Sparkles size={14} color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'var(--text-dim)'} />
-          <span>{soundMode === 'immersive' ? 'IMMERSIVE' : 'ORIGINAL'}</span>
+          <Sparkles
+            size={14}
+            color={
+              !isDspSupported
+                ? 'var(--text-dim)'
+                : soundMode === 'punch'
+                ? '#F59E0B'
+                : soundMode === 'immersive'
+                ? 'var(--accent-warm)'
+                : 'var(--text-dim)'
+            }
+          />
+          <span>
+            {!isDspSupported
+              ? 'DSP N/A'
+              : soundMode === 'punch'
+              ? 'PUNCH'
+              : soundMode === 'immersive'
+              ? 'IMMERSIVE'
+              : 'ORIGINAL'}
+          </span>
         </button>
 
         {/* Toggle Lyrics Drawer */}

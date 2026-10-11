@@ -82,8 +82,11 @@ export const NowPlaying: React.FC = () => {
     lyricsRevision,
     soundMode,
     soundPreset,
+    bassIntensity,
+    isDspSupported,
     setSoundMode,
     setSoundPreset,
+    setBassIntensity,
     toggleLikeSong,
     isSongLiked,
     openAddToPlaylist,
@@ -644,71 +647,300 @@ export const NowPlaying: React.FC = () => {
               </button>
             </div>
 
-            {/* NARO Immersive Sound Engine Controls */}
-            <div className="now-playing-sound-controls">
-              <button
-                id="now-playing-sound-btn"
-                data-testid="now-playing-sound-btn"
-                onClick={() => {
-                  setSoundMode(soundMode === 'immersive' ? 'original' : 'immersive');
-                }}
-                className="now-playing-sound-pill"
+            {/* NARO Audiophile Listening Engine Suite */}
+            <div
+              id="now-playing-audiophile-suite"
+              data-testid="now-playing-audiophile-suite"
+              className="now-playing-sound-controls"
+              style={{
+                backgroundColor: 'rgba(244, 240, 235, 0.03)',
+                border: '1px solid rgba(244, 240, 235, 0.08)',
+                borderRadius: '16px',
+                padding: '10px 14px',
+                maxWidth: '420px',
+                margin: '8px auto 0',
+                width: '100%',
+                boxSizing: 'border-box'
+              }}
+            >
+              {/* Header row: title and honest capability badge */}
+              <div
                 style={{
-                  backgroundColor:
-                    soundMode === 'immersive'
-                      ? 'rgba(231, 165, 141, 0.25)'
-                      : 'rgba(244, 240, 235, 0.06)',
-                  border:
-                    soundMode === 'immersive'
-                      ? '1px solid var(--accent-warm)'
-                      : '1px solid rgba(244, 240, 235, 0.12)',
-                  color:
-                    soundMode === 'immersive'
-                      ? 'var(--accent-cream)'
-                      : 'var(--text-muted)'
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  gap: '8px',
+                  marginBottom: '6px'
                 }}
               >
-                <Sliders
-                  size={14}
-                  color={soundMode === 'immersive' ? 'var(--accent-warm)' : 'currentColor'}
-                />
-                <span>
-                  {soundMode === 'immersive'
-                    ? `Immersive • ${soundPreset.toUpperCase()}`
-                    : 'Original Sound'}
-                </span>
-              </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sliders size={13} color="var(--accent-warm)" />
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: 'var(--text-muted)'
+                    }}
+                  >
+                    Audiophile Sound Engine
+                  </span>
+                </div>
 
-              {soundMode === 'immersive' && (
-                <div className="now-playing-presets-row">
-                  {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map(
-                    (preset) => {
-                      const isSelected = soundPreset === preset;
-                      return (
-                        <button
-                          key={preset}
-                          onClick={() => setSoundPreset(preset)}
-                          style={{
-                            padding: '3px 10px',
-                            borderRadius: 'var(--radius-full)',
-                            background: isSelected
-                              ? 'var(--accent-warm)'
-                              : 'rgba(244, 240, 235, 0.05)',
-                            color: isSelected ? '#080B10' : 'var(--text-dim)',
-                            border: 'none',
-                            fontSize: '0.74rem',
-                            fontWeight: isSelected ? 700 : 500,
-                            cursor: 'pointer',
-                            textTransform: 'capitalize'
-                          }}
-                        >
-                          {preset}
-                        </button>
-                      );
-                    }
-                  )}
+                <span
+                  id="now-playing-dsp-status-badge"
+                  data-testid="now-playing-dsp-status-badge"
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.04em',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: isDspSupported
+                      ? 'rgba(34, 197, 94, 0.15)'
+                      : 'rgba(239, 68, 68, 0.15)',
+                    color: isDspSupported ? '#4ADE80' : '#F87171',
+                    border: `1px solid ${isDspSupported ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                  }}
+                  title={
+                    isDspSupported
+                      ? 'Web Audio DSP chain active with safety limiter'
+                      : 'Audio provider bypasses Web Audio processing (e.g. YouTube iframe or Apple DRM)'
+                  }
+                >
+                  {isDspSupported ? 'DSP ACTIVE' : 'DSP BYPASS'}
+                </span>
+              </div>
+
+              {/* Listening Mode Buttons: Original, Immersive, Punch */}
+              <div
+                role="radiogroup"
+                aria-label="Audiophile Listening Modes"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '6px',
+                  width: '100%'
+                }}
+              >
+                {/* 1. Original */}
+                <button
+                  type="button"
+                  id="now-playing-mode-original"
+                  data-testid="now-playing-mode-original"
+                  role="radio"
+                  aria-checked={soundMode === 'original'}
+                  onClick={() => setSoundMode('original')}
+                  disabled={!isDspSupported}
+                  style={{
+                    padding: '6px 4px',
+                    borderRadius: '8px',
+                    border: soundMode === 'original'
+                      ? '1px solid rgba(244, 240, 235, 0.3)'
+                      : '1px solid rgba(244, 240, 235, 0.08)',
+                    backgroundColor: soundMode === 'original'
+                      ? 'rgba(244, 240, 235, 0.14)'
+                      : 'rgba(244, 240, 235, 0.04)',
+                    color: soundMode === 'original' ? '#F4F0EB' : 'var(--text-dim)',
+                    cursor: !isDspSupported ? 'not-allowed' : 'pointer',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    opacity: !isDspSupported ? 0.5 : 1
+                  }}
+                  title="Faithful pure source reproduction with safety limiter"
+                >
+                  <div>Original</div>
+                  <div style={{ fontSize: '0.58rem', fontWeight: 400, opacity: 0.7 }}>Bypass</div>
+                </button>
+
+                {/* 2. Immersive */}
+                <button
+                  type="button"
+                  id="now-playing-mode-immersive"
+                  data-testid="now-playing-mode-immersive"
+                  role="radio"
+                  aria-checked={soundMode === 'immersive'}
+                  onClick={() => setSoundMode('immersive')}
+                  disabled={!isDspSupported}
+                  style={{
+                    padding: '6px 4px',
+                    borderRadius: '8px',
+                    border: soundMode === 'immersive'
+                      ? '1px solid var(--accent-warm)'
+                      : '1px solid rgba(244, 240, 235, 0.08)',
+                    backgroundColor: soundMode === 'immersive'
+                      ? 'rgba(231, 165, 141, 0.22)'
+                      : 'rgba(244, 240, 235, 0.04)',
+                    color: soundMode === 'immersive' ? 'var(--accent-cream)' : 'var(--text-dim)',
+                    cursor: !isDspSupported ? 'not-allowed' : 'pointer',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    opacity: !isDspSupported ? 0.5 : 1
+                  }}
+                  title="Expansive 3D acoustic staging with centered vocals & warm bass"
+                >
+                  <div>Immersive</div>
+                  <div style={{ fontSize: '0.58rem', fontWeight: 400, opacity: 0.7 }}>Cinema 3D</div>
+                </button>
+
+                {/* 3. Punch */}
+                <button
+                  type="button"
+                  id="now-playing-mode-punch"
+                  data-testid="now-playing-mode-punch"
+                  role="radio"
+                  aria-checked={soundMode === 'punch'}
+                  onClick={() => setSoundMode('punch')}
+                  disabled={!isDspSupported}
+                  style={{
+                    padding: '6px 4px',
+                    borderRadius: '8px',
+                    border: soundMode === 'punch'
+                      ? '1px solid #F59E0B'
+                      : '1px solid rgba(244, 240, 235, 0.08)',
+                    backgroundColor: soundMode === 'punch'
+                      ? 'rgba(245, 158, 11, 0.22)'
+                      : 'rgba(244, 240, 235, 0.04)',
+                    color: soundMode === 'punch' ? '#FCD34D' : 'var(--text-dim)',
+                    cursor: !isDspSupported ? 'not-allowed' : 'pointer',
+                    fontSize: '0.74rem',
+                    fontWeight: 600,
+                    transition: 'all 0.15s ease',
+                    textAlign: 'center',
+                    opacity: !isDspSupported ? 0.5 : 1
+                  }}
+                  title="JBL-inspired energetic punch with tight kick & clear transients"
+                >
+                  <div>Punch</div>
+                  <div style={{ fontSize: '0.58rem', fontWeight: 400, opacity: 0.7 }}>JBL Impact</div>
+                </button>
+              </div>
+
+              {/* Spatial Presets for Immersive Mode */}
+              {soundMode === 'immersive' && isDspSupported && (
+                <div
+                  className="now-playing-presets-row"
+                  style={{
+                    marginTop: '8px',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    justifyContent: 'center',
+                    width: '100%'
+                  }}
+                >
+                  {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map((preset) => {
+                    const isSelected = soundPreset === preset;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        id={`now-playing-preset-${preset}`}
+                        onClick={() => setSoundPreset(preset)}
+                        style={{
+                          padding: '2px 8px',
+                          borderRadius: 'var(--radius-full)',
+                          background: isSelected
+                            ? 'var(--accent-warm)'
+                            : 'rgba(244, 240, 235, 0.06)',
+                          color: isSelected ? '#080B10' : 'var(--text-dim)',
+                          border: 'none',
+                          fontSize: '0.68rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          textTransform: 'capitalize'
+                        }}
+                      >
+                        {preset}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
+
+              {/* Bass Intensity Control (-5 to +5, neutral 0) */}
+              <div
+                style={{
+                  marginTop: '10px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid rgba(244, 240, 235, 0.06)',
+                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.68rem',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  <label htmlFor="now-playing-bass-slider" style={{ fontWeight: 600 }}>
+                    Bass Intensity:
+                  </label>
+                  <span
+                    id="now-playing-bass-readout"
+                    data-testid="now-playing-bass-readout"
+                    style={{
+                      fontVariantNumeric: 'tabular-nums',
+                      fontWeight: 700,
+                      color: bassIntensity > 0 ? '#FCD34D' : bassIntensity < 0 ? '#93C5FD' : 'var(--text-dim)'
+                    }}
+                  >
+                    {bassIntensity === 0 ? 'Neutral (0 dB)' : `${bassIntensity > 0 ? '+' : ''}${bassIntensity * 1.5} dB (${bassIntensity})`}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    id="now-playing-bass-slider"
+                    data-testid="now-playing-bass-slider"
+                    type="range"
+                    min={-5}
+                    max={5}
+                    step={1}
+                    value={bassIntensity}
+                    disabled={!isDspSupported || soundMode === 'original'}
+                    onChange={(e) => setBassIntensity(parseInt(e.target.value, 10))}
+                    aria-label="Bass Intensity adjustment (-5 to +5)"
+                    style={{
+                      flex: 1,
+                      accentColor: soundMode === 'punch' ? '#F59E0B' : 'var(--accent-warm)',
+                      cursor: (!isDspSupported || soundMode === 'original') ? 'not-allowed' : 'pointer',
+                      height: '4px',
+                      opacity: (!isDspSupported || soundMode === 'original') ? 0.4 : 1
+                    }}
+                  />
+                  {bassIntensity !== 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setBassIntensity(0)}
+                      style={{
+                        background: 'none',
+                        border: '1px solid rgba(244, 240, 235, 0.12)',
+                        borderRadius: '4px',
+                        color: 'var(--text-dim)',
+                        fontSize: '0.62rem',
+                        padding: '1px 5px',
+                        cursor: 'pointer'
+                      }}
+                      title="Reset bass to neutral"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>

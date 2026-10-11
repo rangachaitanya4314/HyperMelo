@@ -23,6 +23,7 @@ class KaraokeMixer {
   private micSourceNode: MediaStreamAudioSourceNode | null = null;
   private connectedAudioElement: HTMLAudioElement | null = null;
   private micStream: MediaStream | null = null;
+  private mediaSourceMap = new WeakMap<HTMLAudioElement, MediaElementAudioSourceNode>();
 
   // State
   private isKaraokeActive = false;
@@ -101,7 +102,9 @@ class KaraokeMixer {
   }
 
   /**
-   * Connect HTML5 Audio Element to the vocal suppression and mixer graph
+   * Connect HTML5 Audio Element to the vocal suppression and mixer graph safely and idempotently.
+   * Uses WeakMap to prevent multiple createMediaElementSource calls on the same element,
+   * while cleanly switching connections when audio elements change.
    */
   public connectAudioElement(audio: HTMLAudioElement): boolean {
     if (typeof window === 'undefined') {
@@ -109,21 +112,39 @@ class KaraokeMixer {
     }
     try {
       const ctx = this.getContext();
-      if (this.connectedAudioElement === audio && this.audioSourceNode) {
-        return true;
-      }
-
-      this.connectedAudioElement = audio;
-      // Ensure crossOrigin is set for Web Audio integration
       if (!audio.crossOrigin) {
         audio.crossOrigin = 'anonymous';
       }
 
-      if (!this.audioSourceNode) {
-        this.audioSourceNode = ctx.createMediaElementSource(audio);
-        if (this.vocalSuppressor) {
-          this.audioSourceNode.connect(this.vocalSuppressor.getInput());
+      let source = this.mediaSourceMap.get(audio);
+      if (!source) {
+        source = ctx.createMediaElementSource(audio);
+        this.mediaSourceMap.set(audio, source);
+      }
+
+      if (this.connectedAudioElement === audio && this.audioSourceNode === source) {
+        return true;
+      }
+
+      // If switching from a previous audio element, disconnect old node cleanly
+      if (this.audioSourceNode && this.audioSourceNode !== source) {
+        try {
+          this.audioSourceNode.disconnect();
+        } catch {
+          // ignore
         }
+      }
+
+      this.connectedAudioElement = audio;
+      this.audioSourceNode = source;
+
+      if (this.vocalSuppressor) {
+        try {
+          source.disconnect();
+        } catch {
+          // ignore
+        }
+        source.connect(this.vocalSuppressor.getInput());
       }
       return true;
     } catch (err) {
@@ -249,6 +270,22 @@ class KaraokeMixer {
 
   public getSoundPreset(): SoundPreset {
     return naroImmersiveEngine.getPreset();
+  }
+
+  public setBassIntensity(intensity: number): void {
+    naroImmersiveEngine.setBassIntensity(intensity);
+  }
+
+  public getBassIntensity(): number {
+    return naroImmersiveEngine.getBassIntensity();
+  }
+
+  public setDspSupported(supported: boolean): void {
+    naroImmersiveEngine.setSupported(supported);
+  }
+
+  public isDspSupported(): boolean {
+    return naroImmersiveEngine.isDspSupported();
   }
 }
 

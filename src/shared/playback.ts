@@ -43,7 +43,7 @@ export interface MusicPlaybackProvider {
   getDuration(): number;
   getState(): PlaybackState;
   getVisualizerData(): Uint8Array | null;
-  setBackingMode?(isBacking: boolean, backingUrl: string, vocalUrl?: string): void;
+  setBackingMode?(isBacking: boolean, backingUrl: string, vocalUrl?: string, seekTime?: number): void;
   dispose(): void;
   destroy?(): void;
 }
