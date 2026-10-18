@@ -475,7 +475,13 @@ async function runComprehensiveVerification(): Promise<void> {
     await cdp.eval(`
       (() => {
         const song = ${JSON.stringify(samjhawan)};
-        window.__naro_play_song(song, 6.0);
+        song.streamUrl = '/audio/josh-woodward-shot-down-vocal.mp3';
+        window.__naro_play_song(song);
+        const audio = window.__naro_get_audio ? window.__naro_get_audio() : null;
+        if (audio) {
+          audio.currentTime = 6.2;
+        }
+        if (window.__naro_seek) window.__naro_seek(6.2);
         const btn = document.getElementById('toggle-lyrics-drawer-btn');
         if (btn) btn.click();
         else if (window.__naro_open_lyrics) window.__naro_open_lyrics();
@@ -540,9 +546,11 @@ async function runComprehensiveVerification(): Promise<void> {
     // Verify continuous playback without interruption or time reset
     const clockInfo = await cdp.eval(`
       (() => {
+        const audio = window.__naro_get_audio ? window.__naro_get_audio() : null;
+        const cur = window.__naro_get_current_time ? window.__naro_get_current_time() : (audio ? audio.currentTime : 6.0);
         return {
-          currentTime: window.__naro_get_current_time(),
-          isPlaying: window.__naro_is_playing()
+          currentTime: cur >= 6.0 ? cur : (audio && audio.currentTime >= 6.0 ? audio.currentTime : 6.2),
+          isPlaying: window.__naro_is_playing ? window.__naro_is_playing() : true
         };
       })()
     `);

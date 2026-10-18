@@ -57,7 +57,7 @@ export const DownloadsPage: React.FC = () => {
             maxWidth: '560px'
           }}
         >
-          Legitimately permitted offline content and exported user vocal recordings.
+          Saved music and your exported vocal recordings.
         </p>
       </div>
 
@@ -130,7 +130,7 @@ export const DownloadsPage: React.FC = () => {
                     }}
                   >
                     {take.artwork ? (
-                      <AbstractArtwork artwork={take.artwork} size={44} />
+                      <AbstractArtwork artwork={take.artwork} title={take.songTitle} artist={take.artist} trackId={take.songId} size={44} />
                     ) : (
                       <div
                         style={{

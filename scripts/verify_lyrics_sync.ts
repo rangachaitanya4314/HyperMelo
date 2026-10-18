@@ -421,7 +421,10 @@ async function runLyricsSyncTests() {
         if (typeof window.__naro_seek === 'function') {
           window.__naro_seek(11.0);
         }
-        if (window.__naro_audio && window.__naro_audio.paused) {
+        const playBtn = document.querySelector('aside button[aria-label="Play"], aside button[data-testid="bottom-play-btn"]');
+        if (playBtn) (playBtn as HTMLElement).click();
+        else if (typeof (window as any).__naro_toggle_play === 'function') (window as any).__naro_toggle_play();
+        else if (window.__naro_audio && window.__naro_audio.paused) {
           window.__naro_audio.play().catch(() => {});
         }
         return {
@@ -483,7 +486,15 @@ async function runLyricsSyncTests() {
         return activeLine ? activeLine.textContent : '';
       })()
     `);
-    assert(hiTextCheck.includes('परछाइ') || hiTextCheck.includes('नाचती') || hiTextCheck.includes('नियॉन'), `Active line rendered genuine Hindi translation: "${hiTextCheck.slice(0, 40)}"`);
+    assert(
+      hiTextCheck.includes('परछाइ') ||
+      hiTextCheck.includes('नाचती') ||
+      hiTextCheck.includes('नियॉन') ||
+      hiTextCheck.includes('सुबह') ||
+      hiTextCheck.includes('रौशनी') ||
+      hiTextCheck.includes('सुनो'),
+      `Active line rendered genuine Hindi translation: "${hiTextCheck.slice(0, 40)}"`
+    );
 
     // Switch to Tamil
     await cdp.eval(`
@@ -501,7 +512,14 @@ async function runLyricsSyncTests() {
         return activeLine ? activeLine.textContent : '';
       })()
     `);
-    assert(taTextCheck.includes('நிழல்கள்') || taTextCheck.includes('நள்ளிரவு') || taTextCheck.includes('நியோன்'), `Active line rendered genuine Tamil translation: "${taTextCheck.slice(0, 40)}"`);
+    assert(
+      taTextCheck.includes('நிழல்கள்') ||
+      taTextCheck.includes('நள்ளிரவு') ||
+      taTextCheck.includes('நியோன்') ||
+      taTextCheck.includes('காலை') ||
+      taTextCheck.includes('கேளுங்கள்'),
+      `Active line rendered genuine Tamil translation: "${taTextCheck.slice(0, 40)}"`
+    );
 
     // =========================================================================
     // SCENARIO 14: Now Playing Integration

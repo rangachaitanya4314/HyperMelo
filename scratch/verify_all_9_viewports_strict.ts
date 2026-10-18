@@ -43,7 +43,7 @@ class CdpConnection {
             this.callbacks.delete(raw.id);
             cb(raw.result);
           }
-        } catch {}
+        } catch { }
       };
     });
   }
@@ -105,7 +105,7 @@ class CdpConnection {
     if (this.ws) {
       try {
         this.ws.close();
-      } catch {}
+      } catch { }
     }
   }
 }
@@ -162,7 +162,7 @@ async function runStrictVerification() {
             break;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     const targetTab = tabs.find((t) => t.url && t.url.includes('5173')) || tabs[0];
@@ -177,25 +177,28 @@ async function runStrictVerification() {
     await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: true });
 
     // Dismiss cinematic intro
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 800));
     await cdp.eval(`
       (() => {
-        sessionStorage.setItem('naro_intro_seen', 'true');
-        const dismissBtn = document.querySelector('button[aria-label="Enter Studio"], button[data-testid="enter-studio-btn"]');
-        if (dismissBtn) dismissBtn.click();
+        sessionStorage.setItem('hypermelo_intro_seen', 'true');
+        const skipBtn = document.querySelector('button[aria-label="Skip brand reveal"], .intro-skip-btn, .hypermelo-intro-container, button[aria-label="Enter Studio"]');
+        if (skipBtn) skipBtn.click();
       })()
     `);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 600));
 
     // Ensure music is actively loaded
     await cdp.eval(`
       (() => {
-        if (window.__naro_play_song && window.__naro_current_song) {
-          window.__naro_play_song(window.__naro_current_song, 2.0);
+        if (window.__naro_play_song) {
+          const song = window.__naro_current_song || (window.__naro_get_songs ? window.__naro_get_songs()[0] : null);
+          if (song) {
+            window.__naro_play_song(song, 2.0);
+          }
         }
       })()
     `);
-    await new Promise((r) => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 800));
 
     for (const vp of REQUIRED_VIEWPORTS) {
       console.log(`\n======================================================================`);
@@ -412,10 +415,14 @@ async function runStrictVerification() {
           bottomState.expRect.left + bottomState.expRect.width / 2,
           bottomState.expRect.top + bottomState.expRect.height / 2
         );
-      } else {
-        await cdp.eval(`(() => { const b = document.getElementById('expand-now-playing-btn'); if (b) b.click(); })()`);
       }
-      await new Promise((r) => setTimeout(r, 600));
+      await cdp.eval(`(() => {
+        if (!document.getElementById('naro-now-playing')) {
+          const b = document.getElementById('expand-now-playing-btn');
+          if (b) b.click();
+        }
+      })()`);
+      await new Promise((r) => setTimeout(r, 800));
 
       const fsState = await cdp.eval(`
         (() => {
@@ -666,7 +673,7 @@ async function runStrictVerification() {
     cdp.close();
     try {
       chromeProcess.kill();
-    } catch {}
+    } catch { }
 
     if (!allPassed) {
       process.exit(1);
@@ -675,7 +682,7 @@ async function runStrictVerification() {
     console.error('Test execution failed:', err);
     try {
       chromeProcess.kill();
-    } catch {}
+    } catch { }
     process.exit(1);
   }
 }

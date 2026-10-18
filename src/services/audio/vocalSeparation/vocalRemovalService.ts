@@ -46,14 +46,29 @@ export class VocalRemovalService {
     }
 
     // PRIORITY 1: Verified Matching Instrumental or Vocal-Separated Backing Track
+    // Strict check: Must be a genuinely distinct instrumental asset, never the identical vocal-bearing recording!
+    const isDistinctInstrumentalUrl = Boolean(
+      song.karaokeSource?.streamUrl &&
+      song.karaokeSource.streamUrl !== song.playbackSource?.streamUrl
+    );
+
+    const isVerifiedInstrumentalType = Boolean(
+      song.karaokeSource?.type === 'dedicated-instrumental' ||
+      song.karaokeSource?.type === 'instrumental' ||
+      song.karaokeSource?.type === 'licensed_stems' ||
+      (song.karaokeSource?.streamUrl && (
+        song.karaokeSource.streamUrl.includes('novox') ||
+        song.karaokeSource.streamUrl.includes('instrumental') ||
+        song.karaokeSource.streamUrl.includes('backing')
+      ))
+    );
+
     const hasDedicatedInstrumental = Boolean(
       song.karaokeAvailable &&
       song.karaokeSource?.availability === 'available' &&
       song.karaokeSource.streamUrl &&
-      (song.karaokeSource.type === 'dedicated-instrumental' ||
-       song.karaokeSource.type === 'instrumental' ||
-       song.karaokeSource.type === 'licensed_stems' ||
-       song.karaokeSource.type === 'dev_fixture')
+      isDistinctInstrumentalUrl &&
+      isVerifiedInstrumentalType
     );
 
     if (hasDedicatedInstrumental && song.karaokeSource?.streamUrl) {

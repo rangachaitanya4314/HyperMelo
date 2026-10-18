@@ -1,14 +1,23 @@
 // IndexedDB Storage Service for NARO
 // Persists real audio blobs and user-recorded moments in the browser
 
-import type { RecordedTake } from '../../shared';
+import type { RecordedTake, SongLyrics } from '../../shared';
 
 const DB_NAME = 'naro_storage_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const MOMENTS_STORE = 'moments';
+const LYRICS_STORE = 'lyrics_cache';
+
+export interface CachedLyricsRecord {
+  trackId: string;
+  lyrics: SongLyrics;
+  provider?: string;
+  cachedAt: number;
+}
 
 class IndexedDbService {
   private dbPromise: Promise<IDBDatabase> | null = null;
+  private memoryLyricsCache: Map<string, SongLyrics> = new Map();
 
   private getDB(): Promise<IDBDatabase> {
     if (this.dbPromise) return this.dbPromise;
@@ -27,6 +36,10 @@ class IndexedDbService {
           const store = db.createObjectStore(MOMENTS_STORE, { keyPath: 'id' });
           store.createIndex('recordedAt', 'recordedAt', { unique: false });
           store.createIndex('songId', 'songId', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(LYRICS_STORE)) {
+          const store = db.createObjectStore(LYRICS_STORE, { keyPath: 'trackId' });
+          store.createIndex('cachedAt', 'cachedAt', { unique: false });
         }
       };
 
@@ -149,6 +162,141 @@ class IndexedDbService {
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
+  }
+
+  /**
+   * Check IndexedDB / localStorage cache for a track ID
+   */
+  public async getLyrics(trackId: string): Promise<SongLyrics | null> {
+    if (!trackId) return null;
+
+    // 1. Check in-memory cache first
+    if (this.memoryLyricsCache.has(trackId)) {
+      return this.memoryLyricsCache.get(trackId)!;
+    }
+
+    // 2. Try IndexedDB
+    if (typeof window !== 'undefined' && window.indexedDB) {
+      try {
+        const db = await this.getDB();
+        const record = await new Promise<CachedLyricsRecord | null>((resolve, reject) => {
+          const transaction = db.transaction([LYRICS_STORE], 'readonly');
+          const store = transaction.objectStore(LYRICS_STORE);
+          const request = store.get(trackId);
+          request.onsuccess = () => resolve((request.result as CachedLyricsRecord) || null);
+          request.onerror = () => reject(request.error);
+        });
+
+        if (record && record.lyrics) {
+          this.memoryLyricsCache.set(trackId, record.lyrics);
+          return record.lyrics;
+        }
+      } catch {
+        // Fallback to localStorage or in-memory
+      }
+    }
+
+    // 3. Try LocalStorage fallback
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = window.localStorage.getItem(`naro_lyrics_${trackId}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as SongLyrics;
+          if (parsed && typeof parsed === 'object') {
+            this.memoryLyricsCache.set(trackId, parsed);
+            return parsed;
+          }
+        }
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+
+    return null;
+  }
+
+  /**
+   * Save a successful lyrics payload into IndexedDB & localStorage cache under the track ID
+   */
+  public async saveLyrics(trackId: string, lyrics: SongLyrics, provider?: string): Promise<void> {
+    if (!trackId || !lyrics) return;
+
+    // 1. Populate in-memory cache immediately
+    this.memoryLyricsCache.set(trackId, lyrics);
+
+    // 2. Persist to localStorage as instant synchronous safeguard
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(`naro_lyrics_${trackId}`, JSON.stringify(lyrics));
+      }
+    } catch {
+      // Quota exceeded or private browsing safeguard
+    }
+
+    // 3. Persist to IndexedDB
+    if (typeof window !== 'undefined' && window.indexedDB) {
+      try {
+        const db = await this.getDB();
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction([LYRICS_STORE], 'readwrite');
+          const store = transaction.objectStore(LYRICS_STORE);
+          const record: CachedLyricsRecord = {
+            trackId,
+            lyrics,
+            provider,
+            cachedAt: Date.now()
+          };
+          const request = store.put(record);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error);
+        });
+      } catch (err) {
+        // Non-fatal if IndexedDB is disabled; memory and localStorage already retain it
+        console.warn('IndexedDB lyrics save fallback:', err);
+      }
+    }
+  }
+
+  /**
+   * Clear cached lyrics for a track ID or all tracks
+   */
+  public async clearLyricsCache(trackId?: string): Promise<void> {
+    if (trackId) {
+      this.memoryLyricsCache.delete(trackId);
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(`naro_lyrics_${trackId}`);
+        }
+        if (typeof window !== 'undefined' && window.indexedDB) {
+          const db = await this.getDB();
+          const transaction = db.transaction([LYRICS_STORE], 'readwrite');
+          const store = transaction.objectStore(LYRICS_STORE);
+          store.delete(trackId);
+        }
+      } catch {
+        // Ignore
+      }
+    } else {
+      this.memoryLyricsCache.clear();
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          for (let i = window.localStorage.length - 1; i >= 0; i--) {
+            const key = window.localStorage.key(i);
+            if (key?.startsWith('naro_lyrics_')) {
+              window.localStorage.removeItem(key);
+            }
+          }
+        }
+        if (typeof window !== 'undefined' && window.indexedDB) {
+          const db = await this.getDB();
+          const transaction = db.transaction([LYRICS_STORE], 'readwrite');
+          const store = transaction.objectStore(LYRICS_STORE);
+          store.clear();
+        }
+      } catch {
+        // Ignore
+      }
+    }
   }
 }
 

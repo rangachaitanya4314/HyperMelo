@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { ArtworkStyle } from '../types/music';
+import { getVerifiedSongArtwork } from '../data/verifiedArtwork';
 
-interface AbstractArtworkProps {
-  artwork: ArtworkStyle;
+export interface AbstractArtworkProps {
+  artwork?: ArtworkStyle | null;
   size?: number | string;
   isVinyl?: boolean;
   isPlaying?: boolean;
   className?: string;
   style?: React.CSSProperties;
+  title?: string;
+  artist?: string;
+  trackId?: string;
+  song?: { id?: string; title?: string; artist?: string; artwork?: ArtworkStyle | null } | null;
+  alt?: string;
 }
 
 export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
@@ -16,20 +22,68 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
   isVinyl = false,
   isPlaying = false,
   className = '',
-  style = {}
+  style = {},
+  title,
+  artist,
+  trackId,
+  song,
+  alt
 }) => {
-  const safeArtwork: ArtworkStyle = artwork || {
-    palette: ['#E7A58D', '#1D2538', '#0F172A', '#8FA8C8'],
-    pattern: 'orbital',
-    accentWarm: '#E7A58D',
-    accentCool: '#8FA8C8',
-    accentCream: '#F4DFC9'
-  };
-  const [c1, c2, c3, c4] = safeArtwork.palette || ['#E7A58D', '#1D2538', '#0F172A', '#8FA8C8'];
-  const cream = safeArtwork.accentCream || '#F4DFC9';
+  const effectiveId = trackId || song?.id;
+  const effectiveTitle = title || song?.title;
+  const effectiveArtist = artist || song?.artist;
 
-  // If real album artwork image is present and not vinyl mode:
-  if (safeArtwork.imageUrl && !isVinyl) {
+  // Inspect raw imageUrl and filter out any synthetic placeholder patterns
+  const rawUrl = artwork?.imageUrl || song?.artwork?.imageUrl;
+  const isDummy =
+    !!rawUrl &&
+    (rawUrl.includes('/xx/yy/zz') ||
+      rawUrl.includes('/aa/bb/cc') ||
+      rawUrl.includes('/11/22/33') ||
+      rawUrl.includes('/44/55/66') ||
+      rawUrl.includes('/77/88/99') ||
+      rawUrl.includes('/dd/ee/ff') ||
+      rawUrl.includes('/00/11/22') ||
+      rawUrl.includes('/33/44/55') ||
+      rawUrl.includes('/66/77/88') ||
+      rawUrl.includes('/99/00/11') ||
+      rawUrl.includes('/22/33/44') ||
+      rawUrl.includes('/55/66/77') ||
+      rawUrl.includes('/88/99/00') ||
+      rawUrl.includes('placeholder'));
+  const validProvidedUrl = isDummy ? undefined : rawUrl;
+
+  // Resolve genuine artwork URL: provided valid URL or lookup in authoritative registry
+  const resolvedUrl = useMemo(() => {
+    return (
+      validProvidedUrl ||
+      getVerifiedSongArtwork({
+        id: effectiveId,
+        title: effectiveTitle,
+        artist: effectiveArtist
+      })
+    );
+  }, [validProvidedUrl, effectiveId, effectiveTitle, effectiveArtist]);
+
+  const [imageError, setImageError] = useState<boolean>(false);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+
+  // When the resolved image URL or track identity changes, reset image state immediately
+  // Also check if the image was already cached by the browser
+  useEffect(() => {
+    setImageError(false);
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setIsLoaded(true);
+    } else {
+      setIsLoaded(false);
+    }
+  }, [resolvedUrl, effectiveId]);
+
+  const initialChar = (effectiveTitle || 'H').charAt(0).toUpperCase();
+
+  // 1. Standard Album Art Presentation (Non-vinyl, with verified valid cover)
+  if (resolvedUrl && !isVinyl && !imageError) {
     return (
       <div
         className={className}
@@ -45,23 +99,44 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
           ...style
         }}
       >
+        {/* Shimmer skeleton while high-res artwork loads */}
+        {!isLoaded && (
+          <div
+            className="artwork-shimmer-bg"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 1,
+              borderRadius: 'inherit'
+            }}
+          />
+        )}
+
         <img
-          src={safeArtwork.imageUrl}
-          alt="Album artwork"
-          loading="lazy"
+          ref={imgRef}
+          key={resolvedUrl}
+          src={resolvedUrl}
+          alt={alt || `${effectiveTitle || 'Track'} album artwork`}
+          loading="eager"
+          decoding="async"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setImageError(true)}
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover',
             display: 'block',
-            transition: 'transform 0.4s ease'
+            opacity: isLoaded ? 1 : 0,
+            transition: 'opacity 0.25s ease, transform 0.3s ease'
           }}
         />
+
+        {/* Subtle luxury edge vignette */}
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            boxShadow: 'inset 0 0 16px rgba(0,0,0,0.4)',
+            boxShadow: 'inset 0 0 16px rgba(0,0,0,0.35)',
             pointerEvents: 'none'
           }}
         />
@@ -69,6 +144,120 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
     );
   }
 
+  // 2. Vinyl Presentation (for spinning discs, player views, and turntable widgets)
+  if (isVinyl) {
+    return (
+      <div
+        className={className}
+        style={{
+          width: size,
+          height: size,
+          aspectRatio: '1 / 1',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          position: 'relative',
+          backgroundColor: '#080B10',
+          boxShadow: '0 12px 35px rgba(0, 0, 0, 0.8), inset 0 0 12px rgba(0, 0, 0, 0.9)',
+          ...style
+        }}
+      >
+        <svg
+          viewBox="0 0 400 400"
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            animation: isPlaying ? 'discSpin 18s linear infinite' : 'none'
+          }}
+        >
+          <defs>
+            <radialGradient id="vinyl-groove-reflect" cx="50%" cy="50%" r="50%">
+              <stop offset="30%" stopColor="#FFFFFF" stopOpacity="0.05" />
+              <stop offset="50%" stopColor="#000000" stopOpacity="0.25" />
+              <stop offset="70%" stopColor="#FFFFFF" stopOpacity="0.06" />
+              <stop offset="100%" stopColor="#000000" stopOpacity="0.65" />
+            </radialGradient>
+          </defs>
+
+          {/* Vinyl base disc */}
+          <rect width="400" height="400" fill="#0A0E15" />
+
+          {/* Concentric vinyl groove rings */}
+          <circle cx="200" cy="200" r="195" fill="none" stroke="#000000" strokeWidth="6" opacity="0.9" />
+          {[60, 75, 90, 105, 120, 135, 150, 165, 180].map((rad) => (
+            <circle
+              key={rad}
+              cx="200"
+              cy="200"
+              r={rad}
+              fill="none"
+              stroke="rgba(255, 255, 255, 0.04)"
+              strokeWidth="0.8"
+            />
+          ))}
+
+          {/* Center Label Area */}
+          <circle cx="200" cy="200" r="58" fill="#111622" stroke="var(--accent-warm, #E7A58D)" strokeWidth="1.5" />
+          <circle cx="200" cy="200" r="52" fill="none" stroke="rgba(244, 240, 235, 0.15)" strokeWidth="0.8" strokeDasharray="3 3" />
+
+          {/* Center artwork thumbnail or HyperMelo typography */}
+          {resolvedUrl && !imageError ? (
+            <clipPath id="vinyl-art-clip">
+              <circle cx="200" cy="200" r="50" />
+            </clipPath>
+          ) : null}
+
+          {resolvedUrl && !imageError ? (
+            <image
+              href={resolvedUrl}
+              x="150"
+              y="150"
+              width="100"
+              height="100"
+              preserveAspectRatio="xMidYMid slice"
+              clipPath="url(#vinyl-art-clip)"
+            />
+          ) : (
+            <g>
+              <circle cx="200" cy="200" r="12" fill="#080B10" stroke="var(--accent-cream, #F4DFC9)" strokeWidth="1.2" />
+              <text
+                x="200"
+                y="178"
+                textAnchor="middle"
+                fill="var(--accent-cream, #F4DFC9)"
+                fontSize="9"
+                fontWeight="700"
+                letterSpacing="0.22em"
+                style={{ fontFamily: 'var(--font-sans, system-ui)' }}
+              >
+                HYPERMELO
+              </text>
+              <text
+                x="200"
+                y="226"
+                textAnchor="middle"
+                fill="var(--accent-warm, #E7A58D)"
+                fontSize="7"
+                fontStyle="italic"
+                letterSpacing="0.08em"
+              >
+                mastered
+              </text>
+            </g>
+          )}
+
+          {/* Center Spindle Hole */}
+          <circle cx="200" cy="200" r="8" fill="#05070A" stroke="rgba(244, 240, 235, 0.4)" strokeWidth="0.8" />
+
+          {/* Vinyl reflection gloss overlay */}
+          <circle cx="200" cy="200" r="195" fill="url(#vinyl-groove-reflect)" pointerEvents="none" />
+        </svg>
+      </div>
+    );
+  }
+
+  // 3. Deliberate, High-Quality Branded Fallback (When no verified artwork is available)
+  // Transparently communicates HyperMelo brand identity rather than pretending to be genuine art
   return (
     <div
       className={className}
@@ -76,163 +265,71 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
         width: size,
         height: size,
         aspectRatio: '1 / 1',
-        borderRadius: isVinyl ? '50%' : '16px',
+        borderRadius: '14px',
         overflow: 'hidden',
         position: 'relative',
         backgroundColor: '#090D14',
-        boxShadow: isVinyl
-          ? '0 12px 35px rgba(0, 0, 0, 0.7), inset 0 0 10px rgba(0, 0, 0, 0.8)'
-          : '0 8px 24px rgba(0, 0, 0, 0.45)',
+        background: 'linear-gradient(145deg, #0D121D 0%, #080B10 60%, #120B16 100%)',
+        border: '1px solid rgba(231, 165, 141, 0.15)',
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         ...style
       }}
     >
       <svg
-        viewBox="0 0 400 400"
+        viewBox="0 0 200 200"
         style={{
           width: '100%',
           height: '100%',
-          display: 'block',
-          animation: isPlaying && isVinyl ? 'discSpin 18s linear infinite' : 'none'
+          display: 'block'
         }}
       >
         <defs>
-          <radialGradient id={`rad-${safeArtwork.pattern}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={safeArtwork.accentWarm} stopOpacity="0.85" />
-            <stop offset="45%" stopColor={c1} stopOpacity="0.7" />
-            <stop offset="80%" stopColor={c2} stopOpacity="0.4" />
-            <stop offset="100%" stopColor={c3} stopOpacity="0.1" />
-          </radialGradient>
-
-          <linearGradient id={`lin-${safeArtwork.pattern}`} x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor={c1} />
-            <stop offset="50%" stopColor={c2} />
-            <stop offset="100%" stopColor={c3} />
-          </linearGradient>
-
-          <linearGradient id={`foil-${safeArtwork.pattern}`} x1="20%" y1="0%" x2="80%" y2="100%">
-            <stop offset="0%" stopColor={safeArtwork.accentWarm} stopOpacity="0.4" />
-            <stop offset="50%" stopColor={c4} stopOpacity="0.1" />
-            <stop offset="100%" stopColor={safeArtwork.accentCool} stopOpacity="0.5" />
-          </linearGradient>
-
-          {/* Vinyl groove filter */}
-          <radialGradient id="vinyl-reflection" cx="50%" cy="50%" r="50%">
-            <stop offset="30%" stopColor="#FFFFFF" stopOpacity="0.04" />
-            <stop offset="50%" stopColor="#000000" stopOpacity="0.2" />
-            <stop offset="70%" stopColor="#FFFFFF" stopOpacity="0.05" />
-            <stop offset="100%" stopColor="#000000" stopOpacity="0.6" />
+          <radialGradient id={`hm-fallback-glow-${initialChar}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#D43CFF" stopOpacity="0.22" />
+            <stop offset="60%" stopColor="#E7A58D" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="#090D14" stopOpacity="0" />
           </radialGradient>
         </defs>
 
-        {/* Base dark canvas */}
-        <rect width="400" height="400" fill="#0A0E15" />
+        {/* Ambient atmospheric glow */}
+        <circle cx="100" cy="100" r="90" fill={`url(#hm-fallback-glow-${initialChar})`} />
 
-        {/* Dynamic geometric composition according to pattern */}
-        {safeArtwork.pattern === 'orbital' && (
-          <g>
-            <circle cx="200" cy="200" r="170" fill={`url(#rad-${safeArtwork.pattern})`} />
-            <circle cx="230" cy="180" r="95" fill={c1} opacity="0.6" filter="blur(20px)" />
-            <ellipse cx="160" cy="230" rx="140" ry="70" fill={safeArtwork.accentCool} opacity="0.25" transform="rotate(-25 160 230)" />
-            <circle cx="200" cy="200" r="130" stroke="rgba(244, 240, 235, 0.12)" strokeWidth="1.5" fill="none" />
-            <circle cx="200" cy="200" r="85" stroke="rgba(231, 165, 141, 0.28)" strokeWidth="1" strokeDasharray="4 8" fill="none" />
-            <circle cx="270" cy="140" r="14" fill={safeArtwork.accentWarm} opacity="0.9" filter="drop-shadow(0 0 10px rgba(231,165,141,0.8))" />
-          </g>
-        )}
+        {/* Subtle geometric orbit rings */}
+        <circle cx="100" cy="100" r="68" stroke="rgba(231, 165, 141, 0.12)" strokeWidth="1" fill="none" />
+        <circle cx="100" cy="100" r="46" stroke="rgba(212, 60, 255, 0.2)" strokeWidth="1" strokeDasharray="3 4" fill="none" />
 
-        {safeArtwork.pattern === 'geometric' && (
-          <g>
-            <rect width="400" height="400" fill={`url(#lin-${safeArtwork.pattern})`} opacity="0.4" />
-            <polygon points="200,40 360,320 40,320" fill="none" stroke={safeArtwork.accentWarm} strokeWidth="1.5" opacity="0.4" />
-            <polygon points="200,80 330,300 70,300" fill={`url(#rad-${safeArtwork.pattern})`} opacity="0.75" />
-            <circle cx="200" cy="220" r="70" fill={c2} opacity="0.8" />
-            <circle cx="200" cy="220" r="45" fill={safeArtwork.accentCool} opacity="0.5" filter="blur(10px)" />
-            <line x1="200" y1="20" x2="200" y2="380" stroke="rgba(244, 240, 235, 0.15)" strokeWidth="1" strokeDasharray="3 6" />
-          </g>
-        )}
+        {/* Central luxury emblem with track initial */}
+        <circle cx="100" cy="94" r="28" fill="rgba(19, 25, 38, 0.85)" stroke="rgba(231, 165, 141, 0.35)" strokeWidth="1.2" />
+        <text
+          x="100"
+          y="103"
+          textAnchor="middle"
+          fill="var(--accent-cream, #F4DFC9)"
+          fontSize="22"
+          fontWeight="700"
+          letterSpacing="-0.02em"
+          style={{ fontFamily: 'var(--font-sans, system-ui)' }}
+        >
+          {initialChar}
+        </text>
 
-        {safeArtwork.pattern === 'echo' && (
-          <g>
-            <rect width="400" height="400" fill={c3} />
-            <circle cx="170" cy="200" r="140" fill={c1} opacity="0.35" filter="blur(30px)" />
-            <circle cx="240" cy="180" r="110" fill={safeArtwork.accentWarm} opacity="0.4" filter="blur(25px)" />
-            {[40, 75, 110, 145, 180].map((r, i) => (
-              <circle
-                key={i}
-                cx="200"
-                cy="200"
-                r={r}
-                fill="none"
-                stroke="rgba(244, 223, 201, 0.14)"
-                strokeWidth="1.2"
-                strokeDasharray={i % 2 === 0 ? '6 4' : 'none'}
-              />
-            ))}
-            <circle cx="200" cy="200" r="32" fill={safeArtwork.accentWarm} opacity="0.85" />
-          </g>
-        )}
-
-        {safeArtwork.pattern === 'solaris' && (
-          <g>
-            <rect width="400" height="400" fill="#0C0812" />
-            <circle cx="200" cy="200" r="180" fill={`url(#rad-${safeArtwork.pattern})`} opacity="0.8" />
-            <circle cx="200" cy="200" r="120" fill={c1} opacity="0.5" filter="blur(16px)" />
-            <path
-              d="M 60 200 Q 200 80 340 200 Q 200 320 60 200 Z"
-              fill="none"
-              stroke="rgba(244, 240, 235, 0.25)"
-              strokeWidth="1.5"
-            />
-            <circle cx="200" cy="200" r="48" fill={cream} opacity="0.9" filter="drop-shadow(0 0 16px rgba(244,223,201,0.8))" />
-          </g>
-        )}
-
-        {/* Fine concentric vinyl grooves if in vinyl mode */}
-        {isVinyl && (
-          <g>
-            <circle cx="200" cy="200" r="195" fill="none" stroke="#000000" strokeWidth="6" opacity="0.85" />
-            {[65, 80, 95, 110, 125, 140, 155, 170, 185].map((rad) => (
-              <circle
-                key={rad}
-                cx="200"
-                cy="200"
-                r={rad}
-                fill="none"
-                stroke="rgba(255, 255, 255, 0.04)"
-                strokeWidth="0.8"
-              />
-            ))}
-            {/* Center Label */}
-            <circle cx="200" cy="200" r="55" fill="#0D1118" stroke={safeArtwork.accentWarm} strokeWidth="1.5" />
-            <circle cx="200" cy="200" r="50" fill="none" stroke="rgba(244, 240, 235, 0.15)" strokeWidth="0.8" strokeDasharray="3 3" />
-            <circle cx="200" cy="200" r="12" fill="#080B10" stroke={cream} strokeWidth="1.2" />
-            <text
-              x="200"
-              y="180"
-              textAnchor="middle"
-              fill={cream}
-              fontSize="10"
-              fontWeight="600"
-              letterSpacing="0.2em"
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              NARO
-            </text>
-            <text
-              x="200"
-              y="226"
-              textAnchor="middle"
-              fill={safeArtwork.accentWarm}
-              fontSize="7"
-              fontStyle="italic"
-              letterSpacing="0.05em"
-              style={{ fontFamily: 'var(--font-editorial)' }}
-            >
-              mastered
-            </text>
-            {/* Vinyl gloss overlay */}
-            <circle cx="200" cy="200" r="195" fill="url(#vinyl-reflection)" pointerEvents="none" />
-          </g>
-        )}
+        {/* Brand signature mark: Deliberate HyperMelo Catalog Reserve */}
+        <text
+          x="100"
+          y="158"
+          textAnchor="middle"
+          fill="rgba(231, 165, 141, 0.55)"
+          fontSize="7.5"
+          fontWeight="600"
+          letterSpacing="0.22em"
+          style={{ fontFamily: 'var(--font-sans, system-ui)' }}
+        >
+          HYPERMELO AUDIO
+        </text>
       </svg>
     </div>
   );

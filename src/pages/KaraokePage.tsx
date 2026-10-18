@@ -234,7 +234,7 @@ export const KaraokePage: React.FC = () => {
               flexShrink: 0
             }}
           >
-            <AbstractArtwork artwork={song.artwork} size={64} />
+            <AbstractArtwork artwork={song.artwork} song={song} size={64} />
           </div>
 
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -350,7 +350,7 @@ export const KaraokePage: React.FC = () => {
               textTransform: 'uppercase'
             }}
           >
-            NARO KARAOKE 2.0
+            HYPERMELO KARAOKE
           </span>
           <span
             style={{

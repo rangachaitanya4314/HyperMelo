@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { lyricsService } from '../services/lyrics/lyricsService';
+import { lyricsService, measureLinePace, getPaceTransition } from '../services/lyrics/lyricsService';
 import { validateScriptForLanguage } from '../services/lyrics/translationService';
 import { SUPPORTED_LANGUAGES, type TimedLyricLine } from '../types/music';
 
@@ -23,15 +23,26 @@ export const LyricsDrawer: React.FC = () => {
   // Canonical Timed Lyric Segments (Single Authoritative Timeline)
   const canonicalLines = useMemo(() => {
     return lyricsService.getCanonicalLyricLines(currentSong);
-  }, [currentSong?.id, currentSong?.lyrics]);
+  }, [currentSong?.id, currentSong?.lyrics, lyricsRevision]);
 
   const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLines);
+  const prevTrackRef = useRef<{ id?: string; rev?: number }>({
+    id: currentSong?.id,
+    rev: lyricsRevision
+  });
+  if (
+    currentSong?.id !== prevTrackRef.current.id ||
+    lyricsRevision !== prevTrackRef.current.rev
+  ) {
+    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision };
+    setDisplayedLines(canonicalLines);
+  }
   const translationRequestRef = useRef<number>(0);
 
   useEffect(() => {
     const requestId = ++translationRequestRef.current;
 
-    if (!canonicalLines || canonicalLines.length === 0) {
+    if (!currentSong || !canonicalLines || canonicalLines.length === 0) {
       setDisplayedLines([]);
       return;
     }
@@ -57,13 +68,13 @@ export const LyricsDrawer: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, [canonicalLines, displayLanguage, sourceLanguage, currentSong.id, lyricsRevision]);
+  }, [canonicalLines, displayLanguage, sourceLanguage, currentSong?.id, lyricsRevision]);
 
   const lyricsCapability = lyricsService.getLyricsCapability(currentSong);
   const isSynced = lyricsCapability === 'SYNCED_LYRICS';
 
   // Active line calculation is deterministic and derived from authoritative currentTime
-  const activeLineIndex = isSynced
+  const activeLineIndex = (isSynced && currentSong)
     ? lyricsService.getActiveLyricIndex(displayedLines, currentTime, currentSong.lyricsOffsetMs || 0)
     : -1;
 
@@ -127,7 +138,7 @@ export const LyricsDrawer: React.FC = () => {
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
-            {currentSong.title} — {currentSong.artist}
+            {currentSong ? `${currentSong.title} — ${currentSong.artist}` : 'No track selected'}
           </p>
         </div>
 
@@ -231,12 +242,22 @@ export const LyricsDrawer: React.FC = () => {
             const displayText = candidateText;
             const origText = canonicalLines[idx]?.text || line.text;
 
+            const lineEnd = line.endTime !== undefined && line.endTime > startTime
+              ? line.endTime
+              : (line.duration !== undefined && line.duration > 0 ? startTime + line.duration : startTime + 3.0);
+            const pace = line.pace !== undefined
+              ? line.pace
+              : measureLinePace({ text: displayText, startTime, endTime: lineEnd }, displayLanguage);
+            const paceTransition = getPaceTransition(pace);
+
             return (
               <div
                 key={line.id || idx}
                 ref={isCurrent ? activeLineRef : undefined}
                 data-active={isCurrent ? 'true' : 'false'}
                 data-testid={isCurrent ? 'active-lyric-line' : 'lyric-line'}
+                data-pace={pace}
+                data-pace-category={paceTransition.category}
                 onClick={() => {
                   if (isSynced) {
                     seekTo(startTime);
@@ -246,7 +267,7 @@ export const LyricsDrawer: React.FC = () => {
                 tabIndex={isSynced ? 0 : undefined}
                 aria-label={isSynced ? `Seek to: ${line.text}` : undefined}
                 style={{
-                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                  transition: isCurrent ? paceTransition.transitionCss : 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
                   padding: isCurrent ? '12px 16px' : '8px 12px',
                   borderRadius: '10px',
                   backgroundColor: isCurrent ? 'rgba(231, 165, 141, 0.12)' : 'transparent',
@@ -284,7 +305,7 @@ export const LyricsDrawer: React.FC = () => {
                     >
                       {origText}
                     </p>
-                  ) : ((line.id?.startsWith('test-lyric-') || currentSong.id === 'test-multilingual-track') && !translation.isAvailable) ? (
+                  ) : ((line.id?.startsWith('test-lyric-') || currentSong?.id === 'test-multilingual-track') && !translation.isAvailable) ? (
                     <p
                       style={{
                         fontSize: '0.86rem',

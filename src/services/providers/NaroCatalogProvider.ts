@@ -12,21 +12,27 @@ import type {
   MusicProvider,
   SearchOptions
 } from '../../shared';
-import { SONGS, JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
+import { SONGS, ANIRUDH_GAALI_VAALUGA, JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
 
 export class NaroCatalogProvider implements MusicProvider {
   public readonly id = 'naro-catalog';
-  public readonly name = 'NARO Catalog & Reference Tracks';
+  public readonly name = 'HyperMelo Catalog & Reference Tracks';
   public readonly isPrimaryCatalog = false;
 
   private catalog: Song[] = [
+    ANIRUDH_GAALI_VAALUGA,
     JOSH_WOODWARD_SHOT_DOWN,
-    ...SONGS.map((s) => {
+    ...SONGS.filter((s) => s.id !== ANIRUDH_GAALI_VAALUGA.id && s.id !== JOSH_WOODWARD_SHOT_DOWN.id).map((s) => {
+      // If song already has an authoritative external playback source (e.g. Apple Music preview), preserve it cleanly
+      if (s.playbackSource && s.playbackProvider === 'apple-music') {
+        return s;
+      }
+
       const isMidnightDrive = s.id === 'midnight-drive';
       const streamUrl = isMidnightDrive ? '/audio/midnight-drive.wav' : (s.playbackSource?.streamUrl || '/audio/midnight-drive.wav');
       const duration = isMidnightDrive ? 195 : s.duration;
 
-      const karaokeSource: KaraokeSource = {
+      const karaokeSource: KaraokeSource = s.karaokeSource || {
         type: 'dev_fixture',
         provider: 'naro',
         providerTrackId: s.id,
@@ -41,12 +47,12 @@ export class NaroCatalogProvider implements MusicProvider {
         fullTrackDuration: duration,
         isFallbackDemo: true,
         playbackAvailable: true,
-        playbackType: 'full' as const,
-        playbackAvailability: 'full' as const,
-        playbackSourceType: 'dev-fixture' as const,
-        playbackProvider: 'naro' as const,
-        previewAvailable: false,
-        fullLengthAvailable: false,
+        playbackType: s.playbackType || ('full' as const),
+        playbackAvailability: s.playbackAvailability || ('full' as const),
+        playbackSourceType: s.playbackSourceType || ('dev-fixture' as const),
+        playbackProvider: s.playbackProvider || ('naro' as const),
+        previewAvailable: s.previewAvailable ?? false,
+        fullLengthAvailable: s.fullLengthAvailable ?? false,
         karaokeAvailable: s.karaokeReady,
         karaokeReady: s.karaokeReady,
         karaokeAvailability: (s.karaokeReady ? 'available' : 'unavailable') as 'available' | 'unavailable',
@@ -56,8 +62,8 @@ export class NaroCatalogProvider implements MusicProvider {
         capabilities: {
           playback: true,
           playbackAvailable: true,
-          playbackType: 'full' as const,
-          playbackSourceType: 'dev-fixture' as const,
+          playbackType: s.playbackType || ('full' as const),
+          playbackSourceType: s.playbackSourceType || ('dev-fixture' as const),
           lyrics: true,
           lyricsAvailable: true,
           lyricsSyncAvailable: true,
@@ -66,7 +72,7 @@ export class NaroCatalogProvider implements MusicProvider {
           karaokeSource,
           recording: true
         },
-        playbackSource: {
+        playbackSource: s.playbackSource || {
           provider: 'naro' as const,
           providerTrackId: s.id,
           streamUrl,

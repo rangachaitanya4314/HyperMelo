@@ -1,26 +1,35 @@
-# NARO Typography System & Font Licensing Documentation
+# HyperMelo Typography System & Font Licensing Documentation
 
-NARO adheres to a three-tier typographic hierarchy designed to reflect the identity of a premium record label and contemporary music publication:
+HyperMelo adheres to a three-tier typographic hierarchy designed to reflect the identity of a premium record label and contemporary music publication:
 
 ```
-BRAND (Calligraphic/Script)   → NARO Wordmark, Expressive Identity
+BRAND (Calligraphic/Script)   → HyperMelo Wordmark & HM Intertwined Monogram
 EDITORIAL (Contemporary Serif) → Hero Headings, Poetic Pullquotes, Moment Titles
 UI (Modern Grotesk Sans)      → Navigation, Controls, Timers, Metadata
 ```
 
 ---
 
-## 1. BRAND: Calligraphic / Script Typography
+## 1. BRAND: Calligraphic / Script Typography & Font Licensing Assessment
 
-- **Primary Font**: `Alex Brush` (Google Fonts / Web Font) + Bespoke Scalable Vector Wordmark
+### Rustic Roadway Font License Verification
+- **Font Reviewed**: `Rustic Roadway` (Letterhend Studio)
+- **Licensing Status**: **Personal Use Only (Commercial License Required)**
+  - Standard public distribution of Rustic Roadway is strictly limited to non-commercial personal usage.
+  - Embedding in web applications, SaaS platforms, or commercial digital products requires individual commercial seat/server licenses.
+- **Licensing Directive**:
+  In accordance with project guidelines (*"Verify the font license before using Rustic Roadway commercially. If its personal-use license does not permit this use, select the closest commercially licensed script alternative"*), Rustic Roadway is not directly bundled to prevent commercial license non-compliance.
+
+### Selected Commercially Licensed Alternative: Alex Brush
+- **Primary Font**: `Alex Brush` (Google Fonts / Web Font) + Bespoke Scalable Vector Monogram & Wordmark
 - **Designer**: Robert E. Leuschke (TypeSETit)
 - **License**: **SIL Open Font License, Version 1.1 (OFL)**
-  - Open Source, royalty-free for commercial and non-commercial web use.
-  - No redistribution fees, no API keys or telemetry required.
-- **Application**: The official `NARO` wordmark and select artist accentuation.
+  - 100% Open Source, royalty-free for commercial and non-commercial web use.
+  - No per-seat licensing fees, no telemetry, no recurring subscription costs.
+- **Application**: The official `HyperMelo` calligraphic script wordmark and brand identity.
 - **Implementation**:
   - CSS Token: `--font-brand: 'Alex Brush', cursive;`
-  - Encapsulated in the dedicated `<NaroLogo />` component with hand-crafted SVG bezier paths for instant zero-latency rendering across all devices, viewports, and headless environments, backed by `@font-face` CSS.
+  - Encapsulated in the dedicated `<HyperMeloLogo />` component, with hand-crafted SVG bezier paths for the intertwined `HM` monogram crest for instant zero-latency rendering across all devices, viewports, and headless environments, backed by `@font-face` CSS.
 
 ---
 
@@ -43,7 +52,7 @@ UI (Modern Grotesk Sans)      → Navigation, Controls, Timers, Metadata
 - **Designer**: Rasmus Andersson
 - **License**: **SIL Open Font License, Version 1.1 (OFL)**
   - Open Source, optimized for maximum legibility on digital screens.
-- **Application**: Navigation items, volume sliders, audio scrubbers, buttons, capability indicators (`FULL SONG`, `KARAOKE READY`, `PREVIEW`), and timestamps.
+- **Application**: Navigation items, volume sliders, audio scrubbers, buttons, capability indicators (`FULL SONG`, `KARAOKE READY`, `PREVIEW`), tagline (`FEEL IT. MAKE IT.`), and timestamps.
 - **Implementation**:
   - CSS Token: `--font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;`
 
@@ -60,4 +69,4 @@ UI (Modern Grotesk Sans)      → Navigation, Controls, Timers, Metadata
 
 ## Compliance Guarantee
 
-All fonts in NARO are licensed under the **SIL Open Font License (OFL) v1.1**. No commercial font assets with restrictive runtime or per-seat licenses are embedded or referenced.
+All fonts in HyperMelo are licensed under the **SIL Open Font License (OFL) v1.1**. No commercial font assets with restrictive runtime or per-seat licenses are embedded or referenced.

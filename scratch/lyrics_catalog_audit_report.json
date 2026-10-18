@@ -1,0 +1,71 @@
+{
+  "totalTracks": 321,
+  "syncedCount": 15,
+  "plainCount": 1,
+  "missingCount": 0,
+  "transientCount": 0,
+  "ambiguousCount": 1,
+  "notCheckedCount": 304,
+  "langStats": {
+    "hi": {
+      "total": 70,
+      "synced": 6,
+      "plain": 0,
+      "missing": 0,
+      "transient": 0,
+      "ambiguous": 0,
+      "notChecked": 64
+    },
+    "te": {
+      "total": 65,
+      "synced": 4,
+      "plain": 1,
+      "missing": 0,
+      "transient": 0,
+      "ambiguous": 0,
+      "notChecked": 60
+    },
+    "ta": {
+      "total": 67,
+      "synced": 3,
+      "plain": 0,
+      "missing": 0,
+      "transient": 0,
+      "ambiguous": 1,
+      "notChecked": 63
+    },
+    "ml": {
+      "total": 59,
+      "synced": 2,
+      "plain": 0,
+      "missing": 0,
+      "transient": 0,
+      "ambiguous": 0,
+      "notChecked": 57
+    },
+    "en": {
+      "total": 60,
+      "synced": 0,
+      "plain": 0,
+      "missing": 0,
+      "transient": 0,
+      "ambiguous": 0,
+      "notChecked": 60
+    }
+  },
+  "providerCounts": {
+    "lrclib_exact": 9,
+    "lrclib_search": 3,
+    "in-memory-catalog": 4
+  },
+  "providerTransientCounts": {},
+  "metadataAnomalies": [],
+  "manualReviewTracks": [
+    {
+      "id": "tr-kadhale-kadhale",
+      "title": "Kadhale Kadhale",
+      "artist": "Govind Vasantha & Chinmayi",
+      "reason": "JioSaavn candidate \"Kaathalae Kaathalae (Version 1)\" by \"Govind Vasantha\" rejected (score: 0)"
+    }
+  ]
+}

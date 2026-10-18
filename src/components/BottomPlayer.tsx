@@ -19,6 +19,7 @@ import {
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
 import { MulticolorSpectrum } from './MulticolorSpectrum';
+import { getConsumerLicenseLabel } from '../shared';
 import './BottomPlayer.css';
 
 export const BottomPlayer: React.FC = () => {
@@ -41,15 +42,15 @@ export const BottomPlayer: React.FC = () => {
     isLoopingSection,
     setIsLoopingSection,
     soundMode,
-    soundPreset,
     isDspSupported,
+    activeDspDescription,
     cycleSoundMode,
     toggleLikeSong,
     isSongLiked,
     openAddToPlaylist
   } = useAudioPlayer();
 
-  const isLiked = isSongLiked(currentSong.id);
+  const isLiked = currentSong ? isSongLiked(currentSong.id) : false;
 
   const [prevVolume, setPrevVolume] = useState<number>(0.8);
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
@@ -117,9 +118,9 @@ export const BottomPlayer: React.FC = () => {
     seekTo(parseFloat(e.target.value));
   };
 
-  const effectiveDuration = duration > 0 ? duration : currentSong.duration || 180;
-  const progressPercent = Math.max(0, Math.min(100, (currentTime / effectiveDuration) * 100));
-  const bufferPercent = Math.max(0, Math.min(100, (bufferedTime / effectiveDuration) * 100));
+  const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 1);
+  const progressPercent = currentSong && effectiveDuration > 0 ? Math.max(0, Math.min(100, (currentTime / effectiveDuration) * 100)) : 0;
+  const bufferPercent = currentSong && effectiveDuration > 0 ? Math.max(0, Math.min(100, (bufferedTime / effectiveDuration) * 100)) : 0;
 
   return (
     <aside
@@ -138,52 +139,64 @@ export const BottomPlayer: React.FC = () => {
         <div
           className="player-artwork-box"
           onClick={togglePlay}
-          title="Toggle playback"
-          aria-label="Toggle playback"
+          title={currentSong ? "Toggle playback" : "Play music"}
+          aria-label={currentSong ? "Toggle playback" : "Play music"}
           role="button"
           tabIndex={0}
         >
-          <AbstractArtwork artwork={currentSong.artwork} isPlaying={isPlaying} size={50} />
+          <AbstractArtwork
+            artwork={currentSong?.artwork}
+            song={currentSong}
+            trackId={currentSong?.id}
+            title={currentSong?.title}
+            artist={currentSong?.artist}
+            isPlaying={isPlaying}
+            size={50}
+          />
         </div>
 
         <div
           id="bottom-player-track-info"
           data-testid="bottom-player-track-info"
-          onClick={openNowPlaying}
+          onClick={currentSong ? openNowPlaying : undefined}
           className="player-track-info"
-          title="Expand Now Playing"
-          role="button"
-          tabIndex={0}
+          title={currentSong ? "Expand Now Playing" : undefined}
+          role={currentSong ? "button" : undefined}
+          tabIndex={currentSong ? 0 : undefined}
         >
           <span className="player-track-title">
-            {currentSong.title}
+            {currentSong?.title || 'No track selected'}
           </span>
 
           <div className="player-track-sub">
             <span className="player-track-artist">
-              {currentSong.artist}
+              {currentSong?.artist || 'Select a track to play'}
             </span>
 
-            {currentSong.attribution && (
-              <span
-                id="player-attribution-badge"
-                style={{
-                  fontSize: '0.62rem',
-                  fontWeight: 500,
-                  letterSpacing: '0.03em',
-                  padding: '1px 5px',
-                  borderRadius: '4px',
-                  backgroundColor: 'rgba(244, 240, 235, 0.06)',
-                  color: 'var(--text-dim)',
-                  border: '1px solid rgba(244, 240, 235, 0.12)',
-                  whiteSpace: 'nowrap',
-                  cursor: 'help'
-                }}
-                title={`${currentSong.attribution.text}\nSource: ${currentSong.attribution.sourceName}`}
-              >
-                {currentSong.attribution.license}
-              </span>
-            )}
+            {(() => {
+              const lic = getConsumerLicenseLabel(currentSong?.attribution);
+              if (!lic) return null;
+              return (
+                <span
+                  id="player-attribution-badge"
+                  style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 500,
+                    letterSpacing: '0.03em',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    backgroundColor: 'rgba(244, 240, 235, 0.06)',
+                    color: 'var(--text-dim)',
+                    border: '1px solid rgba(244, 240, 235, 0.12)',
+                    whiteSpace: 'nowrap',
+                    cursor: 'help'
+                  }}
+                  title={`${currentSong?.attribution?.text || ''}\nSource: ${currentSong?.attribution?.sourceName || ''}`}
+                >
+                  {lic}
+                </span>
+              );
+            })()}
 
             {/* Multicolor Audio Spectrum */}
             <div className="player-track-spectrum">
@@ -204,13 +217,15 @@ export const BottomPlayer: React.FC = () => {
             type="button"
             id="bottom-player-like-btn"
             data-testid="bottom-player-like-btn"
+            disabled={!currentSong}
             onClick={(e) => {
               e.stopPropagation();
-              toggleLikeSong(currentSong);
+              if (currentSong) toggleLikeSong(currentSong);
             }}
             aria-label={isLiked ? 'Unlike song' : 'Like song'}
             className="player-icon-btn"
             title={isLiked ? 'Unlike song' : 'Save to Liked Songs'}
+            style={{ opacity: currentSong ? 1 : 0.4, cursor: currentSong ? 'pointer' : 'default' }}
           >
             <Heart
               size={18}
@@ -223,13 +238,15 @@ export const BottomPlayer: React.FC = () => {
             type="button"
             id="bottom-player-add-playlist-btn"
             data-testid="bottom-player-add-playlist-btn"
+            disabled={!currentSong}
             onClick={(e) => {
               e.stopPropagation();
-              openAddToPlaylist(currentSong);
+              if (currentSong) openAddToPlaylist(currentSong);
             }}
             aria-label="Add to playlist"
             className="player-icon-btn"
             title="Add to playlist"
+            style={{ opacity: currentSong ? 1 : 0.4, cursor: currentSong ? 'pointer' : 'default' }}
           >
             <Plus size={18} color="var(--text-muted)" />
           </button>
@@ -359,7 +376,8 @@ export const BottomPlayer: React.FC = () => {
               min={0}
               max={effectiveDuration}
               step={0.2}
-              value={currentTime}
+              value={currentSong ? currentTime : 0}
+              disabled={!currentSong}
               onChange={handleProgressChange}
               aria-label="Song progress seek"
               style={{
@@ -411,14 +429,15 @@ export const BottomPlayer: React.FC = () => {
         {/* Mobile quick like button when left actions are hidden */}
         <button
           type="button"
+          disabled={!currentSong}
           onClick={(e) => {
             e.stopPropagation();
-            toggleLikeSong(currentSong);
+            if (currentSong) toggleLikeSong(currentSong);
           }}
           aria-label={isLiked ? 'Unlike song' : 'Like song'}
           className="player-icon-btn mobile-like-btn"
           title={isLiked ? 'Unlike song' : 'Save to Liked Songs'}
-          style={{ display: 'none' }}
+          style={{ display: 'none', opacity: currentSong ? 1 : 0.4 }}
         >
           <Heart
             size={18}
@@ -474,12 +493,10 @@ export const BottomPlayer: React.FC = () => {
           }}
           title={
             !isDspSupported
-              ? 'DSP processing unavailable for this playback stream (DRM/External iframe)'
-              : soundMode === 'punch'
-              ? 'Punch Mode (Punchy bass & energetic clarity) - Click to cycle'
-              : soundMode === 'immersive'
-              ? `Immersive Mode (${soundPreset.toUpperCase()}) - Click to cycle`
-              : 'Original Mode (Faithful source bypass) - Click to cycle'
+              ? 'DSP processing bypassed for this stream (External iframe / DRM)'
+              : soundMode === 'original'
+              ? 'Original Mode: Bit-perfect source bypass (Zero coloration) - Click to cycle'
+              : `${soundMode.toUpperCase()} Mode: ${activeDspDescription} - Click to cycle`
           }
         >
           <Sparkles
@@ -496,7 +513,7 @@ export const BottomPlayer: React.FC = () => {
           />
           <span>
             {!isDspSupported
-              ? 'DSP N/A'
+              ? 'DSP BYPASS'
               : soundMode === 'punch'
               ? 'PUNCH'
               : soundMode === 'immersive'

@@ -14,12 +14,14 @@ import {
   Sun,
   Moon,
   Plus,
-  Sliders
+  Sliders,
+  ChevronDown
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
-import { lyricsService } from '../services/lyrics/lyricsService';
-import { validateScriptForLanguage } from '../services/lyrics/translationService';
+import { AbstractArtwork } from './AbstractArtwork';
+import { lyricsService, measureLinePace, getPaceTransition } from '../services/lyrics/lyricsService';
+import { getListeningLyricDisplay } from '../shared/lyrics';
+import { getConsumerLicenseLabel } from '../shared';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 import './NowPlaying.css';
@@ -29,7 +31,8 @@ export type AtmosphereMood = 'romance' | 'sad' | 'solaris' | 'midnight';
 /**
  * Deterministically detect atmospheric mood from song metadata without fabrication.
  */
-function getSongMood(song: Song): AtmosphereMood {
+function getSongMood(song: Song | null): AtmosphereMood {
+  if (!song) return 'midnight';
   const combined = `${song.genre || ''} ${song.title || ''} ${song.artwork?.pattern || ''}`.toLowerCase();
   if (
     combined.includes('sad') ||
@@ -76,14 +79,16 @@ export const NowPlaying: React.FC = () => {
     setVolume,
     isLoopingSection,
     setIsLoopingSection,
-    displayLanguage,
     sourceLanguage,
     setDisplayLanguage,
+    listeningMeaningLanguage,
+    setListeningMeaningLanguage,
     lyricsRevision,
     soundMode,
     soundPreset,
     bassIntensity,
     isDspSupported,
+    activeDspDescription,
     setSoundMode,
     setSoundPreset,
     setBassIntensity,
@@ -102,47 +107,76 @@ export const NowPlaying: React.FC = () => {
   const mood = useMemo(() => getSongMood(currentSong), [currentSong]);
 
   // Truthful Lyrics Capability
-  const lyricsCapability = useMemo(() => lyricsService.getLyricsCapability(currentSong), [currentSong]);
+  const lyricsCapability = useMemo(
+    () => lyricsService.getLyricsCapability(currentSong),
+    [currentSong, lyricsRevision]
+  );
   const isSynced = lyricsCapability === 'SYNCED_LYRICS';
 
   // Canonical Timed Lyric Segments (Single Authoritative Timeline)
   const canonicalLyricLines = useMemo(() => {
     return lyricsService.getCanonicalLyricLines(currentSong);
-  }, [currentSong?.id, currentSong?.lyrics]);
+  }, [currentSong, lyricsRevision]);
 
-  // Displayed lines state - initialized with canonical lines
+  // State to expand / collapse the Audiophile Sound Engine panel (collapsed by default)
+  const [isAudiophileExpanded, setIsAudiophileExpanded] = useState<boolean>(false);
+
+  // Displayed lines state - initialized with canonical lines and reset immediately on track switch or revision update
   const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLyricLines);
+  const prevTrackRef = useRef<{ id?: string; rev?: number }>({
+    id: currentSong?.id,
+    rev: lyricsRevision
+  });
+  if (
+    currentSong?.id !== prevTrackRef.current.id ||
+    lyricsRevision !== prevTrackRef.current.rev
+  ) {
+    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision };
+    setDisplayedLines(canonicalLyricLines);
+  }
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const translationRequestRef = useRef<number>(0);
 
-  // Synchronize displayedLines when canonicalLyricLines or displayLanguage or sourceLanguage changes
+  // Synchronize displayedLines for listening meaning without altering canonical primary lyrics
   useEffect(() => {
     const requestId = ++translationRequestRef.current;
 
-    if (!canonicalLyricLines || canonicalLyricLines.length === 0) {
+    if (!currentSong || !canonicalLyricLines || canonicalLyricLines.length === 0) {
       setDisplayedLines([]);
       setIsTranslating(false);
       return;
     }
 
-    // 1. If target language is source language, use canonical lines directly
-    if (displayLanguage === sourceLanguage) {
+    const songOrig = (currentSong.originalLanguage || (currentSong as any).original_language || sourceLanguage || 'en') as string;
+
+    // 1. If listening meaning language is the song's original language, canonical lines are already complete
+    if (listeningMeaningLanguage === songOrig) {
       setDisplayedLines(canonicalLyricLines);
       setIsTranslating(false);
       return;
     }
 
-    // 2. Check if already cached synchronously (0ms delay)
-    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, displayLanguage, currentSong.id, sourceLanguage);
+    // 2. If canonical lines already have listening meaning or translation for this language, use canonical directly
+    const hasMeaningOnLines = canonicalLyricLines.some(
+      (l) => Boolean(l.listening_meaning?.[listeningMeaningLanguage] || l.translations?.[listeningMeaningLanguage])
+    );
+    if (hasMeaningOnLines) {
+      setDisplayedLines(canonicalLyricLines);
+      setIsTranslating(false);
+      return;
+    }
+
+    // 3. Check synchronous cache
+    const cached = lyricsService.getCachedTranslation(canonicalLyricLines, listeningMeaningLanguage, currentSong.id, songOrig);
     if (cached) {
       setDisplayedLines(cached);
       setIsTranslating(false);
       return;
     }
 
-    // 3. Otherwise fetch translation asynchronously (< 1 second)
+    // 4. Otherwise fetch translation asynchronously to enrich secondary meaning track
     setIsTranslating(true);
-    lyricsService.translateLyricLines(canonicalLyricLines, displayLanguage, sourceLanguage, currentSong.id, true)
+    lyricsService.translateLyricLines(canonicalLyricLines, listeningMeaningLanguage, songOrig, currentSong.id, true)
       .then((translated) => {
         if (translationRequestRef.current === requestId) {
           setDisplayedLines(translated);
@@ -151,18 +185,19 @@ export const NowPlaying: React.FC = () => {
       })
       .catch(() => {
         if (translationRequestRef.current === requestId) {
+          setDisplayedLines(canonicalLyricLines);
           setIsTranslating(false);
         }
       });
-  }, [canonicalLyricLines, displayLanguage, sourceLanguage, currentSong.id, lyricsRevision]);
+  }, [canonicalLyricLines, listeningMeaningLanguage, sourceLanguage, currentSong, lyricsRevision]);
 
   const hasLyrics = displayedLines.length > 0 && lyricsCapability !== 'LYRICS_UNAVAILABLE';
 
   // Active lyric index strictly derived from authoritative currentTime
   const activeLyricIndex = useMemo(() => {
-    if (!hasLyrics || !isSynced) return -1;
+    if (!hasLyrics || !isSynced || !currentSong) return -1;
     return lyricsService.getActiveLyricIndex(displayedLines, currentTime, currentSong.lyricsOffsetMs || 0);
-  }, [hasLyrics, isSynced, displayedLines, currentTime, currentSong.lyricsOffsetMs]);
+  }, [hasLyrics, isSynced, displayedLines, currentTime, currentSong]);
 
   // Smooth scroll active lyric into view
   useEffect(() => {
@@ -254,6 +289,52 @@ export const NowPlaying: React.FC = () => {
   }, [nowPlayingOpen]);
 
   if (!nowPlayingOpen) return null;
+
+  if (!currentSong) {
+    return (
+      <div
+        id="naro-now-playing"
+        data-testid="naro-now-playing"
+        role="dialog"
+        aria-label="Now Playing"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 90,
+          backgroundColor: '#080B10',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px'
+        }}
+      >
+        <button
+          id="minimize-now-playing-btn"
+          data-testid="minimize-now-playing-btn"
+          data-close-now-playing="true"
+          onClick={handleExit}
+          aria-label="Close full screen player"
+          className="now-playing-minimize-btn"
+          title="Close full screen player (Esc)"
+          style={{ position: 'absolute', top: '16px', left: '16px' }}
+        >
+          <ChevronLeft size={24} />
+        </button>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '16px' }}>
+          No track currently selected.
+        </p>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={handleExit}
+          style={{ padding: '8px 24px' }}
+        >
+          Back to catalog
+        </button>
+      </div>
+    );
+  }
 
   const effectiveDuration = duration > 0 ? duration : currentSong.duration || 180;
 
@@ -551,7 +632,7 @@ export const NowPlaying: React.FC = () => {
           aria-label="Track Information and Artwork"
           className="now-playing-left-col"
         >
-          {/* Expanded Artwork with Ambient Outer Glow and Beat-Synced Visualizer */}
+          {/* Expanded Artwork with Ambient Outer Glow and Real Album Artwork */}
           <div
             id="now-playing-artwork-container"
             className="now-playing-artwork-wrap"
@@ -561,15 +642,12 @@ export const NowPlaying: React.FC = () => {
                 : '0 20px 40px rgba(0, 0, 0, 0.7)'
             }}
           >
-            <BeatSyncedVisualizer
+            <AbstractArtwork
               artwork={currentSong.artwork}
+              song={currentSong}
               isPlaying={isPlaying}
               size="100%"
-              mode="fullscreen"
-              songTitle={currentSong.title}
-              songArtist={currentSong.artist}
-              onTogglePlay={togglePlay}
-              interactive={true}
+              alt={`${currentSong.title} by ${currentSong.artist}`}
             />
           </div>
 
@@ -603,7 +681,7 @@ export const NowPlaying: React.FC = () => {
                   {currentSong.genre}
                 </span>
               )}
-              {currentSong.attribution?.license && (
+              {getConsumerLicenseLabel(currentSong.attribution) && (
                 <span
                   id="now-playing-license-badge"
                   style={{
@@ -614,9 +692,9 @@ export const NowPlaying: React.FC = () => {
                     color: 'var(--text-dim, #94A3B8)',
                     border: '1px solid rgba(244, 240, 235, 0.12)'
                   }}
-                  title={currentSong.attribution.text}
+                  title={currentSong.attribution?.text}
                 >
-                  {currentSong.attribution.license}
+                  {getConsumerLicenseLabel(currentSong.attribution)}
                 </span>
               )}
             </div>
@@ -663,30 +741,50 @@ export const NowPlaying: React.FC = () => {
                 boxSizing: 'border-box'
               }}
             >
-              {/* Header row: title and honest capability badge */}
-              <div
+              {/* Accessible Header Toggle: title, status badge, and chevron indicator */}
+              <button
+                type="button"
+                id="now-playing-audiophile-toggle"
+                data-testid="now-playing-audiophile-toggle"
+                aria-expanded={isAudiophileExpanded}
+                aria-controls="now-playing-audiophile-controls"
+                aria-label={isAudiophileExpanded ? 'Collapse Audiophile Sound Engine' : 'Expand Audiophile Sound Engine'}
+                onClick={() => setIsAudiophileExpanded((prev) => !prev)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   width: '100%',
-                  gap: '8px',
-                  marginBottom: '6px'
+                  minHeight: '44px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '2px 0',
+                  color: 'inherit',
+                  textAlign: 'left'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sliders size={13} color="var(--accent-warm)" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Sliders size={14} color="var(--accent-warm)" />
                   <span
                     style={{
-                      fontSize: '0.68rem',
+                      fontSize: '0.72rem',
                       fontWeight: 700,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
-                      color: 'var(--text-muted)'
+                      color: 'var(--text-primary)'
                     }}
                   >
                     Audiophile Sound Engine
                   </span>
+                  <ChevronDown
+                    size={14}
+                    style={{
+                      transform: isAudiophileExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                      color: 'var(--text-muted)'
+                    }}
+                  />
                 </div>
 
                 <span
@@ -698,21 +796,50 @@ export const NowPlaying: React.FC = () => {
                     letterSpacing: '0.04em',
                     padding: '2px 6px',
                     borderRadius: '4px',
-                    backgroundColor: isDspSupported
-                      ? 'rgba(34, 197, 94, 0.15)'
-                      : 'rgba(239, 68, 68, 0.15)',
-                    color: isDspSupported ? '#4ADE80' : '#F87171',
-                    border: `1px solid ${isDspSupported ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                    backgroundColor: !isDspSupported
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : soundMode === 'original'
+                      ? 'rgba(148, 163, 184, 0.15)'
+                      : 'rgba(34, 197, 94, 0.15)',
+                    color: !isDspSupported
+                      ? '#F87171'
+                      : soundMode === 'original'
+                      ? '#94A3B8'
+                      : '#4ADE80',
+                    border: `1px solid ${
+                      !isDspSupported
+                        ? 'rgba(239, 68, 68, 0.3)'
+                        : soundMode === 'original'
+                        ? 'rgba(148, 163, 184, 0.3)'
+                        : 'rgba(34, 197, 94, 0.3)'
+                    }`
                   }}
                   title={
-                    isDspSupported
-                      ? 'Web Audio DSP chain active with safety limiter'
-                      : 'Audio provider bypasses Web Audio processing (e.g. YouTube iframe or Apple DRM)'
+                    !isDspSupported
+                      ? 'Audio provider bypasses Web Audio processing (e.g. YouTube iframe or Apple DRM)'
+                      : soundMode === 'original'
+                      ? 'Pure neutral bypass: zero coloration, bit-perfect reproduction'
+                      : 'Web Audio DSP chain active with safety limiter'
                   }
                 >
-                  {isDspSupported ? 'DSP ACTIVE' : 'DSP BYPASS'}
+                  {!isDspSupported
+                    ? 'DSP BYPASS'
+                    : soundMode === 'original'
+                    ? 'ORIGINAL (BYPASS)'
+                    : 'DSP ACTIVE'}
                 </span>
-              </div>
+              </button>
+
+              {/* Collapsible Audiophile Controls Container */}
+              <div
+                id="now-playing-audiophile-controls"
+                data-testid="now-playing-audiophile-controls"
+                style={{
+                  display: isAudiophileExpanded ? 'block' : 'none',
+                  width: '100%',
+                  marginTop: '6px'
+                }}
+              >
 
               {/* Listening Mode Buttons: Original, Immersive, Punch */}
               <div
@@ -822,45 +949,115 @@ export const NowPlaying: React.FC = () => {
                 </button>
               </div>
 
-              {/* Spatial Presets for Immersive Mode */}
-              {soundMode === 'immersive' && isDspSupported && (
+              {/* Dynamic Active DSP Description Banner */}
+              <div
+                id="now-playing-dsp-description"
+                data-testid="now-playing-dsp-description"
+                aria-live="polite"
+                style={{
+                  marginTop: '8px',
+                  fontSize: '0.64rem',
+                  lineHeight: 1.35,
+                  color: !isDspSupported
+                    ? '#F87171'
+                    : soundMode === 'original'
+                    ? '#94A3B8'
+                    : '#FCD34D',
+                  backgroundColor: 'rgba(0, 0, 0, 0.28)',
+                  padding: '5px 8px',
+                  borderRadius: '6px',
+                  border: `1px solid ${
+                    !isDspSupported
+                      ? 'rgba(239, 68, 68, 0.2)'
+                      : soundMode === 'original'
+                      ? 'rgba(148, 163, 184, 0.15)'
+                      : 'rgba(245, 158, 11, 0.2)'
+                  }`,
+                  textAlign: 'center',
+                  width: '100%',
+                  letterSpacing: '0.02em',
+                  fontFamily: 'monospace'
+                }}
+              >
+                {activeDspDescription || (!isDspSupported ? 'DSP Bypassed for Provider' : 'Bypass (Neutral flat response)')}
+              </div>
+
+              {/* Enhancement Presets */}
+              {isDspSupported && (
                 <div
-                  className="now-playing-presets-row"
+                  className="now-playing-presets-container"
                   style={{
                     marginTop: '8px',
                     display: 'flex',
-                    flexWrap: 'wrap',
+                    flexDirection: 'column',
                     gap: '4px',
-                    justifyContent: 'center',
                     width: '100%'
                   }}
                 >
-                  {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map((preset) => {
-                    const isSelected = soundPreset === preset;
-                    return (
-                      <button
-                        key={preset}
-                        type="button"
-                        id={`now-playing-preset-${preset}`}
-                        onClick={() => setSoundPreset(preset)}
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: 'var(--radius-full)',
-                          background: isSelected
-                            ? 'var(--accent-warm)'
-                            : 'rgba(244, 240, 235, 0.06)',
-                          color: isSelected ? '#080B10' : 'var(--text-dim)',
-                          border: 'none',
-                          fontSize: '0.68rem',
-                          fontWeight: isSelected ? 700 : 500,
-                          cursor: 'pointer',
-                          textTransform: 'capitalize'
-                        }}
-                      >
-                        {preset}
-                      </button>
-                    );
-                  })}
+                  <div
+                    style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 600,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      color: 'var(--text-muted)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    Enhancement Presets {soundMode === 'original' && '(Engages DSP)'}
+                  </div>
+                  <div
+                    className="now-playing-presets-row"
+                    role="group"
+                    aria-label="Sound Enhancement Presets"
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '4px',
+                      justifyContent: 'center',
+                      width: '100%'
+                    }}
+                  >
+                    {(['immersive', 'deep', 'vocal', 'wide', 'night'] as const).map((preset) => {
+                      const isSelected = soundMode !== 'original' && soundPreset === preset;
+                      const presetDescriptions: Record<string, { label: string; desc: string }> = {
+                        immersive: { label: 'Standard', desc: 'Balanced 3D Soundstage' },
+                        deep: { label: 'Deep', desc: 'Deeper low frequencies (+6 dB at 75 Hz)' },
+                        vocal: { label: 'Vocal', desc: 'Clear vocal presence (+5.2 dB at 3.2 kHz)' },
+                        wide: { label: 'Wide', desc: 'Expanded stereo separation (w = 1.90)' },
+                        night: { label: 'Night', desc: 'Dynamic compression & gentle high rolloff' }
+                      };
+                      const info = presetDescriptions[preset];
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          id={`now-playing-preset-${preset}`}
+                          data-testid={`now-playing-preset-${preset}`}
+                          aria-pressed={isSelected}
+                          aria-label={`${info.label} Preset: ${info.desc}`}
+                          title={`${info.label}: ${info.desc}`}
+                          onClick={() => setSoundPreset(preset)}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 'var(--radius-full)',
+                            background: isSelected
+                              ? 'var(--accent-warm)'
+                              : 'rgba(244, 240, 235, 0.06)',
+                            color: isSelected ? '#080B10' : 'var(--text-dim)',
+                            border: isSelected ? '1px solid rgba(255, 255, 255, 0.4)' : '1px solid rgba(244, 240, 235, 0.08)',
+                            fontSize: '0.68rem',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: 'pointer',
+                            textTransform: 'capitalize',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {info.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -943,6 +1140,7 @@ export const NowPlaying: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
         </section>
 
         {/* Right Column: Embedded Synced Lyrics Composition */}
@@ -950,12 +1148,12 @@ export const NowPlaying: React.FC = () => {
           aria-label="Synchronized Lyrics"
           className="now-playing-lyrics-col"
         >
-          {/* Header Bar: Capability Badge & 5-Language Switcher */}
+          {/* Header Bar: Capability Badge & 5-Language Meaning Switcher */}
           <div
             id="now-playing-lyrics-header"
             className="now-playing-lyrics-header"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span
                 id="now-playing-lyrics-capability-badge"
                 style={{
@@ -985,6 +1183,9 @@ export const NowPlaying: React.FC = () => {
               >
                 {isSynced ? 'SYNCED' : lyricsCapability === 'PLAIN_LYRICS' ? 'PLAIN' : 'UNAVAILABLE'}
               </span>
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', fontWeight: 500 }}>
+                Listening Mode • Original + Meaning
+              </span>
               {isTranslating && (
                 <span
                   id="now-playing-translating-badge"
@@ -999,16 +1200,18 @@ export const NowPlaying: React.FC = () => {
                     border: '1px solid rgba(231, 165, 141, 0.3)'
                   }}
                 >
-                  Translating...
+                  Fetching meaning...
                 </span>
               )}
             </div>
 
-            {/* 5-Language Selector: English, Hindi, Telugu, Tamil, Malayalam */}
+            {/* 5-Language Meaning Selector: EN, HI, TE, TA, ML */}
             <div
               className="glass-pill"
               role="radiogroup"
-              aria-label="Now Playing lyric language selection"
+              aria-label="Listening meaning language selection"
+              id="now-playing-meaning-lang-selector"
+              data-testid="now-playing-meaning-lang-selector"
               style={{
                 display: 'inline-flex',
                 padding: '2px',
@@ -1019,16 +1222,20 @@ export const NowPlaying: React.FC = () => {
               }}
             >
               {SUPPORTED_LANGUAGES.map((lang) => {
-                const isSelected = displayLanguage === lang.code;
+                const isSelected = listeningMeaningLanguage === lang.code;
                 return (
                   <button
                     key={lang.code}
                     id={`now-playing-lang-${lang.code}`}
+                    data-testid={`now-playing-lang-${lang.code}`}
                     role="radio"
                     aria-checked={isSelected}
                     data-selected={isSelected ? 'true' : 'false'}
                     className={isSelected ? 'active' : ''}
-                    onClick={() => setDisplayLanguage(lang.code)}
+                    onClick={() => {
+                      setListeningMeaningLanguage(lang.code);
+                      setDisplayLanguage(lang.code);
+                    }}
                     style={{
                       background: isSelected ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
                       color: isSelected ? 'var(--accent-cream, #FEF3C7)' : 'rgba(244, 240, 235, 0.55)',
@@ -1040,9 +1247,9 @@ export const NowPlaying: React.FC = () => {
                       cursor: 'pointer',
                       transition: 'all 0.2s ease'
                     }}
-                    title={lang.nativeLabel}
+                    title={`Contextual meaning in ${lang.nativeLabel}`}
                   >
-                    {lang.label}
+                    {lang.code.toUpperCase()}
                   </button>
                 );
               })}
@@ -1086,18 +1293,16 @@ export const NowPlaying: React.FC = () => {
               displayedLines.map((line, idx) => {
                 const isActive = idx === activeLyricIndex;
                 const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : line.time;
-                const translation = lyricsService.getLineTranslation(line, displayLanguage, sourceLanguage);
-                const isTargetOriginal = displayLanguage === sourceLanguage;
-                const candidateText = (translation.isAvailable && validateScriptForLanguage(translation.text, displayLanguage, sourceLanguage))
-                  ? translation.text
-                  : (validateScriptForLanguage(line.text, displayLanguage, sourceLanguage)
-                      ? line.text
-                      : (line.translations?.[displayLanguage] && validateScriptForLanguage(line.translations[displayLanguage], displayLanguage, sourceLanguage)
-                          ? line.translations[displayLanguage]
-                          : (isTargetOriginal ? line.text : line.text)));
-                const displayText = candidateText;
-                const originalText = canonicalLyricLines[idx]?.text || line.text;
-                const showSubtitle = displayLanguage !== sourceLanguage && originalText && originalText !== displayText;
+                const lineStart = lineTime !== undefined && lineTime >= 0 ? lineTime : 0;
+                const lineEnd = line.endTime !== undefined && line.endTime > lineStart
+                  ? line.endTime
+                  : (line.duration !== undefined && line.duration > 0 ? lineStart + line.duration : lineStart + 3.0);
+                const songOrigLang = (currentSong.originalLanguage || (currentSong as any).original_language || sourceLanguage || 'en') as string;
+                const display = getListeningLyricDisplay(line, listeningMeaningLanguage, songOrigLang);
+                const pace = line.pace !== undefined
+                  ? line.pace
+                  : measureLinePace({ text: display.originalText, startTime: lineStart, endTime: lineEnd }, songOrigLang);
+                const paceTransition = getPaceTransition(pace);
 
                 return (
                   <div
@@ -1107,6 +1312,8 @@ export const NowPlaying: React.FC = () => {
                     data-testid={isActive ? 'active-lyric-line' : `lyric-line-${idx}`}
                     data-active={isActive ? 'true' : 'false'}
                     data-timestamp={lineTime}
+                    data-pace={pace}
+                    data-pace-category={paceTransition.category}
                     onClick={() => {
                       if (isSynced && typeof lineTime === 'number' && !isNaN(lineTime) && lineTime >= 0) {
                         seekTo(lineTime);
@@ -1118,8 +1325,8 @@ export const NowPlaying: React.FC = () => {
                       padding: '12px 18px',
                       borderRadius: '14px',
                       cursor: isSynced ? 'pointer' : 'default',
-                      transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                      color: isActive ? 'var(--accent-cream, #FEF3C7)' : 'rgba(244, 240, 235, 0.4)',
+                      transition: isActive ? paceTransition.transitionCss : 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                      color: isActive ? 'var(--accent-cream, #FEF3C7)' : 'rgba(244, 240, 235, 0.85)',
                       fontSize: isActive ? 'clamp(1.15rem, 2.2vw, 1.55rem)' : 'clamp(0.95rem, 1.6vw, 1.18rem)',
                       fontWeight: isActive ? 700 : 500,
                       backgroundColor: isActive ? 'rgba(244, 240, 235, 0.08)' : 'transparent',
@@ -1130,23 +1337,35 @@ export const NowPlaying: React.FC = () => {
                     }}
                     title={isSynced && typeof lineTime === 'number' && lineTime >= 0 ? `Seek to ${formatTime(lineTime)}` : undefined}
                   >
-                    <div>
-                      {displayText}
+                    {/* Primary Line: Always the Original Sung Lyric in Native Script */}
+                    <div
+                      data-testid="listening-primary-lyric"
+                      style={{
+                        letterSpacing: '0.01em',
+                        lineHeight: 1.3
+                      }}
+                    >
+                      {display.originalText}
                     </div>
 
-                    {/* Subtitle with original lyrics when viewing translation */}
-                    {showSubtitle && (
+                    {/* Secondary Line: Contextual / Poetic Meaning in Selected Language */}
+                    {display.meaningText && !display.isSameAsOriginal ? (
                       <div
+                        data-testid={display.isMeaningAvailable ? 'listening-secondary-meaning' : 'listening-meaning-unavailable'}
                         style={{
-                          fontSize: '0.82rem',
-                          color: 'rgba(244, 240, 235, 0.45)',
-                          marginTop: '4px',
-                          fontStyle: 'italic'
+                          fontSize: isActive ? 'clamp(0.85rem, 1.4vw, 1.02rem)' : 'clamp(0.76rem, 1.1vw, 0.88rem)',
+                          color: display.isMeaningAvailable
+                            ? (isActive ? 'rgba(231, 165, 141, 0.95)' : 'rgba(244, 240, 235, 0.6)')
+                            : 'rgba(244, 240, 235, 0.4)',
+                          fontStyle: display.isMeaningAvailable ? 'normal' : 'italic',
+                          marginTop: '6px',
+                          lineHeight: 1.45,
+                          fontWeight: 400
                         }}
                       >
-                        {originalText}
+                        {display.isMeaningAvailable ? display.meaningText : `[${display.meaningText}]`}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 );
               })

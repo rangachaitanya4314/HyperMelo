@@ -39,10 +39,11 @@ export class PlaybackSourceResolver {
       throw new Error('Cannot resolve source for null song');
     }
 
-    // 1. Control tracks & already verified full-length tracks (e.g. Josh Woodward - Shot Down)
+    // 1. Control tracks & already verified full-length tracks with valid streamUrl (e.g. Josh Woodward - Shot Down)
     if (
-      song.playbackSourceType === 'open-license' ||
-      (song.fullLengthAvailable && !song.isStreamPreview && song.playbackSource?.streamUrl && !song.playbackSource.streamUrl.includes('itunes.apple.com'))
+      song.playbackSource?.streamUrl &&
+      (song.playbackSourceType === 'open-license' ||
+        (song.fullLengthAvailable && !song.isStreamPreview && !song.playbackSource.streamUrl.includes('itunes.apple.com')))
     ) {
       return song;
     }

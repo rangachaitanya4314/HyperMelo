@@ -94,7 +94,7 @@ class PersonalLibraryStore {
       const initialPlaylists: Playlist[] = [
         {
           id: 'favorites-mix',
-          name: 'NARO Favorites',
+          name: 'HyperMelo Favorites',
           description: 'Personal listening journey & favorites',
           songIds: ['josh-woodward-shot-down', 'midnight-drive'],
           createdAt: Date.now() - 86400000 * 2,

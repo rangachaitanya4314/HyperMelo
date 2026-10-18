@@ -373,6 +373,7 @@ class KaraokePlaybackService {
   }
 
   public stop(): void {
+    const exitTime = this.currentTime;
     this.pause();
     this.isReady = false;
     this.currentTime = 0;
@@ -394,8 +395,8 @@ class KaraokePlaybackService {
       this.audio.src = '';
     }
 
-    // Restore normal playback behavior on the authoritative controller
-    playbackController.setKaraokeMode(false);
+    // Restore normal playback behavior on the authoritative controller at current position
+    playbackController.setKaraokeMode(false, exitTime);
 
     this.emitClock();
   }

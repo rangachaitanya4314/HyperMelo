@@ -5,6 +5,7 @@ import { recordingEngine } from '../services/recording/recordingEngine';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { karaokeMixer } from '../services/audio/karaokeMixer';
 import { lyricsService } from '../services/lyrics/lyricsService';
+import { getKaraokeLyricLine } from '../shared/lyrics';
 import type { RecordedTake } from '../types/music';
 
 export const KaraokeRecordingState: React.FC = () => {
@@ -12,6 +13,7 @@ export const KaraokeRecordingState: React.FC = () => {
     isRecordingActive,
     currentSong,
     selectedSection,
+    karaokeScriptPreference,
     activeLanguage,
     currentTime,
     seekTo,
@@ -61,7 +63,7 @@ export const KaraokeRecordingState: React.FC = () => {
     karaokePlaybackService.stop();
     const result = await recordingEngine.stopRecording();
 
-    if (!result.success || !result.audioBlob || result.audioBlob.size === 0) {
+    if (!result.success || !result.audioBlob || result.audioBlob.size === 0 || !currentSong) {
       // Stopped during countdown or cancelled before mic audio captured
       stopKaraokeRecording();
       return;
@@ -140,7 +142,7 @@ export const KaraokeRecordingState: React.FC = () => {
 
   // When countdown hits 0 (GO), engage genuine microphone recording & backing playback
   useEffect(() => {
-    if (!isRecordingActive || countdown !== 0) return;
+    if (!isRecordingActive || countdown !== 0 || !currentSong) return;
 
     let isMounted = true;
 
@@ -192,14 +194,14 @@ export const KaraokeRecordingState: React.FC = () => {
 
   // Auto-stop ONLY when song playback genuinely reaches the end of the full track (or user manually stops)
   useEffect(() => {
-    const maxDuration = currentSong.duration > 0 ? currentSong.duration : 255;
+    const maxDuration = (currentSong?.duration && currentSong.duration > 0) ? currentSong.duration : 255;
     if (isRecordingActive && isRecording && elapsedSec > 1 && currentTime >= maxDuration) {
       handleStop();
     }
-  }, [isRecordingActive, isRecording, elapsedSec, currentTime, currentSong.duration, handleStop]);
+  }, [isRecordingActive, isRecording, elapsedSec, currentTime, currentSong?.duration, handleStop]);
 
-  // Never render dialog overlay on home page when inactive
-  if (!isRecordingActive) {
+  // Never render dialog overlay on home page when inactive or when no song is selected
+  if (!isRecordingActive || !currentSong) {
     return null;
   }
 
@@ -414,7 +416,7 @@ export const KaraokeRecordingState: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  {activeLine.words && activeLine.words.length > 0 ? (
+                  {activeLine.words && activeLine.words.length > 0 && karaokeScriptPreference === 'native' ? (
                     activeLine.words.map((w, wIdx) => {
                       const isWordActive = currentTime >= w.start && currentTime <= w.end;
                       return (
@@ -432,7 +434,21 @@ export const KaraokeRecordingState: React.FC = () => {
                     })
                   ) : (
                     <span style={{ color: 'var(--accent-warm)' }}>
-                      {lyricsService.getLineTranslation(activeLine, activeLanguage).text}
+                      {getKaraokeLyricLine(activeLine, karaokeScriptPreference).text}
+                    </span>
+                  )}
+                  {karaokeScriptPreference === 'transliteration' && !getKaraokeLyricLine(activeLine, karaokeScriptPreference).isAvailable && (
+                    <span
+                      data-testid="karaoke-rec-transliteration-unavailable"
+                      style={{
+                        display: 'block',
+                        fontSize: '0.72rem',
+                        color: '#F87171',
+                        marginTop: '6px',
+                        fontStyle: 'italic'
+                      }}
+                    >
+                      [Transliteration unavailable — displaying original script]
                     </span>
                   )}
                 </p>
@@ -456,7 +472,7 @@ export const KaraokeRecordingState: React.FC = () => {
                       cursor: 'pointer'
                     }}
                   >
-                    {lyricsService.getLineTranslation(currentLines[currentLineIndex + 1], activeLanguage).text}
+                    {getKaraokeLyricLine(currentLines[currentLineIndex + 1], karaokeScriptPreference).text}
                   </p>
                 )}
               </div>

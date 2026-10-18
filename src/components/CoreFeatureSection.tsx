@@ -1,25 +1,26 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Play, Pause, Repeat, Sparkles } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { WaveformTimeline } from './WaveformTimeline';
 import { lyricsService } from '../services/lyrics/lyricsService';
-import type { SectionType } from '../types/music';
-import { SUPPORTED_LANGUAGES } from '../types/music';
+import type { SectionType, VerifiedLyricRepresentation, Language } from '../types/music';
 
 export const CoreFeatureSection: React.FC = () => {
   const {
     currentSong,
     selectedSection,
     setSelectedSection,
-    activeLanguage,
     setActiveLanguage,
     setDisplayLanguage,
+    setKaraokeScriptPreference,
+    setListeningMeaningLanguage,
     isPlaying,
     currentTime,
     togglePlay,
     seekTo,
     isLoopingSection,
-    setIsLoopingSection
+    setIsLoopingSection,
+    lyricsRevision
   } = useAudioPlayer();
 
   const formatTime = (secs: number) => {
@@ -29,7 +30,7 @@ export const CoreFeatureSection: React.FC = () => {
   };
 
   const handlePresetClick = (type: SectionType) => {
-    const found = currentSong.sections.find((s) => s.type === type);
+    const found = currentSong?.sections?.find((s) => s.type === type);
     if (found) {
       setSelectedSection(found);
       seekTo(found.start);
@@ -37,18 +38,90 @@ export const CoreFeatureSection: React.FC = () => {
   };
 
   // Canonical Timed Lyric Segments (Single Authoritative Timeline)
-  const currentLines = lyricsService.getCanonicalLyricLines(currentSong);
+  const currentLines = useMemo(() => {
+    return lyricsService.getCanonicalLyricLines(currentSong);
+  }, [currentSong, lyricsRevision]);
 
-  // Find active line matching selectedSection or currentTime
-  const activeLine = currentLines.find(
-    (l) => {
-      const t = l.startTime !== undefined && l.startTime >= 0 ? l.startTime : l.time ?? 0;
-      return t >= (selectedSection?.start || 0) && t <= (selectedSection?.end || currentSong.duration);
+  // Verified available lyric representations for the selected song
+  const availableRepresentations = useMemo(() => {
+    return lyricsService.getAvailableLyricRepresentations(currentSong, currentLines);
+  }, [currentSong, currentLines]);
+
+  const [selectedRepId, setSelectedRepId] = useState<string>('original');
+
+  // Derive active representation: if user selection exists in available options, use it; otherwise fallback to primary available representation
+  const activeRep = useMemo(() => {
+    if (availableRepresentations.length === 0) return null;
+    const matched = availableRepresentations.find((r) => r.id === selectedRepId);
+    return matched || availableRepresentations[0] || null;
+  }, [availableRepresentations, selectedRepId]);
+
+  // Find active line matching selectedSection or live currentTime during section playback
+  const sectionStart = selectedSection?.start ?? 0;
+  const sectionEnd = selectedSection?.end ?? (currentSong?.duration || 255);
+
+  const activeLine = useMemo(() => {
+    if (!currentLines || currentLines.length === 0) return null;
+
+    // If actively playing within the selected moment, follow playback time
+    if (isPlaying && currentTime >= sectionStart && currentTime <= sectionEnd) {
+      const liveIdx = lyricsService.getActiveLyricIndex(currentLines, currentTime);
+      if (liveIdx >= 0 && currentLines[liveIdx]) {
+        const liveLine = currentLines[liveIdx];
+        const lineStart = liveLine.startTime !== undefined && liveLine.startTime >= 0 ? liveLine.startTime : (liveLine.time ?? 0);
+        if (lineStart >= sectionStart - 1 && lineStart <= sectionEnd + 1) {
+          return liveLine;
+        }
+      }
     }
-  ) || currentLines[0];
 
-  const activeTranslation = activeLine ? lyricsService.getLineTranslation(activeLine, activeLanguage) : null;
-  const activeLyricSnippet = activeTranslation ? activeTranslation.text : currentSong.title;
+    // Static moment selection: find first line overlapping [sectionStart, sectionEnd]
+    const inSection = currentLines.find((l) => {
+      const lineStart = l.startTime !== undefined && l.startTime >= 0 ? l.startTime : (l.time ?? 0);
+      const lineEnd = l.endTime !== undefined ? l.endTime : lineStart + (l.duration || 4.0);
+      return lineEnd > sectionStart && lineStart < sectionEnd;
+    });
+
+    if (inSection) return inSection;
+
+    // Fallback: nearest line to sectionStart
+    let closest = currentLines[0];
+    let minDiff = Infinity;
+    for (const l of currentLines) {
+      const t = l.startTime !== undefined && l.startTime >= 0 ? l.startTime : (l.time ?? 0);
+      const diff = Math.abs(t - sectionStart);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = l;
+      }
+    }
+    return closest;
+  }, [currentLines, sectionStart, sectionEnd, isPlaying, currentTime]);
+
+  const songOrigLang = activeLine?.original_language || currentSong?.originalLanguage || lyricsService.detectSongLanguage(currentSong);
+  const excerptResult = lyricsService.getLyricRepresentationText(activeLine, activeRep, songOrigLang);
+
+  const singingReps = availableRepresentations.filter((r) => r.isSinging);
+  const meaningReps = availableRepresentations.filter((r) => !r.isSinging);
+  const hasLyrics = availableRepresentations.length > 0 && activeLine !== null;
+
+  const handleSelectRepresentation = (rep: VerifiedLyricRepresentation) => {
+    setSelectedRepId(rep.id);
+    if (rep.type === 'original') {
+      setKaraokeScriptPreference('native');
+      if (rep.langCode && ['en', 'hi', 'te', 'ta', 'ml'].includes(rep.langCode)) {
+        setActiveLanguage(rep.langCode as Language);
+        setDisplayLanguage(rep.langCode as Language);
+      }
+    } else if (rep.type === 'transliteration') {
+      setKaraokeScriptPreference('transliteration');
+    } else if (rep.type === 'translation') {
+      const target = rep.langCode as Language;
+      setListeningMeaningLanguage(target);
+      setDisplayLanguage(target);
+      setActiveLanguage(target);
+    }
+  };
 
   const handlePreviewLoop = () => {
     if (!isPlaying) {
@@ -283,7 +356,7 @@ export const CoreFeatureSection: React.FC = () => {
               border: '1px solid rgba(244, 240, 235, 0.06)'
             }}
           >
-            {/* Language Switcher Bar */}
+            {/* Language & Representation Controls Bar */}
             <div
               style={{
                 display: 'flex',
@@ -293,46 +366,113 @@ export const CoreFeatureSection: React.FC = () => {
                 gap: '12px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  Lyric Language:
-                </span>
-                <div
-                  className="glass-pill"
-                  role="radiogroup"
-                  aria-label="Core feature language selection"
-                  style={{ display: 'inline-flex', padding: '3px', gap: '2px' }}
-                >
-                  {SUPPORTED_LANGUAGES.map((lang) => {
-                    const isSelected = activeLanguage === lang.code;
-                    return (
-                      <button
-                        key={lang.code}
-                        role="radio"
-                        aria-checked={isSelected}
-                        onClick={() => {
-                          setActiveLanguage(lang.code);
-                          setDisplayLanguage(lang.code);
-                        }}
-                        style={{
-                          background: isSelected ? 'rgba(231, 165, 141, 0.25)' : 'transparent',
-                          color: isSelected ? 'var(--accent-cream)' : 'var(--text-muted)',
-                          border: isSelected ? '1px solid var(--border-warm)' : 'none',
-                          padding: '4px 12px',
-                          borderRadius: 'var(--radius-full)',
-                          fontSize: '0.82rem',
-                          fontWeight: isSelected ? 600 : 400,
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        title={lang.nativeLabel}
+              {hasLyrics ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  {/* Singing Section: Original native script & Roman transliteration */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                      Sing:
+                    </span>
+                    <div
+                      className="glass-pill"
+                      role="radiogroup"
+                      aria-label="Singing lyrics representation"
+                      style={{ display: 'inline-flex', padding: '3px', gap: '3px', flexWrap: 'wrap' }}
+                    >
+                      {singingReps.map((rep) => {
+                        const isSelected = activeRep?.id === rep.id;
+                        return (
+                          <button
+                            key={rep.id}
+                            id={`core-lyric-rep-${rep.id}`}
+                            data-testid={`core-lyric-rep-${rep.id}`}
+                            role="radio"
+                            aria-checked={isSelected}
+                            data-selected={isSelected ? 'true' : 'false'}
+                            onClick={() => handleSelectRepresentation(rep)}
+                            style={{
+                              background: isSelected ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
+                              color: isSelected ? 'var(--accent-cream)' : 'var(--text-muted)',
+                              border: isSelected ? '1px solid var(--border-warm)' : '1px solid transparent',
+                              padding: '4px 12px',
+                              borderRadius: 'var(--radius-full)',
+                              fontSize: '0.82rem',
+                              fontWeight: isSelected ? 600 : 400,
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                            title={rep.description}
+                          >
+                            {rep.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Meaning Section: Only languages with actual verified translation data */}
+                  {meaningReps.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                        Meaning:
+                      </span>
+                      <div
+                        className="glass-pill"
+                        role="radiogroup"
+                        aria-label="Translated meaning selection"
+                        style={{ display: 'inline-flex', padding: '3px', gap: '3px', flexWrap: 'wrap' }}
                       >
-                        {lang.code === 'en' ? 'EN' : lang.nativeLabel}
-                      </button>
-                    );
-                  })}
+                        {meaningReps.map((rep) => {
+                          const isSelected = activeRep?.id === rep.id;
+                          return (
+                            <button
+                              key={rep.id}
+                              id={`core-lyric-rep-${rep.id}`}
+                              data-testid={`core-lyric-rep-${rep.id}`}
+                              role="radio"
+                              aria-checked={isSelected}
+                              data-selected={isSelected ? 'true' : 'false'}
+                              onClick={() => handleSelectRepresentation(rep)}
+                              style={{
+                                background: isSelected ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                                color: isSelected ? '#BAE6FD' : 'var(--text-muted)',
+                                border: isSelected ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid transparent',
+                                padding: '4px 12px',
+                                borderRadius: 'var(--radius-full)',
+                                fontSize: '0.82rem',
+                                fontWeight: isSelected ? 600 : 400,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
+                              }}
+                              title={rep.description}
+                            >
+                              {rep.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Lyrics:</span>
+                  <span
+                    id="core-karaoke-lyrics-unavailable-badge"
+                    data-testid="core-karaoke-lyrics-unavailable"
+                    style={{
+                      fontSize: '0.78rem',
+                      color: 'var(--text-muted)',
+                      backgroundColor: 'rgba(244, 240, 235, 0.05)',
+                      border: '1px solid rgba(244, 240, 235, 0.1)',
+                      padding: '4px 12px',
+                      borderRadius: 'var(--radius-full)'
+                    }}
+                  >
+                    No verified lyrics available
+                  </span>
+                </div>
+              )}
 
               {/* Loop Preview Button */}
               <button
@@ -356,42 +496,71 @@ export const CoreFeatureSection: React.FC = () => {
             </div>
 
             {/* Displayed Lyric Snippet */}
-            <div style={{ textAlign: 'center', padding: '12px 0' }}>
-              <div
-                style={{
-                  fontSize: '0.8rem',
-                  color: 'var(--text-muted)',
-                  marginBottom: '8px',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase'
-                }}
-              >
-                Selected moment lyrics:
+            <div style={{ textAlign: 'center', padding: '14px 0' }}>
+              <div style={{ marginBottom: '10px' }}>
+                <span
+                  id="core-karaoke-moment-badge"
+                  data-testid="core-karaoke-moment-badge"
+                  style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    padding: '3px 12px',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: !excerptResult.isAvailable
+                      ? 'rgba(239, 68, 68, 0.12)'
+                      : activeRep?.isSinging
+                        ? 'rgba(231, 165, 141, 0.14)'
+                        : 'rgba(56, 189, 248, 0.14)',
+                    color: !excerptResult.isAvailable
+                      ? '#F87171'
+                      : activeRep?.isSinging
+                        ? 'var(--accent-warm)'
+                        : '#38BDF8',
+                    border: `1px solid ${
+                      !excerptResult.isAvailable
+                        ? 'rgba(239, 68, 68, 0.25)'
+                        : activeRep?.isSinging
+                          ? 'rgba(231, 165, 141, 0.28)'
+                          : 'rgba(56, 189, 248, 0.28)'
+                    }`
+                  }}
+                >
+                  {excerptResult.categoryLabel}
+                </span>
               </div>
 
               {/* Main highlighted lyric line */}
               <p
+                id="core-karaoke-active-lyric"
+                data-testid="core-karaoke-active-lyric"
+                aria-label={excerptResult.accessibleLabel}
                 className="serif-italic"
                 style={{
                   fontSize: 'clamp(1.5rem, 2.6vw, 2.2rem)',
-                  color: 'var(--accent-cream)',
+                  color: excerptResult.isAvailable ? 'var(--accent-cream)' : 'var(--text-muted)',
                   margin: '0 0 8px 0',
                   lineHeight: 1.3
                 }}
               >
-                "{activeLine ? activeLine.text : activeLyricSnippet}"
+                {excerptResult.isAvailable ? `"${excerptResult.text}"` : excerptResult.text}
               </p>
 
               {/* Sub-line context */}
-              <p
-                style={{
-                  fontSize: '0.95rem',
-                  color: 'var(--text-muted)',
-                  margin: 0
-                }}
-              >
-                {activeLyricSnippet}
-              </p>
+              {excerptResult.secondaryText && (
+                <p
+                  id="core-karaoke-subline-lyric"
+                  data-testid="core-karaoke-subline-lyric"
+                  style={{
+                    fontSize: '0.95rem',
+                    color: 'var(--text-muted)',
+                    margin: 0
+                  }}
+                >
+                  {excerptResult.secondaryText}
+                </p>
+              )}
             </div>
           </div>
 
@@ -408,7 +577,7 @@ export const CoreFeatureSection: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={16} color="var(--accent-warm)" />
               <span style={{ fontSize: '0.86rem', color: 'var(--text-muted)' }}>
-                {currentSong.title} — {selectedSection?.label || 'Selected part'}
+                {currentSong ? `${currentSong.title} — ${selectedSection?.label || 'Selected part'}` : 'Select a track to start interactive practice'}
               </span>
             </div>
 

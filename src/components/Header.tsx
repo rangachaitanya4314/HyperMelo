@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Mic, Menu, X, User, WifiOff, Library, Download, Compass, Home as HomeIcon } from 'lucide-react';
 import { useAudioPlayer, type AppView } from '../context/AudioPlayerContext';
-import { NaroLogo } from './NaroLogo';
+import { HyperMeloLogo } from './HyperMeloLogo';
 
 export const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -67,15 +67,30 @@ export const Header: React.FC = () => {
           maxWidth: '100vw'
         }}
       >
-        {/* Left: NARO Calligraphic Wordmark & Brand Accent */}
-        <div className="header-left-cluster" style={{ display: 'flex', alignItems: 'center', gap: '32px', minWidth: 0, flexShrink: 0 }}>
-          <NaroLogo
-            variant="header"
-            showTagline={true}
-            showSpectrum={true}
-            isPlaying={isPlaying}
+        {/* Left: HyperMelo Calligraphic Wordmark & HM Brand Crest */}
+        <div className="header-left-cluster" style={{ display: 'flex', alignItems: 'center', gap: '28px', minWidth: 0, flexShrink: 0 }}>
+          <button
+            type="button"
+            aria-label="NARO Home"
             onClick={() => handleNavClick('home')}
-          />
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              outline: 'none'
+            }}
+          >
+            <HyperMeloLogo
+              variant="header"
+              showTagline={true}
+              showSpectrum={true}
+              showMonogram={true}
+              isPlaying={isPlaying}
+            />
+          </button>
 
           {/* Desktop Navigation: Home, Discover, Karaoke, Library, Downloads */}
           <nav
@@ -91,6 +106,73 @@ export const Header: React.FC = () => {
               { id: 'downloads' as AppView, label: 'Downloads' }
             ].map((item) => {
               const isActive = currentView === item.id;
+              const isKaraoke = item.id === 'karaoke';
+
+              if (isKaraoke) {
+                return (
+                  <button
+                    key={item.id}
+                    id="nav-tab-karaoke-desktop"
+                    data-testid="nav-tab-karaoke-desktop"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-label="Karaoke Studio"
+                    onClick={() => handleNavClick(item.id)}
+                    className={`karaoke-nav-btn ${isActive ? 'karaoke-nav-btn-active' : 'karaoke-nav-btn-inactive'}`}
+                    style={{
+                      position: 'relative',
+                      overflow: 'hidden',
+                      borderRadius: 'var(--radius-full)',
+                      fontSize: '0.88rem',
+                      fontFamily: 'var(--font-sans)',
+                      fontWeight: isActive ? 600 : 500,
+                      letterSpacing: '0.02em',
+                      padding: '8px 18px',
+                      cursor: 'pointer',
+                      transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+                      background: isActive
+                        ? 'linear-gradient(135deg, rgba(229, 195, 120, 0.22) 0%, rgba(198, 160, 82, 0.12) 100%)'
+                        : 'rgba(229, 195, 120, 0.05)',
+                      color: isActive ? '#FDF0CD' : '#E5C378',
+                      border: isActive
+                        ? '1px solid rgba(243, 216, 154, 0.65)'
+                        : '1px solid rgba(229, 195, 120, 0.3)',
+                      boxShadow: isActive
+                        ? '0 0 16px rgba(229, 195, 120, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15)'
+                        : '0 0 8px rgba(229, 195, 120, 0.06)'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = 'rgba(243, 216, 154, 0.6)';
+                        e.currentTarget.style.color = '#FDF0CD';
+                        e.currentTarget.style.boxShadow = '0 0 14px rgba(229, 195, 120, 0.2)';
+                        e.currentTarget.style.background = 'rgba(229, 195, 120, 0.12)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = 'rgba(229, 195, 120, 0.3)';
+                        e.currentTarget.style.color = '#E5C378';
+                        e.currentTarget.style.boxShadow = '0 0 8px rgba(229, 195, 120, 0.06)';
+                        e.currentTarget.style.background = 'rgba(229, 195, 120, 0.05)';
+                      }
+                    }}
+                  >
+                    {/* Subtle Champagne Gold Diffusion Particles behind text */}
+                    <div className="karaoke-particle-layer" aria-hidden="true">
+                      <span className="karaoke-particle karaoke-particle-1" />
+                      <span className="karaoke-particle karaoke-particle-2" />
+                      <span className="karaoke-particle karaoke-particle-3" />
+                      <span className="karaoke-particle karaoke-particle-4" />
+                    </div>
+                    <span style={{ position: 'relative', zIndex: 1, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <Mic size={14} style={{ color: isActive ? '#F3D89A' : '#E5C378' }} />
+                      {item.label}
+                    </span>
+                  </button>
+                );
+              }
+
               return (
                 <button
                   key={item.id}
@@ -455,36 +537,187 @@ export const Header: React.FC = () => {
             { id: 'library' as AppView, label: 'Library', icon: Library },
             { id: 'karaoke' as AppView, label: 'Karaoke', icon: Mic },
             { id: 'downloads' as AppView, label: 'Downloads', icon: Download }
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleNavClick(item.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px',
-                padding: '13px 16px',
-                minHeight: '48px',
-                borderRadius: 'var(--radius-md)',
-                backgroundColor: currentView === item.id ? 'rgba(231, 165, 141, 0.15)' : 'rgba(244, 240, 235, 0.03)',
-                color: currentView === item.id ? 'var(--accent-cream)' : 'var(--text-primary)',
-                border: currentView === item.id ? '1px solid rgba(231, 165, 141, 0.3)' : '1px solid transparent',
-                fontSize: '1rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                textAlign: 'left',
-                touchAction: 'manipulation',
-                transition: 'background-color 0.2s ease'
-              }}
-            >
-              <item.icon size={20} color="var(--accent-warm)" />
-              <span>{item.label}</span>
-            </button>
-          ))}
+          ].map((item) => {
+            const isActive = currentView === item.id;
+            const isKaraoke = item.id === 'karaoke';
+
+            if (isKaraoke) {
+              return (
+                <button
+                  key={item.id}
+                  id="nav-tab-karaoke-mobile"
+                  data-testid="nav-tab-karaoke-mobile"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label="Karaoke Studio"
+                  onClick={() => handleNavClick(item.id)}
+                  className={`karaoke-nav-btn ${isActive ? 'karaoke-nav-btn-active' : 'karaoke-nav-btn-inactive'}`}
+                  style={{
+                    position: 'relative',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '14px',
+                    padding: '13px 16px',
+                    minHeight: '48px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isActive
+                      ? 'linear-gradient(135deg, rgba(229, 195, 120, 0.24) 0%, rgba(198, 160, 82, 0.14) 100%)'
+                      : 'rgba(229, 195, 120, 0.06)',
+                    color: isActive ? '#FDF0CD' : '#E5C378',
+                    border: isActive
+                      ? '1px solid rgba(243, 216, 154, 0.7)'
+                      : '1px solid rgba(229, 195, 120, 0.32)',
+                    boxShadow: isActive
+                      ? '0 0 16px rgba(229, 195, 120, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15)'
+                      : '0 0 8px rgba(229, 195, 120, 0.06)',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    touchAction: 'manipulation',
+                    transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                >
+                  {/* Subtle Champagne Gold Diffusion Particles behind label and icon */}
+                  <div className="karaoke-particle-layer" aria-hidden="true">
+                    <span className="karaoke-particle karaoke-particle-1" />
+                    <span className="karaoke-particle karaoke-particle-2" />
+                    <span className="karaoke-particle karaoke-particle-3" />
+                    <span className="karaoke-particle karaoke-particle-4" />
+                  </div>
+                  <item.icon size={20} color={isActive ? '#F3D89A' : '#E5C378'} style={{ position: 'relative', zIndex: 1 }} />
+                  <span style={{ position: 'relative', zIndex: 1 }}>{item.label}</span>
+                </button>
+              );
+            }
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleNavClick(item.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  padding: '13px 16px',
+                  minHeight: '48px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: currentView === item.id ? 'rgba(231, 165, 141, 0.15)' : 'rgba(244, 240, 235, 0.03)',
+                  color: currentView === item.id ? 'var(--accent-cream)' : 'var(--text-primary)',
+                  border: currentView === item.id ? '1px solid rgba(231, 165, 141, 0.3)' : '1px solid transparent',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  touchAction: 'manipulation',
+                  transition: 'background-color 0.2s ease'
+                }}
+              >
+                <item.icon size={20} color="var(--accent-warm)" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
       <style>{`
+        /* Champagne Gold Karaoke Navigation Tab & Particle Diffusion Animation */
+        .karaoke-nav-btn {
+          position: relative;
+          overflow: hidden;
+          transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .karaoke-nav-btn:focus-visible {
+          outline: 2px solid #F3D89A !important;
+          outline-offset: 2px !important;
+        }
+
+        .karaoke-particle-layer {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          overflow: hidden;
+          border-radius: inherit;
+          z-index: 0;
+        }
+
+        .karaoke-particle {
+          position: absolute;
+          border-radius: 50%;
+          background: radial-gradient(circle, #FDF0CD 0%, #E5C378 50%, rgba(229, 195, 120, 0) 100%);
+          pointer-events: none;
+          opacity: 0;
+        }
+
+        .karaoke-particle-1 {
+          width: 4px;
+          height: 4px;
+          top: 25%;
+          left: 18%;
+          animation: hmGoldParticleDrift1 4.2s ease-in-out infinite;
+        }
+
+        .karaoke-particle-2 {
+          width: 3px;
+          height: 3px;
+          top: 60%;
+          left: 72%;
+          animation: hmGoldParticleDrift2 4.8s ease-in-out infinite 0.7s;
+        }
+
+        .karaoke-particle-3 {
+          width: 4px;
+          height: 4px;
+          top: 30%;
+          left: 82%;
+          animation: hmGoldParticleDrift3 5.4s ease-in-out infinite 1.4s;
+        }
+
+        .karaoke-particle-4 {
+          width: 3px;
+          height: 3px;
+          top: 70%;
+          left: 30%;
+          animation: hmGoldParticleDrift4 4.6s ease-in-out infinite 2.1s;
+        }
+
+        @keyframes hmGoldParticleDrift1 {
+          0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+          35% { transform: translate(-3px, -5px) scale(1.1); opacity: 0.75; }
+          70% { transform: translate(-6px, -10px) scale(0.9); opacity: 0.4; }
+          100% { transform: translate(-8px, -14px) scale(0.5); opacity: 0; }
+        }
+
+        @keyframes hmGoldParticleDrift2 {
+          0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+          35% { transform: translate(4px, -4px) scale(1.15); opacity: 0.8; }
+          70% { transform: translate(7px, -9px) scale(0.85); opacity: 0.45; }
+          100% { transform: translate(10px, -13px) scale(0.5); opacity: 0; }
+        }
+
+        @keyframes hmGoldParticleDrift3 {
+          0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+          35% { transform: translate(2px, -6px) scale(1.1); opacity: 0.7; }
+          70% { transform: translate(4px, -11px) scale(0.9); opacity: 0.35; }
+          100% { transform: translate(5px, -15px) scale(0.4); opacity: 0; }
+        }
+
+        @keyframes hmGoldParticleDrift4 {
+          0% { transform: translate(0, 0) scale(0.6); opacity: 0; }
+          35% { transform: translate(-4px, -4px) scale(1.2); opacity: 0.75; }
+          70% { transform: translate(-7px, -8px) scale(0.85); opacity: 0.4; }
+          100% { transform: translate(-9px, -12px) scale(0.5); opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .karaoke-particle {
+            animation: none !important;
+            display: none !important;
+          }
+        }
         .naro-app-header {
           padding-left: max(16px, env(safe-area-inset-left, 16px));
           padding-right: max(16px, env(safe-area-inset-right, 16px));
@@ -531,8 +764,18 @@ export const Header: React.FC = () => {
             padding-left: max(12px, env(safe-area-inset-left, 12px)) !important;
             padding-right: max(12px, env(safe-area-inset-right, 12px)) !important;
           }
+          .header-left-cluster {
+            gap: 10px !important;
+          }
           .header-right-cluster {
             gap: 8px !important;
+          }
+          .hypermelo-wordmark-container .hypermelo-calligraphic-text {
+            font-size: 1.35rem !important;
+          }
+          .hypermelo-wordmark-container .hypermelo-tagline-text {
+            font-size: 0.52rem !important;
+            letter-spacing: 0.14em !important;
           }
           /* Gracefully collapse search bar to compact 44x44 circular button on mobile */
           .header-search-bar {
@@ -575,6 +818,15 @@ export const Header: React.FC = () => {
             border-radius: 50% !important;
             justify-content: center !important;
             flex-shrink: 0 !important;
+          }
+        }
+
+        @media (max-width: 360px) {
+          .hypermelo-wordmark-container .hypermelo-calligraphic-text {
+            font-size: 1.25rem !important;
+          }
+          .hypermelo-wordmark-container .hypermelo-tagline-text {
+            display: none !important;
           }
         }
       `}</style>

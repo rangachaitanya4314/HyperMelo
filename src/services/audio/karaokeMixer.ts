@@ -287,6 +287,10 @@ class KaraokeMixer {
   public isDspSupported(): boolean {
     return naroImmersiveEngine.isDspSupported();
   }
+
+  public getActiveDspDescription(): string {
+    return naroImmersiveEngine.getActiveDspDescription();
+  }
 }
 
 export const karaokeMixer = new KaraokeMixer();

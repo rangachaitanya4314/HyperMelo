@@ -1,20 +1,22 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { Song, Language, SongSection, RecordedTake, PlaybackState, TimedLyricLine } from '../types/music';
-import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import type { Song, Language, SongSection, RecordedTake, PlaybackState, TimedLyricLine, KaraokeScriptMode } from '../types/music';
+import { ANIRUDH_GAALI_VAALUGA, JOSH_WOODWARD_SHOT_DOWN, SONGS } from '../data/songs';
+import { getAllCuratedSongs } from '../data/curatedCatalog';
 import { playbackController } from '../services/audio/PlaybackController';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
+import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 import { personalLibraryStore, type User, type Playlist, type RecentlyPlayedItem } from '../services/storage/personalLibraryStore';
 import { authService } from '../services/auth/authService';
 import type { SoundMode, SoundPreset } from '../services/audio/naroImmersiveEngine';
 
-export type AppView = 'home' | 'discover' | 'karaoke' | 'library' | 'downloads';
+export type AppView = 'home' | 'discover' | 'karaoke' | 'library' | 'downloads' | 'instagram-audio';
 
 interface AudioPlayerContextType {
   songs: Song[];
-  currentSong: Song;
+  currentSong: Song | null;
   isPlaying: boolean;
   currentTime: number;
   duration: number;
@@ -40,11 +42,18 @@ interface AudioPlayerContextType {
   selectedLanguage: Language;
   lyricsRevision: number;
 
+  // Dual-Mode Synchronized Lyrics Preferences
+  karaokeScriptPreference: KaraokeScriptMode;
+  setKaraokeScriptPreference: (pref: KaraokeScriptMode) => void;
+  listeningMeaningLanguage: Language;
+  setListeningMeaningLanguage: (lang: Language) => void;
+
   // NARO Immersive Sound Engine & Bass Enhancement
   soundMode: SoundMode;
   soundPreset: SoundPreset;
   bassIntensity: number;
   isDspSupported: boolean;
+  activeDspDescription: string;
   setSoundMode: (mode: SoundMode) => void;
   setSoundPreset: (preset: SoundPreset) => void;
   setBassIntensity: (intensity: number) => void;
@@ -112,7 +121,7 @@ interface AudioPlayerContextType {
   setBgmVolume: (vol: number) => void;
   setVoiceVolume: (vol: number) => void;
   toggleMic: () => void;
-  openKaraokeForSong: (song?: Song, section?: SongSection) => void;
+  openKaraokeForSong: (song?: Song | null, section?: SongSection) => void;
   closeKaraokeModal: () => void;
   startKaraokeRecording: (section: SongSection) => void;
   stopKaraokeRecording: () => void;
@@ -136,28 +145,65 @@ interface AudioPlayerContextType {
 
 export const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
-// Canonical featured track: Verified legitimate full-length reference recording ("Shot Down" by Josh Woodward, 255s)
-const INITIAL_FEATURED_SONG: Song = JOSH_WOODWARD_SHOT_DOWN;
+// Resolve initial track respecting session state: fresh launch starts empty (null)
+function resolveInitialSong(): Song | null {
+  if (typeof window !== 'undefined') {
+    try {
+      const storedId = sessionStorage.getItem('hypermelo_active_track_id');
+      if (storedId) {
+        const found = [ANIRUDH_GAALI_VAALUGA, JOSH_WOODWARD_SHOT_DOWN, ...SONGS].find((s) => s.id === storedId);
+        if (found) return found;
+      }
+    } catch {
+      // sessionStorage inaccessible (private browsing or sandbox)
+    }
+  }
+  return null;
+}
 
-// Consumer catalog contains ONLY verified, legitimate full-length playable tracks.
+// Consumer catalog contains verified tracks and catalog songs.
 const INITIAL_SONGS: Song[] = [
-  JOSH_WOODWARD_SHOT_DOWN
+  ANIRUDH_GAALI_VAALUGA,
+  JOSH_WOODWARD_SHOT_DOWN,
+  ...SONGS.filter((s) => s.id !== ANIRUDH_GAALI_VAALUGA.id && s.id !== JOSH_WOODWARD_SHOT_DOWN.id)
 ];
 
 export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [songs, setSongs] = useState<Song[]>(INITIAL_SONGS);
-  const [currentSong, setCurrentSong] = useState<Song>(INITIAL_FEATURED_SONG);
+  const [currentSong, setCurrentSong] = useState<Song | null>(resolveInitialSong);
   const [volume, setVolumeState] = useState<number>(0.8);
-  const initialSongLang = useMemo(() => lyricsService.detectSongLanguage(INITIAL_FEATURED_SONG), []);
+  const initialSongLang = useMemo(() => currentSong ? lyricsService.detectSongLanguage(currentSong) : 'en', [currentSong]);
   const [activeLanguage, setActiveLanguageState] = useState<Language>(initialSongLang);
   const [displayLanguage, setDisplayLanguageState] = useState<Language>(initialSongLang);
   const [lyricsRevision, setLyricsRevision] = useState<number>(0);
   const manualLangRef = useRef<{ songId: string; lang: Language } | null>(null);
-  const prevSongIdRef = useRef<string>(INITIAL_FEATURED_SONG.id);
+  const prevSongIdRef = useRef<string | null>(currentSong?.id ?? null);
   const [isLoopingSection, setIsLoopingSectionState] = useState<boolean>(false);
-  const [currentView, setCurrentView] = useState<AppView>('home');
+  const [currentView, setCurrentViewState] = useState<AppView>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '') as AppView;
+      const validViews: AppView[] = ['home', 'discover', 'karaoke', 'library', 'downloads'];
+      if (validViews.includes(hash)) return hash;
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view') as AppView;
+      if (validViews.includes(viewParam)) return viewParam;
+    }
+    return 'home';
+  });
+
+  const setCurrentView = useCallback((view: AppView) => {
+    if ((view as string) === 'instagram-audio') {
+      setCurrentViewState('discover');
+      return;
+    }
+    setCurrentViewState(view);
+  }, []);
   const [savedTakes, setSavedTakes] = useState<RecordedTake[]>([]);
   const [isOnline, setIsOnline] = useState<boolean>(connectivityService.isOnline);
+
+  // Dual-Mode Synchronized Lyrics Preferences
+  const [karaokeScriptPreference, setKaraokeScriptPreferenceState] = useState<KaraokeScriptMode>('native');
+  const [listeningMeaningLanguage, setListeningMeaningLanguageState] = useState<Language>('en');
 
   // Sound Engine state (Phase 2 & 3)
   const [soundMode, setSoundModeState] = useState<SoundMode>('original');
@@ -174,6 +220,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setSoundPreset = useCallback((preset: SoundPreset) => {
     setSoundPresetState(preset);
     playbackController.setSoundPreset(preset);
+    const currentActiveMode = playbackController.getSoundMode();
+    setSoundModeState(currentActiveMode);
+    setIsDspSupported(playbackController.isDspSupported());
   }, []);
 
   const setBassIntensity = useCallback((intensity: number) => {
@@ -193,6 +242,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
     setIsDspSupported(playbackController.isDspSupported());
   }, []);
+
+  const activeDspDescription = useMemo(() => {
+    return playbackController.getActiveDspDescription();
+  }, [soundMode, soundPreset, bassIntensity, isDspSupported]);
 
   // Personal Account & Auth state (Phase 3)
   const [currentUser, setCurrentUser] = useState<User | null>(() => authService.getCurrentUser());
@@ -351,10 +404,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     (playlist: Playlist) => {
       if (!playlist || playlist.songIds.length === 0) return;
       const firstId = playlist.songIds[0];
-      const match = songs.find((s) => s.id === firstId) || JOSH_WOODWARD_SHOT_DOWN;
-      playbackController.load(match, 0).then(() => {
-        playbackController.play();
-      });
+      const match = songs.find((s) => s.id === firstId) || ANIRUDH_GAALI_VAALUGA;
+      playbackController.loadAndPlay(match, 0);
     },
     [songs]
   );
@@ -380,15 +431,35 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Native song language detection
   const nativeLanguage: Language = useMemo(() => {
-    return lyricsService.detectSongLanguage(currentSong);
+    return currentSong ? lyricsService.detectSongLanguage(currentSong) : 'en';
   }, [currentSong]);
 
   // Actual source language detected from lyric text/script
   const sourceLanguage: string = useMemo(() => {
-    return lyricsService.getSongSourceLanguage(currentSong);
+    return currentSong ? lyricsService.getSongSourceLanguage(currentSong) : 'en';
   }, [currentSong]);
 
-  // Recalculate default lyrics language when song changes & resolve canonical lyrics
+  // Subscribe to authoritative PlaybackController track changes to keep UI and audio perfectly aligned
+  useEffect(() => {
+    const unsub = playbackController.subscribeTrack((track) => {
+      if (track) {
+        setCurrentSong((prev) => {
+          if (
+            !prev ||
+            prev.id !== track.id ||
+            prev.playbackSource?.streamUrl !== track.playbackSource?.streamUrl ||
+            prev.artwork?.imageUrl !== track.artwork?.imageUrl
+          ) {
+            return track;
+          }
+          return prev;
+        });
+      }
+    });
+    return unsub;
+  }, []);
+
+  // Recalculate default lyrics language when song changes, resolve canonical lyrics & synchronize PlaybackController
   useEffect(() => {
     if (!currentSong) return;
     const isNew = currentSong.id !== prevSongIdRef.current;
@@ -398,24 +469,78 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const detected = lyricsService.detectSongLanguage(currentSong);
       setDisplayLanguageState(detected);
       setActiveLanguageState(detected);
+
+      // Keep PlaybackController in sync with user's selected song
+      const active = playbackController.getCurrentTrack();
+      if (!active || active.id !== currentSong.id) {
+        if (playbackController.isPlaying()) {
+          playbackController.loadAndPlay(currentSong, 0).catch((err) => {
+            console.warn('Track switch notice:', err);
+          });
+        } else {
+          playbackController.load(currentSong, 0).catch((err) => {
+            console.warn('Track switch notice:', err);
+          });
+        }
+      }
     }
-    // Asynchronously resolve lyrics from online provider or sections if needed
-    lyricsService.resolveCanonicalLyrics(currentSong).then(() => {
-      setLyricsRevision((prev) => prev + 1);
+    // Asynchronously resolve lyrics via shared lyrics pipeline, checking for stale track
+    const targetSongId = currentSong.id;
+    lyricsPipelineService.resolveTrack(currentSong).then((res) => {
+      if (prevSongIdRef.current === targetSongId) {
+        if (res.outcome === 'SYNCHRONIZED' || res.outcome === 'VERIFIED_UNTIMED') {
+          setCurrentSong((prev) =>
+            prev && prev.id === targetSongId
+              ? {
+                  ...prev,
+                  lyrics: currentSong.lyrics ? { ...currentSong.lyrics } : prev.lyrics,
+                  lyricsAvailable: true,
+                  lyricsSyncAvailable: res.hasSyncedLyrics
+                }
+              : prev
+          );
+        }
+        setLyricsRevision((prev) => prev + 1);
+      }
     });
   }, [currentSong?.id]);
 
   // Central playback clock states
   const [currentTime, setCurrentTime] = useState<number>(0);
-  const [duration, setDuration] = useState<number>(INITIAL_FEATURED_SONG.duration);
+  const [duration, setDuration] = useState<number>(currentSong?.duration || 0);
   const [bufferedTime, setBufferedTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 
   // Default section
-  const defaultChorus = INITIAL_FEATURED_SONG.sections.find((s) => s.type === 'chorus') || INITIAL_FEATURED_SONG.sections[0];
+  const defaultChorus: SongSection = currentSong?.sections?.find((s) => s.type === 'chorus') || currentSong?.sections?.[0] || {
+    type: 'verse',
+    label: 'Verse 1',
+    start: 0,
+    end: 45
+  };
   const [selectedSection, setSelectedSectionState] = useState<SongSection>(defaultChorus);
+
+  // On session restore (when a valid user selection exists), prepare active track in PlaybackController
+  useEffect(() => {
+    if (currentSong) {
+      playbackController.load(currentSong, 0).catch((err) => {
+        console.warn('Initial track load notice:', err);
+      });
+    }
+  }, []);
+
+  // Save active track ID into session storage to preserve selection across session navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && currentSong?.id) {
+      try {
+        sessionStorage.setItem('hypermelo_active_track_id', currentSong.id);
+      } catch {
+        // ignore
+      }
+    }
+  }, [currentSong]);
 
   // Modals & UI States
   const [karaokeModalOpen, setKaraokeModalOpen] = useState<boolean>(false);
@@ -498,15 +623,22 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const playSong = useCallback((song: Song, startTime = 0) => {
+    setSongs((prev) => (prev.some((s) => s.id === song.id) ? prev : [...prev, song]));
     setCurrentSong(song);
-    playbackController.load(song, startTime).then(() => {
-      playbackController.play();
+    playbackController.loadAndPlay(song, startTime).catch((err) => {
+      console.warn('playSong error:', err);
     });
   }, []);
 
   const togglePlay = useCallback(() => {
+    if (!currentSong) {
+      if (songs.length > 0) {
+        playSong(songs[0], 0);
+      }
+      return;
+    }
     playbackController.togglePlay(currentSong);
-  }, [currentSong]);
+  }, [currentSong, songs, playSong]);
 
   const seekTo = useCallback((time: number) => {
     playbackController.seek(time);
@@ -519,18 +651,61 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const nextSong = useCallback(() => {
-    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
-    const nextIndex = (currentIndex + 1) % songs.length;
-    playSong(songs[nextIndex], 0);
+    const queue = playbackController.getQueue();
+    if (queue.length > 1) {
+      playbackController.nextTrack().catch(console.warn);
+      return;
+    }
+    const all = getAllCuratedSongs();
+    const effectiveList = songs.length > 0 ? songs : all;
+    if (!currentSong) {
+      if (effectiveList.length > 0) playSong(effectiveList[0], 0);
+      return;
+    }
+    const currentIndex = effectiveList.findIndex((s) => s.id === currentSong.id);
+    if (currentIndex !== -1) {
+      const nextIndex = (currentIndex + 1) % effectiveList.length;
+      playSong(effectiveList[nextIndex], 0);
+    } else {
+      const curIndex = all.findIndex((s) => s.id === currentSong.id);
+      if (curIndex !== -1) {
+        const nextIndex = (curIndex + 1) % all.length;
+        playSong(all[nextIndex], 0);
+      } else if (effectiveList.length > 0) {
+        playSong(effectiveList[0], 0);
+      }
+    }
   }, [songs, currentSong, playSong]);
 
   const prevSong = useCallback(() => {
-    const currentIndex = songs.findIndex((s) => s.id === currentSong.id);
-    const prevIndex = (currentIndex - 1 + songs.length) % songs.length;
-    playSong(songs[prevIndex], 0);
+    const queue = playbackController.getQueue();
+    if (queue.length > 1) {
+      playbackController.prevTrack().catch(console.warn);
+      return;
+    }
+    const all = getAllCuratedSongs();
+    const effectiveList = songs.length > 0 ? songs : all;
+    if (!currentSong) {
+      if (effectiveList.length > 0) playSong(effectiveList[0], 0);
+      return;
+    }
+    const currentIndex = effectiveList.findIndex((s) => s.id === currentSong.id);
+    if (currentIndex !== -1) {
+      const prevIndex = (currentIndex - 1 + effectiveList.length) % effectiveList.length;
+      playSong(effectiveList[prevIndex], 0);
+    } else {
+      const curIndex = all.findIndex((s) => s.id === currentSong.id);
+      if (curIndex !== -1) {
+        const prevIndex = (curIndex - 1 + all.length) % all.length;
+        playSong(all[prevIndex], 0);
+      } else if (effectiveList.length > 0) {
+        playSong(effectiveList[0], 0);
+      }
+    }
   }, [songs, currentSong, playSong]);
 
   const setDisplayLanguage = useCallback((lang: Language) => {
+    if (!currentSong) return;
     manualLangRef.current = { songId: currentSong.id, lang };
     const srcLang = lyricsService.getSongSourceLanguage(currentSong);
     // If re-selecting same language, invalidate cache to force fresh resolution
@@ -543,6 +718,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [currentSong, displayLanguage]);
 
   const setActiveLanguage = useCallback((lang: Language) => {
+    if (!currentSong) return;
     manualLangRef.current = { songId: currentSong.id, lang };
     const srcLang = lyricsService.getSongSourceLanguage(currentSong);
     if (lang === displayLanguage) {
@@ -555,6 +731,16 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setSelectedSection = useCallback((sec: SongSection) => {
     setSelectedSectionState(sec);
+  }, []);
+
+  const setKaraokeScriptPreference = useCallback((pref: KaraokeScriptMode) => {
+    setKaraokeScriptPreferenceState(pref);
+  }, []);
+
+  const setListeningMeaningLanguage = useCallback((lang: Language) => {
+    setListeningMeaningLanguageState(lang);
+    setDisplayLanguageState(lang);
+    setActiveLanguageState(lang);
   }, []);
 
   const toggleKaraokeMode = useCallback(() => {
@@ -590,10 +776,15 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   }, []);
 
-  const openKaraokeForSong = useCallback((song?: Song, section?: SongSection) => {
-    if (song && song.id !== currentSong.id) {
-      setCurrentSong(song);
-      playbackController.load(song, 0);
+  const openKaraokeForSong = useCallback((song?: Song | null, section?: SongSection) => {
+    const targetSong = song || currentSong;
+    if (targetSong && targetSong.id !== currentSong?.id) {
+      setCurrentSong(targetSong);
+    }
+    if (targetSong) {
+      playbackController.load(targetSong, section?.start || 0).catch((err) => {
+        console.warn('openKaraokeForSong load notice:', err);
+      });
     }
     if (section) {
       setSelectedSectionState(section);
@@ -609,12 +800,16 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   const startKaraokeRecording = useCallback((section: SongSection) => {
+    if (!currentSong) return;
     setSelectedSectionState(section);
     setKaraokeModalOpen(false);
     setIsRecordingActive(true);
+    karaokePlaybackService.loadBackingSource(currentSong, section.start).catch((err) => {
+      console.warn('loadBackingSource notice in startKaraokeRecording:', err);
+    });
     playbackController.setKaraokeMode(true, section.start);
     setIsKaraokeMode(true);
-  }, []);
+  }, [currentSong]);
 
   const stopKaraokeRecording = useCallback(() => {
     setIsRecordingActive(false);
@@ -703,7 +898,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const win = window as unknown as {
         __naro_play_song?: (s: Song, st?: number) => void;
         __naro_toggle_play?: () => void;
-        __naro_current_song?: Song;
+        __naro_current_song?: Song | null;
         __naro_set_karaoke?: (enabled: boolean) => void;
         __naro_toggle_karaoke?: () => void;
         __naro_open_karaoke_modal?: () => void;
@@ -733,17 +928,31 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_get_bass_intensity?: () => number;
         __naro_cycle_sound_mode?: () => void;
         __naro_is_dsp_supported?: () => boolean;
+        __naro_get_dsp_description?: () => string;
         __naro_refresh_lyrics?: () => void;
         __naro_get_lyrics_revision?: () => number;
         __naro_toggle_like?: (s: Song) => void;
         __naro_is_liked?: (id: string) => boolean;
         __naro_get_playlists?: () => Playlist[];
+        __naro_set_karaoke_script_preference?: (pref: KaraokeScriptMode) => void;
+        __naro_get_karaoke_script_preference?: () => KaraokeScriptMode;
+        __naro_set_listening_meaning_language?: (lang: Language) => void;
+        __naro_get_listening_meaning_language?: () => Language;
+        __naro_get_songs?: () => Song[];
+        __naro_play_song_by_id?: (id: string) => void;
+        __naro_lyrics_pipeline?: typeof lyricsPipelineService;
+        __naro_get_lyrics_status?: (s?: Song) => unknown;
       };
 
       win.__naro_play_song = playSong;
       win.__naro_toggle_play = togglePlay;
       win.__naro_playback_controller = playbackController;
       win.__naro_current_song = currentSong;
+      win.__naro_get_songs = () => songs;
+      win.__naro_play_song_by_id = (id: string) => {
+        const found = songs.find((s) => s.id === id) || SONGS.find((s) => s.id === id);
+        if (found) playSong(found);
+      };
       win.__naro_set_karaoke = setKaraokeMode;
       win.__naro_toggle_karaoke = toggleKaraokeMode;
       win.__naro_open_karaoke_modal = () => openKaraokeForSong(currentSong);
@@ -759,11 +968,13 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_is_now_playing_open = () => nowPlayingOpen;
       win.__naro_set_display_language = setDisplayLanguage;
       win.__naro_get_display_language = () => displayLanguage;
-      win.__naro_get_source_language = () => sourceLanguage;
+      win.__naro_get_source_language = () => (currentSong ? lyricsService.getSongSourceLanguage(currentSong) : (sourceLanguage || 'en'));
       win.__naro_get_selected_language = () => displayLanguage;
+      win.__naro_lyrics_pipeline = lyricsPipelineService;
+      win.__naro_get_lyrics_status = (s?: Song) => lyricsPipelineService.getResolutionStatus(s || currentSong);
       win.__naro_get_current_time = () => playbackController.getCurrentClock().currentTime;
       win.__naro_is_playing = () => playbackController.getCurrentClock().isPlaying;
-      win.__naro_get_canonical_lines = () => lyricsService.getCanonicalLyricLines(currentSong);
+      win.__naro_get_canonical_lines = () => currentSong ? lyricsService.getCanonicalLyricLines(currentSong) : [];
       win.__naro_refresh_lyrics = () => setLyricsRevision((prev) => prev + 1);
       win.__naro_get_lyrics_revision = () => lyricsRevision;
       win.__naro_set_sound_mode = setSoundMode;
@@ -774,9 +985,14 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_get_bass_intensity = () => bassIntensity;
       win.__naro_cycle_sound_mode = cycleSoundMode;
       win.__naro_is_dsp_supported = () => playbackController.isDspSupported();
+      win.__naro_get_dsp_description = () => playbackController.getActiveDspDescription();
       win.__naro_toggle_like = toggleLikeSong;
       win.__naro_is_liked = isSongLiked;
       win.__naro_get_playlists = () => playlists;
+      win.__naro_set_karaoke_script_preference = setKaraokeScriptPreference;
+      win.__naro_get_karaoke_script_preference = () => karaokeScriptPreference;
+      win.__naro_set_listening_meaning_language = setListeningMeaningLanguage;
+      win.__naro_get_listening_meaning_language = () => listeningMeaningLanguage;
     }
   }, [
     playSong,
@@ -807,7 +1023,15 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     cycleSoundMode,
     toggleLikeSong,
     isSongLiked,
-    playlists
+    playlists,
+    karaokeScriptPreference,
+    setKaraokeScriptPreference,
+    listeningMeaningLanguage,
+    setListeningMeaningLanguage,
+    togglePlay,
+    lyricsRevision,
+    sourceLanguage,
+    songs
   ]);
 
   return (
@@ -841,6 +1065,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         soundPreset,
         bassIntensity,
         isDspSupported,
+        activeDspDescription,
         setSoundMode,
         setSoundPreset,
         setBassIntensity,
@@ -890,6 +1115,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setCurrentView,
         setActiveLanguage,
         setDisplayLanguage,
+        karaokeScriptPreference,
+        setKaraokeScriptPreference,
+        listeningMeaningLanguage,
+        setListeningMeaningLanguage,
         setSelectedSection,
         toggleKaraokeMode,
         setKaraokeMode,

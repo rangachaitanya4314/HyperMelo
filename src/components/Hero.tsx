@@ -17,7 +17,7 @@ export const Hero: React.FC = () => {
   return (
     <section
       id="home"
-      aria-label="NARO Hero"
+      aria-label="HyperMelo Hero"
       style={{
         position: 'relative',
         minHeight: '84vh',
@@ -218,11 +218,22 @@ export const Hero: React.FC = () => {
             <Sparkles size={16} color="var(--accent-warm)" />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
               <span>
-                Featured:{' '}
-                <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                  {currentSong.title}
-                </strong>{' '}
-                — {currentSong.artist}
+                {currentSong ? (
+                  <>
+                    Featured:{' '}
+                    <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                      {currentSong.title}
+                    </strong>{' '}
+                    — {currentSong.artist}
+                  </>
+                ) : (
+                  <>
+                    <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                      HyperMelo Experience
+                    </strong>{' '}
+                    — Select a track to listen
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -264,13 +275,13 @@ export const Hero: React.FC = () => {
             }}
           >
             <BeatSyncedVisualizer
-              artwork={currentSong.artwork}
+              artwork={currentSong?.artwork}
               isPlaying={isPlaying}
               onTogglePlay={togglePlay}
               interactive={true}
               mode="hero"
-              songTitle={currentSong.title}
-              songArtist={currentSong.artist}
+              songTitle={currentSong?.title ?? 'HyperMelo'}
+              songArtist={currentSong?.artist ?? 'Audiophile Music Experience'}
               size="100%"
             />
           </div>

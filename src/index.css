@@ -13,6 +13,9 @@
   --accent-warm: #E7A58D;
   --accent-cream: #F4DFC9;
   --secondary-blue: #8FA8C8;
+  --accent-neon-pink: #FF8FB8;
+  --accent-neon-purple: #D43CFF;
+  --bg-neon-dark: #050407;
 
   --border-subtle: rgba(244, 240, 235, 0.08);
   --border-medium: rgba(244, 240, 235, 0.16);
@@ -447,4 +450,19 @@ a:focus-visible {
 
 .animate-dust-3 {
   animation: dustMote 7s ease-in-out infinite 4s;
+}
+
+@keyframes artworkShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.artwork-shimmer-bg {
+  background: linear-gradient(90deg, rgba(20, 26, 38, 0.8) 0%, rgba(35, 45, 65, 0.9) 50%, rgba(20, 26, 38, 0.8) 100%);
+  background-size: 200% 100%;
+  animation: artworkShimmer 1.8s ease-in-out infinite;
 }

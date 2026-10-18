@@ -23,12 +23,12 @@ export type DetectedSourceLanguage =
   | 'mixed' // Mixed multilingual
   | string;
 
-// Common Punjabi lexical markers in Devanagari script
+// Common Punjabi lexical markers in Devanagari script (distinguishing authentic Punjabi from Hindi)
 const PUNJABI_DEVANAGARI_MARKERS = [
   'मैनूं', 'तैनूं', 'साडूं', 'असां', 'तुसां', 'लग्दा', 'लग्दी', 'सोहणा', 'सोहणे',
   'सोहणी', 'वे माही', 'जिंदड़ी', 'कुड़ी', 'मुंडा', 'अक्खां', 'अखां', 'नहिंयो',
   'किवें', 'चन्ना', 'ढोलना', 'समझावां', 'समझावा', 'होर', 'इश्क दी', 'दिल दा',
-  'छड्ड', 'रब्ब', 'तेरे बिन', 'बुलबुल', 'सोणिया', 'जाणी', 'वे'
+  'छड्ड', 'किद्दान', 'सोणिया', 'जाणी'
 ];
 
 // Common Marathi lexical markers in Devanagari script
@@ -174,12 +174,12 @@ export function detectScriptFromUnicode(text: string): {
     case 'devanagari': {
       // Discriminate between Hindi, Marathi, and Punjabi in Devanagari
       const lowerText = text.toLowerCase();
-      const hasPunjabiMarkers = PUNJABI_DEVANAGARI_MARKERS.some((m) => lowerText.includes(m));
-      if (hasPunjabiMarkers) {
+      const punjabiMatches = PUNJABI_DEVANAGARI_MARKERS.filter((m) => lowerText.includes(m));
+      if (punjabiMatches.length >= 2) {
         return { script: 'devanagari', dominantLanguage: 'pa', counts };
       }
-      const hasMarathiMarkers = MARATHI_DEVANAGARI_MARKERS.some((m) => lowerText.includes(m));
-      if (hasMarathiMarkers) {
+      const marathiMatches = MARATHI_DEVANAGARI_MARKERS.filter((m) => lowerText.includes(m));
+      if (marathiMatches.length >= 2) {
         return { script: 'devanagari', dominantLanguage: 'mr', counts };
       }
       return { script: 'devanagari', dominantLanguage: 'hi', counts };
@@ -360,6 +360,6 @@ export function sourceLanguageToDefaultDisplay(sourceLang: DetectedSourceLanguag
   if (sourceLang === 'te') return 'te';
   if (sourceLang === 'ta') return 'ta';
   if (sourceLang === 'ml') return 'ml';
-  if (sourceLang === 'hi') return 'hi';
+  if (sourceLang === 'hi' || sourceLang === 'mr' || sourceLang === 'pa') return 'hi';
   return 'en';
 }

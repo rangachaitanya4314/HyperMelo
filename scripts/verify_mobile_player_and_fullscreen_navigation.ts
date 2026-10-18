@@ -168,15 +168,18 @@ async function runMobileAndFullscreenVerification() {
     `);
     await new Promise((r) => setTimeout(r, 600));
 
-    // Start playback of current song
+    // Start playback of current song (or first song if fresh launch started empty)
     await cdp.eval(`
       (() => {
-        if (window.__naro_play_song && window.__naro_current_song) {
-          window.__naro_play_song(window.__naro_current_song, 5.0);
+        if (window.__naro_play_song) {
+          const song = window.__naro_current_song || (window.__naro_get_songs ? window.__naro_get_songs()[0] : null);
+          if (song) {
+            window.__naro_play_song(song, 5.0);
+          }
         }
       })()
     `);
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 800));
 
     // =========================================================================
     // PART 1: TEST BOTTOM PLAYER ACROSS ALL 11 VIEWPORTS
@@ -398,6 +401,7 @@ async function runMobileAndFullscreenVerification() {
       })()
     `);
 
+    console.log('    [DEBUG] closeBtnMetrics:', JSON.stringify(closeBtnMetrics));
     assert(closeBtnMetrics.visible, 'Close/Back button is visible in Fullscreen overlay');
     assert(closeBtnMetrics.ariaLabel === 'Close full screen player', `Close button has required aria-label: "${closeBtnMetrics.ariaLabel}"`);
     assert(closeBtnMetrics.width >= 44 && closeBtnMetrics.height >= 44,
@@ -513,8 +517,8 @@ async function runMobileAndFullscreenVerification() {
     // Verify on Discover
     const onDiscover = await cdp.eval(`
       (() => {
-        return document.querySelector('h1')?.textContent?.includes('Discover') ||
-               document.body.textContent?.includes('All Discoveries');
+        return document.querySelector('h1')?.textContent?.toLowerCase().includes('discover') ||
+               document.body.textContent?.toLowerCase().includes('discover');
       })()
     `);
     assert(onDiscover, 'Navigated to Discover view');

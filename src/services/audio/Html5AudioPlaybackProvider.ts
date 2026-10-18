@@ -216,8 +216,7 @@ export class Html5AudioPlaybackProvider implements MusicPlaybackProvider {
       this.audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
     }
 
-    // If readyState is already sufficient to play
-    if (this.audio.readyState >= 2) {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') {
       this.state = 'ready';
       this.emitClock();
       return;
@@ -252,6 +251,14 @@ export class Html5AudioPlaybackProvider implements MusicPlaybackProvider {
       this.audio.addEventListener('canplay', onCanPlay, { once: true });
       this.audio.addEventListener('error', onError, { once: true });
       this.audio.load();
+
+      if (this.audio.readyState >= 2) {
+        cleanup();
+        this.state = 'ready';
+        this.emitClock();
+        resolve();
+        return;
+      }
 
       // Safety timeout after 6 seconds
       setTimeout(() => {
@@ -401,7 +408,16 @@ export class Html5AudioPlaybackProvider implements MusicPlaybackProvider {
 
   public destroy(): void {
     this.stopClockPoll();
-    this.audio.pause();
-    this.audio.src = '';
+    if (this.audio) {
+      try {
+        this.audio.pause();
+        this.audio.removeAttribute('src');
+        this.audio.load();
+      } catch {
+        this.audio.src = '';
+      }
+    }
+    this.currentSong = null;
+    this.state = 'idle';
   }
 }

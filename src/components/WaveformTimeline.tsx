@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import type { Song, SongSection } from '../types/music';
 
 interface WaveformTimelineProps {
-  song: Song;
+  song: Song | null;
   section: SongSection;
   onChangeSection: (newSection: SongSection) => void;
   currentTime?: number;
@@ -27,7 +27,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
   const barCount = 64;
   const waveformBars = useMemo(() => {
     const bars: number[] = [];
-    const seed = song.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const seed = song?.id ? song.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 42;
     for (let i = 0; i < barCount; i++) {
       // Wave shape: quiet intro, swelling verse, high energy chorus, bridge variation
       const pos = i / barCount;
@@ -37,7 +37,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       bars.push(heightVal);
     }
     return bars;
-  }, [song.id, barCount]);
+  }, [song?.id, barCount]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -45,9 +45,10 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const startPercent = Math.max(0, Math.min(100, (section.start / song.duration) * 100));
-  const endPercent = Math.max(0, Math.min(100, (section.end / song.duration) * 100));
-  const playheadPercent = Math.max(0, Math.min(100, (currentTime / song.duration) * 100));
+  const songDuration = (song?.duration && song.duration > 0) ? song.duration : 180;
+  const startPercent = Math.max(0, Math.min(100, (section.start / songDuration) * 100));
+  const endPercent = Math.max(0, Math.min(100, (section.end / songDuration) * 100));
+  const playheadPercent = Math.max(0, Math.min(100, (currentTime / songDuration) * 100));
 
   const handlePointerDown = (type: 'start' | 'end', e: React.PointerEvent) => {
     e.stopPropagation();
@@ -60,7 +61,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickPercent = Math.max(0, Math.min(1, clickX / rect.width));
-    const targetTime = clickPercent * song.duration;
+    const targetTime = clickPercent * songDuration;
     onSeek(targetTime);
   };
 
@@ -70,7 +71,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       const rect = containerRef.current.getBoundingClientRect();
       const pointerX = e.clientX - rect.left;
       const percent = Math.max(0, Math.min(1, pointerX / rect.width));
-      const newSec = Math.round(percent * song.duration);
+      const newSec = Math.round(percent * songDuration);
 
       if (activeDrag === 'start') {
         const clampedStart = Math.min(newSec, section.end - 5);
@@ -84,7 +85,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         }
       } else if (activeDrag === 'end') {
         const clampedEnd = Math.max(newSec, section.start + 5);
-        if (clampedEnd <= song.duration) {
+        if (clampedEnd <= songDuration) {
           onChangeSection({
             ...section,
             type: 'custom',
@@ -94,7 +95,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         }
       }
     },
-    [activeDrag, song.duration, section, onChangeSection]
+    [activeDrag, songDuration, section, onChangeSection]
   );
 
   const handleGlobalPointerUp = useCallback(() => {
@@ -121,7 +122,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         role="slider"
         aria-label="Audio selection range"
         aria-valuemin={0}
-        aria-valuemax={song.duration}
+        aria-valuemax={songDuration}
         aria-valuenow={section.start}
         style={{
           position: 'relative',
@@ -330,7 +331,7 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
             ({Math.round(section.end - section.start)}s moment)
           </span>
         </div>
-        <span>{formatTime(song.duration)}</span>
+        <span>{formatTime(songDuration)}</span>
       </div>
     </div>
   );

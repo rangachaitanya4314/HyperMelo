@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Pause, Heart, Plus } from 'lucide-react';
 import type { Song } from '../types/music';
-import { getCanonicalTrackDuration } from '../shared/track';
+import { getCanonicalTrackDuration, getConsumerLicenseLabel } from '../shared/track';
 import { AbstractArtwork } from './AbstractArtwork';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 
@@ -23,7 +23,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
 
   const isLiked = isSongLiked(song.id);
 
-  const isCurrent = currentSong.id === song.id;
+  const isCurrent = currentSong?.id === song.id;
   const isThisPlaying = isCurrent && isPlaying;
 
   const formatDuration = (seconds: number) => {
@@ -43,6 +43,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
 
   return (
     <div
+      className="music-card"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handlePlayClick}
@@ -95,7 +96,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
             transform: isHovered ? 'scale(1.06)' : 'scale(1)'
           }}
         >
-          <AbstractArtwork artwork={song.artwork} isPlaying={isThisPlaying} size="100%" />
+          <AbstractArtwork artwork={song.artwork} song={song} isPlaying={isThisPlaying} size="100%" />
         </div>
 
         {/* Top-Right Quick Actions: Like & Add to Playlist */}
@@ -263,7 +264,7 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
                 {langKey}
               </span>
             ))}
-            {song.attribution && (
+            {getConsumerLicenseLabel(song.attribution) && (
               <span
                 style={{
                   fontSize: '0.62rem',
@@ -276,9 +277,9 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
                   whiteSpace: 'nowrap',
                   cursor: 'help'
                 }}
-                title={`${song.attribution.text || song.attribution.license}\nSource: ${song.attribution.sourceName || song.attribution.source}`}
+                title={`${song.attribution?.text || getConsumerLicenseLabel(song.attribution)}\nSource: ${song.attribution?.sourceName || song.attribution?.source}`}
               >
-                {song.attribution.license}
+                {getConsumerLicenseLabel(song.attribution)}
               </span>
             )}
           </div>

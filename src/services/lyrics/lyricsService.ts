@@ -2,8 +2,56 @@
 // Authoritative synchronized lyrics engine with deterministic timing & translation
 // Strict adherence to actual timestamps without faked word-level timing or formula timestamps
 
-import type { TimedLyricLine, LyricsCapability, SongLyrics, Language, Song, SongSection } from '../../shared';
+import type {
+  TimedLyricLine,
+  LyricsCapability,
+  SongLyrics,
+  Language,
+  Song,
+  SongSection,
+  KaraokeScriptMode,
+  KaraokeLineTrack,
+  VerifiedLyricRepresentation,
+  LyricRepresentationType,
+  LyricExcerptResult
+} from '../../shared';
+import {
+  getKaraokeLyricLine,
+  getListeningLyricDisplay,
+  getAvailableLyricRepresentations,
+  getLyricRepresentationText,
+  getLanguageDisplayName
+} from '../../shared';
+export {
+  getKaraokeLyricLine,
+  getListeningLyricDisplay,
+  getAvailableLyricRepresentations,
+  getLyricRepresentationText,
+  getLanguageDisplayName
+};
+export type {
+  KaraokeScriptMode,
+  KaraokeLineTrack,
+  VerifiedLyricRepresentation,
+  LyricRepresentationType,
+  LyricExcerptResult
+};
 import { lyricsIngestionService } from '../../backend/services/LyricsIngestionService';
+import { indexedDbService } from '../storage/indexedDbService';
+import {
+  sanitizeLyricsMetadata,
+  sanitizeTrackTitle,
+  sanitizeArtistName,
+  unescapeHtml,
+  type SanitizedLyricsMetadata
+} from './lyricsSanitizer';
+export {
+  sanitizeLyricsMetadata,
+  sanitizeTrackTitle,
+  sanitizeArtistName,
+  unescapeHtml
+};
+export type { SanitizedLyricsMetadata };
 import {
   translationService,
   validateScriptForLanguage,
@@ -18,6 +66,51 @@ import {
 } from './languageDetectionService';
 export { detectSongSourceLanguage, detectLyricLinesLanguage, sourceLanguageToDefaultDisplay };
 export type { DetectedSourceLanguage };
+import {
+  transliterateText,
+  canTransliterate,
+  isLatinScript
+} from './transliterationService';
+export { transliterateText, canTransliterate, isLatinScript };
+import {
+  calculateLinePace,
+  measureLinePace,
+  getPaceTransition,
+  getWipeTransition,
+  calculateWordTimingFallback,
+  wordTimingFallback,
+  getWordTimingFallback,
+  applyWordTimingFallback,
+  applyWordTimingFallbackToLines,
+  splitIndicSyllables,
+  splitWordIntoSyllableClusters,
+  countSyllables,
+  countLineSyllables,
+  isIndicScript,
+  isIndicTransliteration,
+  type PaceCategory,
+  type PaceTransitionConfig,
+  type WordTimingOptions,
+  type HighlightTimingResult
+} from './lyricsSync';
+export {
+  calculateLinePace,
+  measureLinePace,
+  getPaceTransition,
+  getWipeTransition,
+  calculateWordTimingFallback,
+  wordTimingFallback,
+  getWordTimingFallback,
+  applyWordTimingFallback,
+  applyWordTimingFallbackToLines,
+  splitIndicSyllables,
+  splitWordIntoSyllableClusters,
+  countSyllables,
+  countLineSyllables,
+  isIndicScript,
+  isIndicTransliteration
+};
+export type { PaceCategory, PaceTransitionConfig, WordTimingOptions, HighlightTimingResult };
 
 /**
  * Deterministic calculation of active lyric index from authoritative currentTime.
@@ -158,6 +251,17 @@ export function getSongSourceLanguage(song: Song | null | undefined): DetectedSo
 const canonicalLinesCache = new Map<string, TimedLyricLine[]>();
 
 /**
+ * Invalidate cached canonical lines for a track (or all tracks if no ID is passed)
+ */
+export function clearCanonicalLinesCache(songId?: string): void {
+  if (songId) {
+    canonicalLinesCache.delete(songId);
+  } else {
+    canonicalLinesCache.clear();
+  }
+}
+
+/**
  * Extract canonical timed lyric segments from a song.
  * Single authoritative timeline across all languages.
  */
@@ -226,8 +330,25 @@ export function getCanonicalLyricLines(song: Song | null | undefined): TimedLyri
       }
     }
 
+    const native = line.karaoke?.native || line.text;
+    let transliteration = line.karaoke?.transliteration;
+    if (!transliteration || transliteration.trim().length === 0) {
+      if (sourceLang === 'en' || isLatinScript(native)) {
+        transliteration = native;
+      } else if (canTransliterate(native)) {
+        transliteration = transliterateText(native, sourceLang);
+      }
+    }
+    const listeningMeaning = { ...translations, ...(line.listening_meaning || {}) };
+
     return {
       ...line,
+      original_language: line.original_language || sourceLang,
+      karaoke: {
+        native,
+        ...(transliteration ? { transliteration } : {})
+      },
+      listening_meaning: listeningMeaning,
       translations
     };
   });
@@ -430,9 +551,14 @@ class LyricsService {
     return getCanonicalLyricLines(song);
   }
 
+  public clearCanonicalLinesCache(songId?: string): void {
+    clearCanonicalLinesCache(songId);
+  }
+
   /**
    * Resolves canonical lyrics for a song, fetching online if empty and generating timing if needed.
    * Ensures every song in the app has genuine, synchronized lyrics.
+   * Multi-tier fallback: Step 1 (IndexedDB/local cache) -> Step 2 (LRCLIB get) -> Step 3 (LRCLIB search ±3s) -> Step 4 (JioSaavn) -> Step 5 (NetEase)
    */
   public async resolveCanonicalLyrics(song: Song | null | undefined): Promise<TimedLyricLine[]> {
     if (!song) return [];
@@ -440,7 +566,21 @@ class LyricsService {
     // Check existing lines
     let lines = getCanonicalLyricLines(song);
 
-    // If empty, fetch from online provider
+    // Step 1: Check IndexedDB / local storage cache under track ID
+    if (lines.length === 0 && song.id) {
+      try {
+        const cached = await indexedDbService.getLyrics(song.id);
+        if (cached) {
+          if (!song.lyrics) song.lyrics = {};
+          Object.assign(song.lyrics, cached);
+          lines = getCanonicalLyricLines(song);
+        }
+      } catch (err) {
+        console.warn('IndexedDB cache lookup failed:', err);
+      }
+    }
+
+    // If still empty, fetch from multi-provider pipeline
     if (lines.length === 0) {
       const origLang = detectSongLanguage(song);
       try {
@@ -450,52 +590,47 @@ class LyricsService {
           song.duration,
           song.album,
           (song as unknown as { isrc?: string }).isrc,
-          origLang
+          origLang,
+          song.id
         );
 
         if (fetched) {
           if (!song.lyrics) song.lyrics = {};
           Object.assign(song.lyrics, fetched);
           lines = getCanonicalLyricLines(song);
+
+          // Cache in IndexedDB under track ID so it never needs to fetch across network twice
+          if (song.id) {
+            await indexedDbService.saveLyrics(song.id, fetched);
+          }
         }
       } catch (err) {
         console.warn('Online lyric fetch failed:', err);
       }
     }
 
-    // If lines exist but lack timestamps (startTime === -1), generate timing from sections
+    // If lines exist but lack timestamps (startTime === -1), preserve genuine untimed plain lyrics
     if (lines.length > 0 && lines[0].startTime === -1) {
-      lines = generateSegmentTimestamps(lines, song.sections, song.duration || 180);
       canonicalLinesCache.set(song.id, lines);
-      song.lyricsSyncAvailable = true;
+      song.lyricsAvailable = true;
+      song.lyricsSyncAvailable = false;
+      return lines;
     }
 
-    // Fallback: If still empty, generate canonical segments from sections
-    if (lines.length === 0 && song.sections && song.sections.length > 0) {
-      const origLang = detectSongLanguage(song);
-      const generated: TimedLyricLine[] = song.sections.map((sec, i) => {
-        const snippet = sec.label ? `${song.title} — ${sec.label}` : `${song.title} (${sec.type})`;
-        return {
-          id: `${song.id}-sec-${i}`,
-          startTime: sec.start,
-          endTime: sec.end,
-          time: sec.start,
-          duration: Math.max(1, sec.end - sec.start),
-          text: snippet,
-          translations: {
-            [origLang]: snippet
-          }
-        };
-      });
-
-      if (!song.lyrics) song.lyrics = {};
-      song.lyrics[origLang] = {
-        chorusSnippet: `${song.title} — ${song.artist}`,
-        lines: generated
-      };
-      canonicalLinesCache.set(song.id, generated);
+    // If genuine synchronized lines exist
+    if (lines.length > 0) {
+      canonicalLinesCache.set(song.id, lines);
+      song.lyricsAvailable = true;
       song.lyricsSyncAvailable = true;
-      lines = generated;
+      return lines;
+    }
+
+    // Fallback: If still empty, do NOT fabricate fake lyrics from section labels.
+    // Respect the master prompt requirement: never invent lyrics, timestamps, or fake lines.
+    if (lines.length === 0) {
+      song.lyricsAvailable = false;
+      song.lyricsSyncAvailable = false;
+      return [];
     }
 
     return lines;
@@ -582,6 +717,52 @@ class LyricsService {
   }
 
   /**
+   * Dual-mode: Get Karaoke singing line (Native script vs Roman transliteration).
+   * Strictly preserves original sung words; never displays translated lyrics as singing line.
+   */
+  public getKaraokeLyricLine(
+    line: TimedLyricLine | undefined | null,
+    preference: KaraokeScriptMode = 'native'
+  ) {
+    return getKaraokeLyricLine(line, preference);
+  }
+
+  /**
+   * Dual-mode: Get Listening mode display.
+   * Primary: original lyric line in native script.
+   * Secondary: contextual or poetic meaning in selected language.
+   */
+  public getListeningLyricDisplay(
+    line: TimedLyricLine | undefined | null,
+    meaningLang: Language = 'en',
+    songOriginalLang?: string
+  ) {
+    return getListeningLyricDisplay(line, meaningLang, songOriginalLang);
+  }
+
+  /**
+   * Get verified available lyric representations for a song (Native, Roman Transliteration, Translations)
+   */
+  public getAvailableLyricRepresentations(
+    song: Song | null | undefined,
+    lines?: TimedLyricLine[]
+  ): VerifiedLyricRepresentation[] {
+    const effectiveLines = lines || this.getCanonicalLyricLines(song);
+    return getAvailableLyricRepresentations(song, effectiveLines);
+  }
+
+  /**
+   * Get lyric representation text, accessible label and metadata for an excerpt
+   */
+  public getLyricRepresentationText(
+    line: TimedLyricLine | null | undefined,
+    rep: VerifiedLyricRepresentation | null | undefined,
+    songOriginalLang?: string
+  ): LyricExcerptResult {
+    return getLyricRepresentationText(line, rep, songOriginalLang);
+  }
+
+  /**
    * Return exact detected source language from lyrics/script
    */
   public getSongSourceLanguage(song: Song | null | undefined): DetectedSourceLanguage {
@@ -623,7 +804,13 @@ class LyricsService {
   }
 
   /**
-   * Fetch online lyrics using exact track matching
+   * Fetch online lyrics using multi-tier fallback:
+   * Step 1: Check IndexedDB / local storage cache.
+   * Step 2: Query LRCLIB exact /api/get.
+   * Step 3: If 404, query LRCLIB search /api/search?q={cleanTitle} and pick top result matching duration (±3 seconds).
+   * Step 4: If still missing, query the JioSaavn lyrics endpoint.
+   * Step 5: Query the NetEase open lyrics endpoint.
+   * Caches any successful response in IndexedDB under track ID.
    */
   public async fetchLyrics(
     trackName: string,
@@ -631,9 +818,89 @@ class LyricsService {
     duration?: number,
     albumName?: string,
     isrc?: string,
-    originalLanguage?: Language
+    originalLanguage?: Language,
+    trackId?: string
   ): Promise<SongLyrics | null> {
-    return lyricsIngestionService.fetchLyrics(trackName, artistName, duration, albumName, isrc, originalLanguage);
+    return lyricsIngestionService.fetchLyrics(
+      trackName,
+      artistName,
+      duration,
+      albumName,
+      isrc,
+      originalLanguage,
+      trackId
+    );
+  }
+
+  /**
+   * Measure syllables per second pace of a lyric line
+   */
+  public calculateLinePace(syllables: number, lineStart: number, lineEnd: number): number {
+    return calculateLinePace(syllables, lineStart, lineEnd);
+  }
+
+  /**
+   * Measure line pace directly from a timed line
+   */
+  public measureLinePace(line: TimedLyricLine, language?: string): number {
+    return measureLinePace(line, language);
+  }
+
+  /**
+   * Get dynamic CSS wipe transition based on vocal pace
+   */
+  public getPaceTransition(pace: number): PaceTransitionConfig {
+    return getPaceTransition(pace);
+  }
+
+  /**
+   * Word timing fallback for lines lacking word-level timestamps in LRC
+   */
+  public calculateWordTimingFallback(line: TimedLyricLine, options?: WordTimingOptions) {
+    return calculateWordTimingFallback(line, options);
+  }
+
+  /**
+   * Apply word timing fallback and pace metadata to a timed line
+   */
+  public applyWordTimingFallback(line: TimedLyricLine, options?: WordTimingOptions): TimedLyricLine {
+    return applyWordTimingFallback(line, options);
+  }
+
+  /**
+   * Metadata sanitizer: strips movie tags, features, and descriptors
+   */
+  public sanitizeLyricsMetadata(title: string, artist = '') {
+    return sanitizeLyricsMetadata(title, artist);
+  }
+
+  public sanitizeTrackTitle(title: string) {
+    return sanitizeTrackTitle(title);
+  }
+
+  public sanitizeArtistName(artist: string) {
+    return sanitizeArtistName(artist);
+  }
+
+  /**
+   * Check IndexedDB / localStorage lyrics cache for a track ID
+   */
+  public async getCachedLyrics(trackId: string): Promise<SongLyrics | null> {
+    return indexedDbService.getLyrics(trackId);
+  }
+
+  /**
+   * Save lyrics into IndexedDB / localStorage cache under the track ID
+   */
+  public async saveCachedLyrics(trackId: string, lyrics: SongLyrics, provider?: string): Promise<void> {
+    return indexedDbService.saveLyrics(trackId, lyrics, provider);
+  }
+
+  /**
+   * Clear cached lyrics for a track ID or all tracks
+   */
+  public async clearLyricsCache(trackId?: string): Promise<void> {
+    return indexedDbService.clearLyricsCache(trackId);
   }
 }
 

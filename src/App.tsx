@@ -21,7 +21,7 @@ import { AddToPlaylistModal } from './components/AddToPlaylistModal';
 export const AppContent: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => {
     // Only show intro once per browser session
-    return !sessionStorage.getItem('naro_intro_seen');
+    return !sessionStorage.getItem('hypermelo_intro_seen');
   });
 
   const {
@@ -37,7 +37,7 @@ export const AppContent: React.FC = () => {
   } = useAudioPlayer();
 
   const handleIntroComplete = React.useCallback(() => {
-    sessionStorage.setItem('naro_intro_seen', 'true');
+    sessionStorage.setItem('hypermelo_intro_seen', 'true');
     setShowIntro(false);
   }, []);
 
@@ -47,10 +47,10 @@ export const AppContent: React.FC = () => {
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', backgroundColor: 'var(--bg-base)' }}>
-      {/* Opening 1.58s Cinematic Intro */}
+      {/* Netflix-style Cinematic Brand Reveal */}
       {showIntro && <IntroAnimation onComplete={handleIntroComplete} />}
 
-      {/* Sticky Dark Cinematic Header with NARO Logo Spectrum */}
+      {/* Sticky Dark Cinematic Header with HyperMelo Logo & Spectrum */}
       <Header />
 
       {/* Active Navigation View */}

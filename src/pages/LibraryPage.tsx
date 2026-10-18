@@ -119,14 +119,14 @@ export const LibraryPage: React.FC = () => {
     setCopiedId(take.id);
     if (navigator.clipboard) {
       navigator.clipboard.writeText(
-        `Listen to my NARO recorded moment: ${take.songTitle} (${take.sectionLabel})`
+        `Listen to my HyperMelo recorded moment: ${take.songTitle} (${take.sectionLabel})`
       );
     }
     setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleSongPlay = (song: Song) => {
-    if (currentSong.id === song.id) {
+    if (currentSong?.id === song.id) {
       togglePlay();
     } else {
       playSong(song, 0);
@@ -501,7 +501,7 @@ export const LibraryPage: React.FC = () => {
                 }}
               >
                 {likedSongs.map((song) => {
-                  const isThisCurrent = currentSong.id === song.id;
+                  const isThisCurrent = currentSong?.id === song.id;
                   const isThisPlaying = isThisCurrent && isPlaying;
 
                   return (
@@ -536,6 +536,7 @@ export const LibraryPage: React.FC = () => {
                         >
                           <AbstractArtwork
                             artwork={song.artwork}
+                            song={song}
                             isPlaying={isThisPlaying}
                             size={56}
                           />
@@ -817,13 +818,13 @@ export const LibraryPage: React.FC = () => {
                     This playlist is currently empty.
                   </p>
                   <p style={{ color: 'var(--text-dim)', fontSize: '0.88rem', marginTop: '6px' }}>
-                    Use the '+' button on any song card across NARO to add music to this mix.
+                    Use the '+' button on any song card across HyperMelo to add music to this mix.
                   </p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {selectedPlaylistSongs.map((song, index) => {
-                    const isThisCurrent = currentSong.id === song.id;
+                    const isThisCurrent = currentSong?.id === song.id;
                     const isThisPlaying = isThisCurrent && isPlaying;
 
                     return (
@@ -867,6 +868,7 @@ export const LibraryPage: React.FC = () => {
                         >
                           <AbstractArtwork
                             artwork={song.artwork}
+                            song={song}
                             isPlaying={isThisPlaying}
                             size={44}
                           />
@@ -1243,7 +1245,7 @@ export const LibraryPage: React.FC = () => {
                 const song = catalogSongs.find((s) => s.id === item.songId) || item.song;
                 if (!song) return null;
 
-                const isThisCurrent = currentSong.id === song.id;
+                const isThisCurrent = currentSong?.id === song.id;
                 const isThisPlaying = isThisCurrent && isPlaying;
 
                 return (
@@ -1275,6 +1277,7 @@ export const LibraryPage: React.FC = () => {
                     >
                       <AbstractArtwork
                         artwork={song.artwork}
+                        song={song}
                         isPlaying={isThisPlaying}
                         size={46}
                       />
@@ -1415,7 +1418,7 @@ export const LibraryPage: React.FC = () => {
               }}
             >
               {downloadedSongs.map((song) => {
-                const isThisCurrent = currentSong.id === song.id;
+                const isThisCurrent = currentSong?.id === song.id;
                 const isThisPlaying = isThisCurrent && isPlaying;
 
                 return (
@@ -1450,6 +1453,7 @@ export const LibraryPage: React.FC = () => {
                       >
                         <AbstractArtwork
                           artwork={song.artwork}
+                          song={song}
                           isPlaying={isThisPlaying}
                           size={56}
                         />
@@ -1648,7 +1652,7 @@ export const LibraryPage: React.FC = () => {
                         }}
                       >
                         {take.artwork ? (
-                          <AbstractArtwork artwork={take.artwork} size={56} />
+                          <AbstractArtwork artwork={take.artwork} title={take.songTitle} artist={take.artist} trackId={take.songId} size={56} />
                         ) : (
                           <div
                             style={{

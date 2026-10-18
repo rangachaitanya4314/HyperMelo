@@ -39,7 +39,8 @@ export const JOSH_WOODWARD_SHOT_DOWN: Song = {
     pattern: 'solaris',
     accentWarm: '#F59E0B',
     accentCool: '#38BDF8',
-    accentCream: '#FEF3C7'
+    accentCream: '#FEF3C7',
+    imageUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music4/v4/5c/35/98/5c3598ef-a339-ff74-ea9b-ce54be12e75e/Shot_Down_Cover.jpg/600x600bb.jpg'
   },
   sections: [
     { type: 'verse', label: 'Verse 1', start: 0, end: 45 },
@@ -95,7 +96,391 @@ export const JOSH_WOODWARD_SHOT_DOWN: Song = {
   }
 };
 
+export const ANIRUDH_GAALI_VAALUGA: Song = {
+  id: 'anirudh-gaali-vaaluga',
+  title: 'Gaali Vaaluga',
+  artist: 'Anirudh Ravichander',
+  album: 'Agnyaathavaasi (Original Motion Picture Soundtrack)',
+  duration: 258,
+  fullTrackDuration: 258,
+  isStreamPreview: true,
+  fullLengthAvailable: true,
+  previewAvailable: true,
+  playbackAvailable: true,
+  playbackType: 'preview',
+  playbackAvailability: 'preview',
+  playbackSourceType: 'preview',
+  playbackProvider: 'apple-music',
+  karaokeReady: true,
+  karaokeAvailable: true,
+  karaokeAvailability: 'vocal_suppression',
+  genre: 'Telugu Cinema / Romantic',
+  language: 'te',
+  originalLanguage: 'te',
+  bpm: 108,
+  musicalKey: 'C Major',
+  releaseYear: 2017,
+  artwork: {
+    palette: ['#D97706', '#1E293B', '#0F172A', '#FDE68A'],
+    pattern: 'solaris',
+    accentWarm: '#F59E0B',
+    accentCool: '#38BDF8',
+    accentCream: '#FEF3C7',
+    imageUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/74/df/6f74dfc3-f2c5-13c9-0d62-d9d6e55219e8/cover.jpg/600x600bb.jpg'
+  },
+  sections: [
+    { type: 'verse', label: 'Pallavi', start: 0, end: 45 },
+    { type: 'chorus', label: 'Chorus', start: 45, end: 85 },
+    { type: 'verse', label: 'Charanam 1', start: 85, end: 140 },
+    { type: 'chorus', label: 'Chorus 2', start: 140, end: 180 },
+    { type: 'bridge', label: 'Charanam 2', start: 180, end: 258 }
+  ],
+  lyrics: {
+    te: {
+      chorusSnippet: 'గాలివాలుగా ఓ గులాబి వాలి, గాయమైనదీ నా గుండెకి తగిలి',
+      lines: [
+        {
+          id: 'gv-1',
+          startTime: 8.88,
+          endTime: 12.84,
+          time: 8.88,
+          duration: 3.96,
+          text: 'గాలివాలుగా ఓ గులాబి వాలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాలివాలుగా ఓ గులాబి వాలి',
+            transliteration: 'Gaalivaalugaa Oo Gulaabi Vaali'
+          },
+          listening_meaning: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          },
+          translations: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          }
+        },
+        {
+          id: 'gv-2',
+          startTime: 12.84,
+          endTime: 17.07,
+          time: 12.84,
+          duration: 4.23,
+          text: 'గాయమైనదీ నా గుండెకి తగిలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాయమైనదీ నా గుండెకి తగిలి',
+            transliteration: 'Gaayamainadee Naa Gundeki Tagili'
+          },
+          listening_meaning: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          },
+          translations: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          }
+        },
+        {
+          id: 'gv-3',
+          startTime: 17.07,
+          endTime: 25.56,
+          time: 17.07,
+          duration: 8.49,
+          text: 'తపించిపోనా ప్రతీక్షణం ఇలాగ నీకోసం',
+          original_language: 'te',
+          karaoke: {
+            native: 'తపించిపోనా ప్రతీక్షణం ఇలాగ నీకోసం',
+            transliteration: 'Tapinchipoonaa Prateekshanam Ilaaga Neekoosam'
+          },
+          listening_meaning: {
+            en: 'Yearning for you every single moment like this',
+            te: 'తపించిపోనా ప్రతీక్షణం ఇలాగ నీకోసం'
+          },
+          translations: {
+            en: 'Yearning for you every single moment like this',
+            te: 'తపించిపోనా ప్రతీక్షణం ఇలాగ నీకోసం'
+          }
+        },
+        {
+          id: 'gv-4',
+          startTime: 25.56,
+          endTime: 34.05,
+          time: 25.56,
+          duration: 8.49,
+          text: 'తరించిపోనా చెలీ ఇలా దొరికితె నీ స్నేహం',
+          original_language: 'te',
+          karaoke: {
+            native: 'తరించిపోనా చెలీ ఇలా దొరికితె నీ స్నేహం',
+            transliteration: 'Tarinchipoonaa Chelee Ilaa Dorikite Nee Sneham'
+          },
+          listening_meaning: {
+            en: 'Attaining bliss, my love, if your friendship is found like this',
+            te: 'తరించిపోనా చెలీ ఇలా దొరికితె నీ స్నేహం'
+          },
+          translations: {
+            en: 'Attaining bliss, my love, if your friendship is found like this',
+            te: 'తరించిపోనా చెలీ ఇలా దొరికితె నీ స్నేహం'
+          }
+        },
+        {
+          id: 'gv-5',
+          startTime: 34.05,
+          endTime: 42.54,
+          time: 34.05,
+          duration: 8.49,
+          text: 'ఏం చేసావే మబ్బులను పువ్వుల్లో తడిపి',
+          original_language: 'te',
+          karaoke: {
+            native: 'ఏం చేసావే మబ్బులను పువ్వుల్లో తడిపి',
+            transliteration: 'Eam Cheesaavee Mabbulanu Puvvulloo Tadipi'
+          },
+          listening_meaning: {
+            en: 'What have you done, drenching clouds in flowers',
+            te: 'ఏం చేసావే మబ్బులను పువ్వుల్లో తడిపి'
+          },
+          translations: {
+            en: 'What have you done, drenching clouds in flowers',
+            te: 'ఏం చేసావే మబ్బులను పువ్వుల్లో తడిపి'
+          }
+        },
+        {
+          id: 'gv-6',
+          startTime: 42.54,
+          endTime: 51.03,
+          time: 42.54,
+          duration: 8.49,
+          text: 'ఎటు పోతావే మెరుపులను కన్నుల్లో విడిచి',
+          original_language: 'te',
+          karaoke: {
+            native: 'ఎటు పోతావే మెరుపులను కన్నుల్లో విడిచి',
+            transliteration: 'Etu Pootaavee Merupulanu Kannulloo Vidichi'
+          },
+          listening_meaning: {
+            en: 'Where will you go, leaving flashes of lightning in my eyes',
+            te: 'ఎటు పోతావే మెరుపులను కన్నుల్లో విడిచి'
+          },
+          translations: {
+            en: 'Where will you go, leaving flashes of lightning in my eyes',
+            te: 'ఎటు పోతావే మెరుపులను కన్నుల్లో విడిచి'
+          }
+        },
+        {
+          id: 'gv-7',
+          startTime: 51.03,
+          endTime: 55.26,
+          time: 51.03,
+          duration: 4.23,
+          text: 'గాలివాలుగా ఓ గులాబి వాలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాలివాలుగా ఓ గులాబి వాలి',
+            transliteration: 'Gaalivaalugaa Oo Gulaabi Vaali'
+          },
+          listening_meaning: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          },
+          translations: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          }
+        },
+        {
+          id: 'gv-8',
+          startTime: 55.26,
+          endTime: 63.75,
+          time: 55.26,
+          duration: 8.49,
+          text: 'గాయమైనదీ నా గుండెకి తగిలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాయమైనదీ నా గుండెకి తగిలి',
+            transliteration: 'Gaayamainadee Naa Gundeki Tagili'
+          },
+          listening_meaning: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          },
+          translations: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          }
+        },
+        {
+          id: 'gv-9',
+          startTime: 63.75,
+          endTime: 68.0,
+          time: 63.75,
+          duration: 4.25,
+          text: 'ఎదపై వాలిన పువ్వుల బాణం',
+          original_language: 'te',
+          karaoke: {
+            native: 'ఎదపై వాలిన పువ్వుల బాణం',
+            transliteration: 'Edapai Vaalina Puvvula Baanam'
+          },
+          listening_meaning: {
+            en: 'An arrow of flowers landing upon the chest',
+            te: 'ఎదపై వాలిన పువ్వుల బాణం'
+          },
+          translations: {
+            en: 'An arrow of flowers landing upon the chest',
+            te: 'ఎదపై వాలిన పువ్వుల బాణం'
+          }
+        },
+        {
+          id: 'gv-10',
+          startTime: 68.0,
+          endTime: 72.25,
+          time: 68.0,
+          duration: 4.25,
+          text: 'అతలాకుతలం చేసే ప్రాణం',
+          original_language: 'te',
+          karaoke: {
+            native: 'అతలాకుతలం చేసే ప్రాణం',
+            transliteration: 'Atalaakutalam Cheosee Praanam'
+          },
+          listening_meaning: {
+            en: 'Overwhelming and shaking the very soul',
+            te: 'అతలాకుతలం చేసే ప్రాణం'
+          },
+          translations: {
+            en: 'Overwhelming and shaking the very soul',
+            te: 'అతలాకుతలం చేసే ప్రాణం'
+          }
+        },
+        {
+          id: 'gv-11',
+          startTime: 72.25,
+          endTime: 76.5,
+          time: 72.25,
+          duration: 4.25,
+          text: 'కనులలొ మెరిసే కలల విమానం',
+          original_language: 'te',
+          karaoke: {
+            native: 'కనులలొ మెరిసే కలల విమానం',
+            transliteration: 'Kanulalo Merisee Kalala Vimaanam'
+          },
+          listening_meaning: {
+            en: 'An aircraft of dreams gleaming in the eyes',
+            te: 'కనులలొ మెరిసే కలల విమానం'
+          },
+          translations: {
+            en: 'An aircraft of dreams gleaming in the eyes',
+            te: 'కనులలొ మెరిసే కలల విమానం'
+          }
+        },
+        {
+          id: 'gv-12',
+          startTime: 76.5,
+          endTime: 80.75,
+          time: 76.5,
+          duration: 4.25,
+          text: 'నింగికి ఎగసే మనసు ప్రయాణం',
+          original_language: 'te',
+          karaoke: {
+            native: 'నింగికి ఎగసే మనసు ప్రయాణం',
+            transliteration: 'Ningiki Egasee Manasu Prayaanam'
+          },
+          listening_meaning: {
+            en: 'The heart soaring on a journey to the sky',
+            te: 'నింగికి ఎగసే మనసు ప్రయాణం'
+          },
+          translations: {
+            en: 'The heart soaring on a journey to the sky',
+            te: 'నింగికి ఎగసే మనసు ప్రయాణం'
+          }
+        },
+        {
+          id: 'gv-13',
+          startTime: 80.75,
+          endTime: 85.0,
+          time: 80.75,
+          duration: 4.25,
+          text: 'గాలివాలుగా ఓ గులాబి వాలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాలివాలుగా ఓ గులాబి వాలి',
+            transliteration: 'Gaalivaalugaa Oo Gulaabi Vaali'
+          },
+          listening_meaning: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          },
+          translations: {
+            en: 'A rose fell along the gust of wind',
+            te: 'గాలివాలుగా ఓ గులాబి వాలి'
+          }
+        },
+        {
+          id: 'gv-14',
+          startTime: 85.0,
+          endTime: 95.0,
+          time: 85.0,
+          duration: 10.0,
+          text: 'గాయమైనదీ నా గుండెకి తగిలి',
+          original_language: 'te',
+          karaoke: {
+            native: 'గాయమైనదీ నా గుండెకి తగిలి',
+            transliteration: 'Gaayamainadee Naa Gundeki Tagili'
+          },
+          listening_meaning: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          },
+          translations: {
+            en: 'Wounding my heart as it struck',
+            te: 'గాయమైనదీ నా గుండెకి తగిలి'
+          }
+        }
+      ]
+    },
+    en: {
+      chorusSnippet: 'A rose fell along the gust of wind, wounding my heart as it struck',
+      lines: [
+        {
+          id: 'gv-en-1',
+          startTime: 8.88,
+          endTime: 12.84,
+          time: 8.88,
+          duration: 3.96,
+          text: 'A rose fell along the gust of wind',
+          original_language: 'en'
+        },
+        {
+          id: 'gv-en-2',
+          startTime: 12.84,
+          endTime: 17.07,
+          time: 12.84,
+          duration: 4.23,
+          text: 'Wounding my heart as it struck',
+          original_language: 'en'
+        }
+      ]
+    }
+  },
+  playbackSource: {
+    provider: 'apple-music',
+    providerTrackId: '1327314759',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/44/e9/a0/44e9a0f4-5f53-27aa-e869-7ba55060bc0d/m4a.mp1',
+    format: 'm4a',
+    isStreamPreview: true,
+    playbackSourceType: 'preview'
+  },
+  attribution: {
+    title: 'Gaali Vaaluga',
+    artist: 'Anirudh Ravichander',
+    album: 'Agnyaathavaasi (Original Motion Picture Soundtrack)',
+    license: 'Commercial Preview / Apple Music',
+    source: 'Apple Music / iTunes API',
+    sourceName: 'Apple Music',
+    sourceUrl: 'https://music.apple.com/album/gaali-vaaluga/1327314759',
+    text: '"Gaali Vaaluga" composed and sung by Anirudh Ravichander, lyrics by Sirivennela Seetharama Sastry, from Agnyaathavaasi (2017).'
+  }
+};
+
 export const SONGS: Song[] = [
+  ANIRUDH_GAALI_VAALUGA,
   {
     id: 'midnight-drive',
     title: 'Midnight Drive',
@@ -107,6 +492,43 @@ export const SONGS: Song[] = [
     bpm: 88,
     musicalKey: 'D Minor',
     karaokeReady: true,
+    fullTrackDuration: 195,
+    isStreamPreview: false,
+    fullLengthAvailable: true,
+    previewAvailable: false,
+    playbackAvailable: true,
+    playbackType: 'full',
+    playbackAvailability: 'full',
+    playbackSourceType: 'dev-fixture',
+    playbackProvider: 'naro',
+    playbackSource: {
+      provider: 'naro',
+      providerTrackId: 'midnight-drive',
+      streamUrl: '/audio/midnight-drive.wav',
+      format: 'wav',
+      isStreamPreview: false,
+      playbackSourceType: 'dev-fixture'
+    },
+    capabilities: {
+      playback: true,
+      playbackAvailable: true,
+      playbackType: 'full',
+      playbackSourceType: 'dev-fixture',
+      lyrics: true,
+      lyricsAvailable: true,
+      lyricsSyncAvailable: true,
+      karaoke: true,
+      karaokeAvailable: true,
+      karaokeSource: {
+        type: 'instrumental',
+        provider: 'naro',
+        providerTrackId: 'midnight-drive-inst',
+        streamUrl: '/audio/midnight-drive.wav',
+        duration: 195,
+        availability: 'available'
+      },
+      recording: true
+    },
     artwork: {
       palette: ['#E7A58D', '#1D2538', '#0F172A', '#8FA8C8'],
       pattern: 'orbital',
@@ -443,7 +865,19 @@ export const SONGS: Song[] = [
           {
             time: 40,
             duration: 8,
+            startTime: 40,
+            endTime: 48,
             text: 'ఈ నిశ్శబ్ద రేయిలో',
+            original_language: 'te',
+            karaoke: {
+              native: 'ఈ నిశ్శబ్ద రేయిలో',
+              transliteration: 'Ee nisshabda reyilo'
+            },
+            listening_meaning: {
+              en: 'In the silent night',
+              hi: 'इस ख़ामोश रात में',
+              te: 'ఈ నిశ్శబ్దమైన రాత్రి వేళలో'
+            },
             words: [
               { text: 'ఈ', start: 40.0, end: 41.5 },
               { text: 'నిశ్శబ్ద', start: 41.5, end: 44.2 },
@@ -453,7 +887,19 @@ export const SONGS: Song[] = [
           {
             time: 48,
             duration: 9,
+            startTime: 48,
+            endTime: 57,
             text: 'నువ్వే నా వెలుగు జాడ',
+            original_language: 'te',
+            karaoke: {
+              native: 'నువ్వే నా వెలుగు జాడ',
+              transliteration: 'Nuvve naa velugu jaada'
+            },
+            listening_meaning: {
+              en: 'You are the light that guides',
+              hi: 'तुम ही तो रौशनी हो',
+              te: 'నువ్వే నా జీవితానికి దారి చూపే వెలుగు'
+            },
             words: [
               { text: 'నువ్వే', start: 48.0, end: 50.8 },
               { text: 'నా', start: 50.8, end: 52.0 },
@@ -464,7 +910,19 @@ export const SONGS: Song[] = [
           {
             time: 58,
             duration: 8,
+            startTime: 58,
+            endTime: 66,
             text: 'ప్రతి శ్వాసలో నీ జపమే',
+            original_language: 'te',
+            karaoke: {
+              native: 'ప్రతి శ్వాసలో నీ జపమే',
+              transliteration: 'Prathi swaasalo nee japame'
+            },
+            listening_meaning: {
+              en: 'Every breath echoes your name',
+              hi: 'हर सांस में तेरा नाम है',
+              te: 'ప్రతి ఊపిరిలో నీ ఆలోచనే నిండి ఉంది'
+            },
             words: [
               { text: 'ప్రతి', start: 58.0, end: 60.0 },
               { text: 'శ్వాసలో', start: 60.0, end: 62.8 },
@@ -475,7 +933,19 @@ export const SONGS: Song[] = [
           {
             time: 67,
             duration: 7,
+            startTime: 67,
+            endTime: 74,
             text: 'ఉదయించే వెలుగుల వరకు',
+            original_language: 'te',
+            karaoke: {
+              native: 'ఉదయించే వెలుగుల వరకు',
+              transliteration: 'Udayinche velugula varaku'
+            },
+            listening_meaning: {
+              en: 'Until the morning dawn arrives',
+              hi: 'जब तक सवेरा न आए',
+              te: 'వేకువ వెలుగులు విరిసే సమయం వరకు'
+            },
             words: [
               { text: 'ఉదయించే', start: 67.0, end: 69.8 },
               { text: 'వెలుగుల', start: 69.8, end: 72.0 },
@@ -699,12 +1169,37 @@ export const SONGS: Song[] = [
     title: 'Khaab',
     artist: 'Mira',
     duration: 188, // 03:08
+    fullTrackDuration: 188,
+    isStreamPreview: false,
+    fullLengthAvailable: false,
+    previewAvailable: false,
+    playbackAvailable: false,
+    playbackType: 'unavailable',
+    playbackAvailability: 'unavailable',
+    playbackSourceType: 'unavailable',
+    playbackProvider: 'naro',
+    karaokeReady: false,
+    karaokeAvailable: false,
+    karaokeAvailability: 'unavailable',
+    capabilities: {
+      playback: false,
+      playbackAvailable: false,
+      playbackType: 'unavailable',
+      playbackSourceType: 'unavailable',
+      lyrics: true,
+      lyricsAvailable: true,
+      lyricsSyncAvailable: false,
+      karaoke: false,
+      karaokeAvailable: false,
+      recording: false
+    },
+    lyricsAvailable: true,
+    lyricsSyncAvailable: false,
     genre: 'Dream Ambient Pop',
     language: 'hi',
     originalLanguage: 'hi',
     bpm: 82,
     musicalKey: 'F# Minor',
-    karaokeReady: true,
     artwork: {
       palette: ['#E7A58D', '#2A1B28', '#0F0B13', '#F4DFC9'],
       pattern: 'solaris',
@@ -791,7 +1286,19 @@ export const SONGS: Song[] = [
           {
             time: 46,
             duration: 8,
+            startTime: 46,
+            endTime: 54,
             text: 'शाम की धुंध में तैरता इक ख्वाब',
+            original_language: 'hi',
+            karaoke: {
+              native: 'शाम की धुंध में तैरता इक ख्वाब',
+              transliteration: 'Shaam ki dhundh mein tairta ik khaab'
+            },
+            listening_meaning: {
+              en: 'A dream adrift in twilight',
+              hi: 'शाम की धुंध में तैरता एक सपना',
+              te: 'సంధ్య వేళలో తేలే కల'
+            },
             words: [
               { text: 'शाम', start: 46.0, end: 47.8 },
               { text: 'की', start: 47.8, end: 48.8 },
@@ -805,7 +1312,19 @@ export const SONGS: Song[] = [
           {
             time: 55,
             duration: 9,
+            startTime: 55,
+            endTime: 64,
             text: 'सुबह की चाहत लिए बैठा है',
+            original_language: 'hi',
+            karaoke: {
+              native: 'सुबह की चाहत लिए बैठा है',
+              transliteration: 'Subah ki chaahat liye baitha hai'
+            },
+            listening_meaning: {
+              en: 'Longing for dawn to stay',
+              hi: 'सुबह के उजाले की आस लगाए बैठा है',
+              te: 'ఉదయపు వెలుగుకై ఎదురుచూపు'
+            },
             words: [
               { text: 'सुबह', start: 55.0, end: 56.8 },
               { text: 'की', start: 56.8, end: 57.8 },
@@ -818,7 +1337,19 @@ export const SONGS: Song[] = [
           {
             time: 64,
             duration: 8,
+            startTime: 64,
+            endTime: 72,
             text: 'हम गूंज में पिघलते गए',
+            original_language: 'hi',
+            karaoke: {
+              native: 'हम गूंज में पिघलते गए',
+              transliteration: 'Hum goonj mein pighalte gaye'
+            },
+            listening_meaning: {
+              en: 'We dissolve into the echoes',
+              hi: 'हम आवाजों की गूँज में विलीन होते गए',
+              te: 'మనం ప్రతిధ్వనుల్లో లీనమైపోయాం'
+            },
             words: [
               { text: 'हम', start: 64.0, end: 65.5 },
               { text: 'गूंज', start: 65.5, end: 67.2 },
@@ -830,7 +1361,19 @@ export const SONGS: Song[] = [
           {
             time: 73,
             duration: 7,
+            startTime: 73,
+            endTime: 80,
             text: 'जहाँ वक़्त भी रास्ता भूल गया',
+            original_language: 'hi',
+            karaoke: {
+              native: 'जहाँ वक़्त भी रास्ता भूल गया',
+              transliteration: 'Jahaan waqt bhi raasta bhool gaya'
+            },
+            listening_meaning: {
+              en: 'Where time forgets its way',
+              hi: 'जहाँ समय भी अपना मार्ग भूल गया',
+              te: 'కాలం కూడా దారి తప్పిన చోట'
+            },
             words: [
               { text: 'जहाँ', start: 73.0, end: 74.5 },
               { text: 'वक़्त', start: 74.5, end: 76.0 },

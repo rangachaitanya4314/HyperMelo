@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause } from 'lucide-react';
 import type { ArtworkStyle } from '../types/music';
 import { playbackService } from '../services/audio/playbackService';
+import { getVerifiedSongArtwork } from '../data/verifiedArtwork';
 
 interface BeatSyncedVisualizerProps {
   artwork?: ArtworkStyle;
@@ -63,6 +64,20 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
   const primaryColor = safeArtwork.accentWarm || safeArtwork.palette?.[0] || '#E7A58D';
   const secondaryColor = safeArtwork.accentCool || safeArtwork.palette?.[3] || '#8FA8C8';
   const creamColor = safeArtwork.accentCream || '#F4DFC9';
+
+  const rawArtUrl = artwork?.imageUrl;
+  const isDummyArt =
+    !!rawArtUrl &&
+    (rawArtUrl.includes('/xx/yy/zz') ||
+      rawArtUrl.includes('/aa/bb/cc') ||
+      rawArtUrl.includes('placeholder'));
+  const validArtUrl = isDummyArt ? undefined : rawArtUrl;
+  const resolvedArtUrl = validArtUrl || getVerifiedSongArtwork({ title: songTitle, artist: songArtist });
+  const [artError, setArtError] = useState(false);
+
+  useEffect(() => {
+    setArtError(false);
+  }, [resolvedArtUrl, songTitle]);
 
   // Animation and physics state held in ref (Zero React state updates per frame)
   const energyRef = useRef({
@@ -554,87 +569,107 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
           }}
         />
 
-        {/* Center Content: Song Title & Artist (NO NARO Logo, Premium Minimal, Gracefully Truncated) */}
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 3,
-            width: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            transform: isHovered ? 'translateY(-10px)' : 'translateY(0)',
-            transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-        >
-          {/* Song Title: Prominent, elegant typography with dynamic scaling & multi-line wrapping */}
-          {(() => {
-            const titleLen = songTitle.length;
-            const titleFontSize = titleLen > 24
-              ? 'clamp(0.62rem, 1.8vw, 0.78rem)'
-              : titleLen > 14
-                ? 'clamp(0.70rem, 2.0vw, 0.92rem)'
-                : 'clamp(0.80rem, 2.2vw, 1.15rem)';
+        {/* Real Album Artwork background on Center Disc */}
+        {resolvedArtUrl && !artError && (
+          <img
+            key={resolvedArtUrl}
+            src={resolvedArtUrl}
+            alt={songTitle}
+            onError={() => setArtError(true)}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              borderRadius: '50%',
+              opacity: 0.55,
+              filter: 'brightness(0.65) contrast(1.1)',
+              pointerEvents: 'none'
+            }}
+          />
+        )}
 
-            const artistLen = songArtist.length;
-            const artistFontSize = artistLen > 22
-              ? 'clamp(0.56rem, 1.4vw, 0.70rem)'
-              : 'clamp(0.64rem, 1.6vw, 0.82rem)';
+        {/* Center Content: Song Title & Artist (Displayed in Home/Hero mode; suppressed in Fullscreen mode where artwork disc is unobstructed) */}
+        {mode !== 'fullscreen' && (
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 3,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              transform: isHovered ? 'translateY(-10px)' : 'translateY(0)',
+              transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
+          >
+            {/* Song Title: Prominent, elegant typography with dynamic scaling & multi-line wrapping */}
+            {(() => {
+              const titleLen = songTitle.length;
+              const titleFontSize = titleLen > 24
+                ? 'clamp(0.62rem, 1.8vw, 0.78rem)'
+                : titleLen > 14
+                  ? 'clamp(0.70rem, 2.0vw, 0.92rem)'
+                  : 'clamp(0.80rem, 2.2vw, 1.15rem)';
 
-            return (
-              <>
-                <span
-                  id="visualizer-song-title"
-                  title={songTitle}
-                  style={{
-                    fontSize: titleFontSize,
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    letterSpacing: '-0.01em',
-                    maxWidth: '86%',
-                    textAlign: 'center',
-                    display: mode === 'fullscreen' ? '-webkit-box' : 'block',
-                    WebkitLineClamp: mode === 'fullscreen' ? 2 : undefined,
-                    WebkitBoxOrient: mode === 'fullscreen' ? 'vertical' : undefined,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: mode === 'fullscreen' ? 'normal' : 'nowrap',
-                    lineHeight: 1.25,
-                    wordBreak: mode === 'fullscreen' ? 'break-word' : 'normal',
-                    textShadow: '0 2px 12px rgba(0, 0, 0, 0.85)',
-                    padding: '0 2px'
-                  }}
-                >
-                  {songTitle}
-                </span>
+              const artistLen = songArtist.length;
+              const artistFontSize = artistLen > 22
+                ? 'clamp(0.56rem, 1.4vw, 0.70rem)'
+                : 'clamp(0.64rem, 1.6vw, 0.82rem)';
 
-                <span
-                  id="visualizer-song-artist"
-                  title={songArtist}
-                  style={{
-                    fontSize: artistFontSize,
-                    fontWeight: 400,
-                    color: 'var(--text-muted)',
-                    letterSpacing: '0.01em',
-                    maxWidth: '86%',
-                    textAlign: 'center',
-                    display: 'block',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    lineHeight: 1.25,
-                    marginTop: '3px',
-                    textShadow: '0 1px 8px rgba(0, 0, 0, 0.8)'
-                  }}
-                >
-                  {songArtist}
-                </span>
-              </>
-            );
-          })()}
-        </div>
+              return (
+                <>
+                  <span
+                    id="visualizer-song-title"
+                    title={songTitle}
+                    style={{
+                      fontSize: titleFontSize,
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      letterSpacing: '-0.01em',
+                      maxWidth: '86%',
+                      textAlign: 'center',
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.25,
+                      textShadow: '0 2px 12px rgba(0, 0, 0, 0.85)',
+                      padding: '0 2px'
+                    }}
+                  >
+                    {songTitle}
+                  </span>
+
+                  <span
+                    id="visualizer-song-artist"
+                    title={songArtist}
+                    style={{
+                      fontSize: artistFontSize,
+                      fontWeight: 400,
+                      color: 'var(--text-muted)',
+                      letterSpacing: '0.01em',
+                      maxWidth: '86%',
+                      textAlign: 'center',
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      lineHeight: 1.25,
+                      marginTop: '3px',
+                      textShadow: '0 1px 8px rgba(0, 0, 0, 0.8)'
+                    }}
+                  >
+                    {songArtist}
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Interactive Play/Pause Cue (Appears cleanly on hover or when paused) */}
         <div

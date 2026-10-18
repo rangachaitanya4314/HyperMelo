@@ -19,7 +19,6 @@ import { AppleMusicPlaybackProvider } from './AppleMusicPlaybackProvider';
 import { connectivityService } from '../connectivity/connectivityService';
 import { karaokeMixer } from './karaokeMixer';
 import type { SoundMode, SoundPreset } from './naroImmersiveEngine';
-import { JOSH_WOODWARD_SHOT_DOWN } from '../../data/songs';
 import { playbackSourceResolver } from './playbackSourceResolver';
 import { vocalRemovalService } from './vocalSeparation/vocalRemovalService';
 
@@ -28,7 +27,7 @@ export interface PlaybackControllerOptions {
   appleMusicProvider?: AppleMusicPlaybackProvider;
   html5Provider?: Html5AudioPlaybackProvider;
   youtubeProvider?: YouTubeIframePlaybackProvider;
-  initialTrack?: Song;
+  initialTrack?: Song | null;
   initialQueue?: Song[];
 }
 
@@ -81,13 +80,14 @@ export class PlaybackController {
     this.html5Provider.setClockListener(this.handleClockEvent);
     this.youtubeProvider.setClockListener(this.handleClockEvent);
 
-    // Initial track and queue setup
-    const initialTrack = options?.initialTrack || JOSH_WOODWARD_SHOT_DOWN;
+    // Initial track and queue setup - fresh launch starts empty (null)
+    const initialTrack = options?.initialTrack ?? null;
     this.currentTrack = initialTrack;
     this.queue = options?.initialQueue || (initialTrack ? [initialTrack] : []);
 
-    // Active provider defaults to Naro full-length provider for licensed reference tracks
-    this.activeProvider = this.naroFullLengthProvider;
+    // Active provider defaults to HTML5 Audio provider when no track is loaded,
+    // or NARO full length provider when an authorized track is provided
+    this.activeProvider = initialTrack ? this.selectProviderForSong(initialTrack) : this.html5Provider;
     this.syncActiveAudioElement();
 
     // Initial authoritative clock state
@@ -97,9 +97,9 @@ export class PlaybackController {
       bufferedTime: 0,
       isPlaying: false,
       state: 'idle',
-      playbackType: 'full',
-      playbackSourceType: initialTrack?.playbackSourceType || 'open-license',
-      providerId: this.activeProvider.id
+      playbackType: initialTrack?.playbackType || 'preview',
+      playbackSourceType: initialTrack?.playbackSourceType || 'preview',
+      providerId: this.activeProvider?.id || 'html5-audio'
     };
 
     // Listen for network loss
@@ -249,18 +249,43 @@ export class PlaybackController {
     this.syncActiveAudioElement();
   }
 
+  public pauseAllProvidersExcept(exceptProvider?: MusicPlaybackProvider | null): void {
+    const providers = [
+      this.naroFullLengthProvider,
+      this.appleMusicProvider,
+      this.html5Provider,
+      this.youtubeProvider
+    ];
+    for (const p of providers) {
+      if (p !== exceptProvider) {
+        try {
+          if (typeof p.pause === 'function') {
+            p.pause();
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
   /**
    * Switches to nextProvider, disposing the previous provider if replaced
    */
   private switchProvider(nextProvider: MusicPlaybackProvider): void {
     if (this.activeProvider && this.activeProvider !== nextProvider) {
-      if (typeof this.activeProvider.pause === 'function') {
-        this.activeProvider.pause();
-      }
-      if (typeof this.activeProvider.dispose === 'function') {
-        this.activeProvider.dispose();
+      try {
+        if (typeof this.activeProvider.pause === 'function') {
+          this.activeProvider.pause();
+        }
+        if (typeof this.activeProvider.dispose === 'function') {
+          this.activeProvider.dispose();
+        }
+      } catch (err) {
+        console.warn('Error disposing previous provider:', err);
       }
     }
+    this.pauseAllProvidersExcept(nextProvider);
     this.activeProvider = nextProvider;
     this.syncActiveAudioElement();
   }
@@ -390,6 +415,9 @@ export class PlaybackController {
   public async loadAndPlay(song: Song, startTime = 0): Promise<void> {
     const loadId = ++this.currentLoadId;
 
+    // Immediately pause all currently active playback so the previous track cannot continue audibly
+    this.pauseAllProvidersExcept();
+
     // If offline and trying to stream an online-only song
     if (
       !connectivityService.isOnline &&
@@ -413,6 +441,21 @@ export class PlaybackController {
     const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
     if (loadId !== this.currentLoadId) {
       console.warn('[PlaybackController] Stale track resolution ignored for:', song.id);
+      return;
+    }
+
+    // If the resolved song has no streamUrl, display honest error and never fall back to another track
+    if (!resolvedSong.playbackSource?.streamUrl) {
+      this.currentTrack = resolvedSong;
+      this.notifyTrackChanged();
+      this.handleClockEvent({
+        currentTime: 0,
+        duration: resolvedSong.duration,
+        bufferedTime: 0,
+        isPlaying: false,
+        state: 'error',
+        error: 'Playback unavailable: Audio source is not available for this track.'
+      });
       return;
     }
 
@@ -446,6 +489,11 @@ export class PlaybackController {
 
     try {
       await this.activeProvider?.load(resolvedSong, startTime);
+      if (loadId !== this.currentLoadId) {
+        console.warn('[PlaybackController] Stale load completed, ignoring play for:', song.id);
+        this.activeProvider?.pause();
+        return;
+      }
       await this.activeProvider?.play();
     } catch (err: unknown) {
       console.warn('PlaybackController error during loadAndPlay:', err);
@@ -473,14 +521,33 @@ export class PlaybackController {
 
   public async load(song: Song, startTime = 0): Promise<void> {
     const loadId = ++this.currentLoadId;
+
+    // Immediately pause all currently active playback so the previous track cannot continue audibly
+    this.pauseAllProvidersExcept();
+
     const resolvedSong = await playbackSourceResolver.resolvePlaybackSource(song);
     if (loadId !== this.currentLoadId) {
       console.warn('[PlaybackController] Stale track resolution ignored for:', song.id);
       return;
     }
+
     this.currentTrack = resolvedSong;
     this.addToQueue(resolvedSong);
     this.notifyTrackChanged();
+    this.isKaraokeActive = false;
+
+    if (!resolvedSong.playbackSource?.streamUrl) {
+      this.handleClockEvent({
+        currentTime: 0,
+        duration: resolvedSong.duration,
+        bufferedTime: 0,
+        isPlaying: false,
+        state: 'error',
+        error: 'Playback unavailable: Audio source is not available for this track.'
+      });
+      return;
+    }
+
     const provider = this.selectProviderForSong(resolvedSong);
     this.switchProvider(provider);
     this.activeProvider?.setVolume(this.volume);
@@ -488,6 +555,7 @@ export class PlaybackController {
   }
 
   public async play(): Promise<void> {
+    if (!this.currentTrack) return;
     if (this.activeProvider) {
       await this.activeProvider.play();
     }
@@ -500,23 +568,44 @@ export class PlaybackController {
   }
 
   public async togglePlay(fallbackSong?: Song): Promise<void> {
-    if (!this.currentTrack && fallbackSong) {
-      this.currentTrack = fallbackSong;
-      this.addToQueue(fallbackSong);
+    const targetSong = fallbackSong || this.currentTrack;
+    if (!targetSong) return;
+
+    // If targetSong is specified and differs from currentTrack, switch to targetSong immediately
+    if (this.currentTrack && targetSong.id !== this.currentTrack.id) {
+      await this.loadAndPlay(targetSong, 0);
+      return;
     }
-    if (!this.activeProvider || !this.currentTrack) return;
+
+    if (!this.currentTrack) {
+      this.currentTrack = targetSong;
+      this.addToQueue(targetSong);
+      this.notifyTrackChanged();
+    }
+
+    if (!this.activeProvider) {
+      const provider = this.selectProviderForSong(targetSong);
+      this.switchProvider(provider);
+    }
 
     if (this.currentClock.isPlaying) {
-      this.activeProvider.pause();
+      this.activeProvider?.pause();
     } else {
+      // Check if the current audio element actually has targetSong's stream loaded
+      const streamUrl = this.currentTrack?.playbackSource?.streamUrl;
+      const audio = this.getAudioElement();
+      const currentSrc = audio?.src || '';
+      const isMatchingSource = streamUrl && (currentSrc === streamUrl || currentSrc.endsWith(streamUrl));
+
       if (
+        !isMatchingSource ||
         this.currentClock.state === 'error' ||
         this.currentClock.state === 'idle' ||
         (this.currentClock.currentTime === 0 && !this.currentClock.isPlaying)
       ) {
         await this.loadAndPlay(this.currentTrack, this.currentClock.currentTime);
       } else {
-        await this.activeProvider.play();
+        await this.activeProvider?.play();
       }
     }
   }
@@ -666,6 +755,10 @@ export class PlaybackController {
 
   public isDspSupported(): boolean {
     return this.activeProvider?.capabilities.supportsWebAudioRouting ?? false;
+  }
+
+  public getActiveDspDescription(): string {
+    return karaokeMixer.getActiveDspDescription();
   }
 
   // =========================================================================

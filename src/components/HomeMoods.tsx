@@ -9,11 +9,16 @@ import {
   Sun,
   Navigation,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Dumbbell,
+  Umbrella,
+  Trophy,
+  Sparkles
 } from 'lucide-react';
 import { MusicCard } from './MusicCard';
 import { getMoodCatalog, type MoodId } from '../data/moodCatalog';
 import type { Song } from '../types/music';
+import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 import './HomeMoods.css';
 
 export type MoodType = MoodId;
@@ -109,6 +114,46 @@ const MOODS: MoodConfig[] = [
     gradient: 'radial-gradient(ellipse at top left, rgba(249, 115, 22, 0.16) 0%, rgba(32, 18, 14, 0.5) 60%, transparent 100%)',
     atmosphereClass: 'mood-road-trip',
     description: 'Driving acoustic guitars, open highways, and cinematic anthems ready to sing along.'
+  },
+  {
+    id: 'Workout',
+    label: 'Workout',
+    tagline: 'High-BPM kinetic drive for maximum performance',
+    icon: <Dumbbell size={18} />,
+    accentColor: '#EF4444',
+    gradient: 'radial-gradient(ellipse at top left, rgba(239, 68, 68, 0.20) 0%, rgba(35, 12, 12, 0.5) 60%, transparent 100%)',
+    atmosphereClass: 'mood-workout',
+    description: 'Pumping adrenaline, high-cadence cardio beats, and relentless gym anthems spanning South Asian and international sounds.'
+  },
+  {
+    id: 'Rainy Day',
+    label: 'Rainy Day',
+    tagline: 'Petrichor, cozy acoustics, and reflective warmth',
+    icon: <Umbrella size={18} />,
+    accentColor: '#38BDF8',
+    gradient: 'radial-gradient(ellipse at top left, rgba(56, 189, 248, 0.18) 0%, rgba(12, 28, 40, 0.5) 60%, transparent 100%)',
+    atmosphereClass: 'mood-rainy-day',
+    description: 'Gentle monsoon melodies, soothing strings, and comforting acoustic ballads for quiet introspection.'
+  },
+  {
+    id: 'Motivation',
+    label: 'Motivation',
+    tagline: 'Triumphant anthems to overcome every hurdle',
+    icon: <Trophy size={18} />,
+    accentColor: '#F59E0B',
+    gradient: 'radial-gradient(ellipse at top left, rgba(245, 158, 11, 0.20) 0%, rgba(38, 24, 10, 0.5) 60%, transparent 100%)',
+    atmosphereClass: 'mood-motivation',
+    description: 'Empowering orchestrals, uplifting lyrical poetry, and victorious beats engineered to fuel your ambition.'
+  },
+  {
+    id: 'Nostalgic Classics',
+    label: 'Nostalgic Classics',
+    tagline: 'Golden vinyl memories and timeless legends',
+    icon: <Sparkles size={18} />,
+    accentColor: '#FBBF24',
+    gradient: 'radial-gradient(ellipse at top left, rgba(251, 191, 36, 0.18) 0%, rgba(36, 26, 12, 0.5) 60%, transparent 100%)',
+    atmosphereClass: 'mood-nostalgic-classics',
+    description: 'Evergreen 70s-90s vintage masterpieces from legendary Indian cinema and global golden eras.'
   }
 ];
 
@@ -127,6 +172,13 @@ export const HomeMoods: React.FC<HomeMoodsProps> = ({ title = 'MOODS', id = 'hom
   const activeMoodSongs = useMemo<Song[]>(() => {
     return getMoodCatalog(activeMood);
   }, [activeMood]);
+
+  // Pre-resolve lyrics for visible mood songs in background
+  useEffect(() => {
+    if (activeMoodSongs.length > 0) {
+      lyricsPipelineService.preResolveTracks(activeMoodSongs.slice(0, 10));
+    }
+  }, [activeMoodSongs]);
 
   // Unique languages represented in this active mood
   const activeLanguagesCount = useMemo(() => {

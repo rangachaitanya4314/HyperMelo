@@ -255,7 +255,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
       this.audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
     }
 
-    if (typeof window === 'undefined' || typeof Audio === 'undefined' || this.audio.readyState >= 2) {
+    if (typeof window === 'undefined' || typeof Audio === 'undefined') {
       this.state = 'ready';
       this.emitClock();
       return;
@@ -288,6 +288,14 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
       this.audio.addEventListener('canplay', onCanPlay, { once: true });
       this.audio.addEventListener('error', onError, { once: true });
       this.audio.load();
+
+      if (this.audio.readyState >= 2) {
+        cleanup();
+        this.state = 'ready';
+        this.emitClock();
+        resolve();
+        return;
+      }
 
       setTimeout(() => {
         if (!isResolved) {
@@ -389,8 +397,15 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
     this.stopClockPoll();
     this.pause();
     if (this.audio) {
-      this.audio.src = '';
+      try {
+        this.audio.pause();
+        this.audio.removeAttribute('src');
+        this.audio.load();
+      } catch {
+        this.audio.src = '';
+      }
     }
+    this.currentSong = null;
     this.state = 'idle';
   }
 

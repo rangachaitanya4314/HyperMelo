@@ -1,7 +1,7 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
-import { NaroLogo } from './NaroLogo';
+import { HyperMeloLogo } from './HyperMeloLogo';
 
 interface FooterProps {
   onReplayIntro: () => void;
@@ -38,24 +38,19 @@ export const Footer: React.FC<FooterProps> = ({ onReplayIntro }) => {
           }}
         >
           {/* Brand info */}
-          <div style={{ maxWidth: '380px' }}>
-            <div style={{ marginBottom: '8px' }}>
-              <NaroLogo
-                variant="compact"
-                showSpectrum={true}
-                showTagline={false}
-                onClick={() => {
-                  setCurrentView('home');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            </div>
+          <div style={{ maxWidth: '380px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <HyperMeloLogo
+              variant="footer"
+              showSpectrum={true}
+              showTagline={true}
+              showMonogram={true}
+              onClick={() => {
+                setCurrentView('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+            />
 
-            <p className="font-editorial" style={{ fontStyle: 'italic', fontSize: '1.2rem', color: 'var(--accent-cream)', margin: '0 0 10px 0' }}>
-              Feel It. Make It.
-            </p>
-
-            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+            <p style={{ fontSize: '0.86rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: '16px 0 0 0' }}>
               "Don't sing the whole song. Sing the moment." Discover, listen, and sing specific sections across English, Hindi, and Telugu.
             </p>
           </div>
@@ -133,7 +128,7 @@ export const Footer: React.FC<FooterProps> = ({ onReplayIntro }) => {
           }}
         >
           <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>
-            © 2026 NARO. Crafted for intimate audio moments.
+            © 2026 HyperMelo. Crafted for intimate audio moments.
           </div>
 
           <button

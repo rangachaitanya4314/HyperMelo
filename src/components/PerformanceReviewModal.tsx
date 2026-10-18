@@ -31,7 +31,7 @@ export const PerformanceReviewModal: React.FC = () => {
       return;
     }
 
-    const backingStream = currentSong.karaokeSource?.streamUrl || currentSong.playbackSource?.streamUrl;
+    const backingStream = currentSong?.karaokeSource?.streamUrl || currentSong?.playbackSource?.streamUrl;
     const initialOffset = (recordedTake as any).startTime || 0;
 
     takePlaybackService.initReviewSession(recordedTake, backingStream, initialOffset);

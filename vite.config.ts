@@ -16,6 +16,15 @@ export default defineConfig({
           'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'cookie': 'DL=english'
         }
+      },
+      '/api/netease': {
+        target: 'https://music.163.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/netease/, ''),
+        headers: {
+          'referer': 'https://music.163.com',
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
       }
     },
     watch: {

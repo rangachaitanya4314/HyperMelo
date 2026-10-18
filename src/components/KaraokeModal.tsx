@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { X, Sparkles, Music, AlertCircle, Loader2, Play, Volume2, Mic, MicOff } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
@@ -6,8 +6,8 @@ import { capabilityService } from '../services/capability/capabilityService';
 import { lyricsService } from '../services/lyrics/lyricsService';
 import { WaveformTimeline } from './WaveformTimeline';
 import type { TimedLyricLine } from '../types/music';
-import { SUPPORTED_LANGUAGES } from '../types/music';
 import { vocalRemovalService } from '../services/audio/vocalSeparation/vocalRemovalService';
+import { getKaraokeLyricLine } from '../shared/lyrics';
 
 export const KaraokeModal: React.FC = () => {
   const {
@@ -16,9 +16,8 @@ export const KaraokeModal: React.FC = () => {
     currentSong,
     selectedSection,
     setSelectedSection,
-    activeLanguage,
-    setActiveLanguage,
-    setDisplayLanguage,
+    karaokeScriptPreference,
+    setKaraokeScriptPreference,
     startKaraokeRecording,
     playSong,
     bgmVolume,
@@ -27,7 +26,8 @@ export const KaraokeModal: React.FC = () => {
     setVoiceVolume,
     isMicEnabled,
     toggleMic,
-    seekTo
+    seekTo,
+    lyricsRevision
   } = useAudioPlayer();
 
   const capabilities = capabilityService.evaluate(currentSong);
@@ -40,6 +40,16 @@ export const KaraokeModal: React.FC = () => {
   );
 
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(-1);
+
+  const currentLines = useMemo(
+    () => lyricsService.getCanonicalLyricLines(currentSong),
+    [currentSong, lyricsRevision]
+  );
+  const lyricsCapability = useMemo(
+    () => lyricsService.getLyricsCapability(currentSong),
+    [currentSong, lyricsRevision]
+  );
+  const isSyncedLyrics = lyricsCapability === 'SYNCED_LYRICS' && currentLines.length > 0;
 
   // Close on Escape key
   useEffect(() => {
@@ -54,7 +64,7 @@ export const KaraokeModal: React.FC = () => {
 
   // Backing audio verification before allowing recording
   useEffect(() => {
-    if (!karaokeModalOpen) return;
+    if (!karaokeModalOpen || !currentSong) return;
 
     if (!isKaraokeEligible) {
       setBackingStatus('unavailable');
@@ -81,6 +91,24 @@ export const KaraokeModal: React.FC = () => {
 
   if (!karaokeModalOpen) return null;
 
+  if (!currentSong) {
+    return (
+      <div className="karaoke-modal-backdrop" onClick={closeKaraokeModal}>
+        <div className="karaoke-modal glass-panel" onClick={(e) => e.stopPropagation()}>
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <h2>No track selected</h2>
+            <p style={{ marginTop: '8px', color: 'var(--text-muted)' }}>
+              Please select a track before opening Karaoke studio.
+            </p>
+            <button className="btn-primary" onClick={closeKaraokeModal} style={{ marginTop: '20px' }}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -89,9 +117,6 @@ export const KaraokeModal: React.FC = () => {
 
 
 
-  const currentLines = lyricsService.getCanonicalLyricLines(currentSong);
-  const lyricsCapability = lyricsService.getLyricsCapability(currentSong);
-  const isSyncedLyrics = lyricsCapability === 'SYNCED_LYRICS' && currentLines.length > 0;
   const currentSnippet = currentSong.lyrics?.en?.chorusSnippet || currentSong.title;
 
   // Active or selected line
@@ -100,7 +125,7 @@ export const KaraokeModal: React.FC = () => {
     return t >= selectedSection.start && t <= selectedSection.end;
   }) || currentLines[0];
 
-  const sectionTranslation = activeLine ? lyricsService.getLineTranslation(activeLine, activeLanguage) : null;
+  const activeKaraoke = activeLine ? getKaraokeLyricLine(activeLine, karaokeScriptPreference) : null;
 
   // Click on a synchronized lyric line -> Seek playhead & set as starting line
   const handleLyricLineClick = (line: TimedLyricLine, index: number) => {
@@ -365,41 +390,68 @@ export const KaraokeModal: React.FC = () => {
               {isSyncedLyrics ? 'Tap any lyric line to start singing from that exact moment:' : 'Timeline Navigation:'}
             </span>
 
-            {/* Language Selector */}
+            {/* Karaoke Writing-System Selector: Native Script vs Roman Transliteration */}
             <div
               className="glass-pill"
               role="radiogroup"
-              aria-label="Karaoke modal language selection"
-              style={{ display: 'inline-flex', padding: '3px', gap: '4px' }}
+              aria-label="Karaoke writing system selection"
+              id="karaoke-script-selector"
+              data-testid="karaoke-script-selector"
+              style={{
+                display: 'inline-flex',
+                padding: '2px',
+                gap: '2px',
+                backgroundColor: 'rgba(244, 240, 235, 0.04)',
+                borderRadius: 'var(--radius-full)',
+                border: '1px solid rgba(244, 240, 235, 0.1)'
+              }}
             >
-              {SUPPORTED_LANGUAGES.map((lang) => {
-                const isSelected = activeLanguage === lang.code;
-                return (
-                  <button
-                    key={lang.code}
-                    role="radio"
-                    aria-checked={isSelected}
-                    onClick={() => {
-                      setActiveLanguage(lang.code);
-                      setDisplayLanguage(lang.code);
-                    }}
-                    style={{
-                      background: isSelected ? 'rgba(231, 165, 141, 0.25)' : 'transparent',
-                      color: isSelected ? 'var(--accent-cream)' : 'var(--text-muted)',
-                      border: isSelected ? '1px solid var(--border-warm)' : 'none',
-                      padding: '4px 12px',
-                      borderRadius: 'var(--radius-full)',
-                      fontSize: '0.8rem',
-                      fontWeight: isSelected ? 600 : 400,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                    title={lang.nativeLabel}
-                  >
-                    {lang.code === 'en' ? 'English' : lang.nativeLabel}
-                  </button>
-                );
-              })}
+              <button
+                type="button"
+                id="karaoke-script-native"
+                data-testid="karaoke-script-native"
+                role="radio"
+                aria-checked={karaokeScriptPreference === 'native'}
+                data-selected={karaokeScriptPreference === 'native' ? 'true' : 'false'}
+                className={karaokeScriptPreference === 'native' ? 'active' : ''}
+                onClick={() => setKaraokeScriptPreference('native')}
+                style={{
+                  background: karaokeScriptPreference === 'native' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
+                  color: karaokeScriptPreference === 'native' ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.55)',
+                  border: karaokeScriptPreference === 'native' ? '1px solid rgba(231, 165, 141, 0.4)' : '1px solid transparent',
+                  padding: '4px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.78rem',
+                  fontWeight: karaokeScriptPreference === 'native' ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Native Script
+              </button>
+              <button
+                type="button"
+                id="karaoke-script-transliteration"
+                data-testid="karaoke-script-transliteration"
+                role="radio"
+                aria-checked={karaokeScriptPreference === 'transliteration'}
+                data-selected={karaokeScriptPreference === 'transliteration' ? 'true' : 'false'}
+                className={karaokeScriptPreference === 'transliteration' ? 'active' : ''}
+                onClick={() => setKaraokeScriptPreference('transliteration')}
+                style={{
+                  background: karaokeScriptPreference === 'transliteration' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
+                  color: karaokeScriptPreference === 'transliteration' ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.55)',
+                  border: karaokeScriptPreference === 'transliteration' ? '1px solid rgba(231, 165, 141, 0.4)' : '1px solid transparent',
+                  padding: '4px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.78rem',
+                  fontWeight: karaokeScriptPreference === 'transliteration' ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Roman Transliteration
+              </button>
             </div>
           </div>
 
@@ -425,11 +477,12 @@ export const KaraokeModal: React.FC = () => {
                 const isSelected =
                   selectedLineIndex === idx ||
                   (selectedLineIndex === -1 && Math.abs(selectedSection.start - lineTime) < 2);
-                const translation = lyricsService.getLineTranslation(line, activeLanguage);
+                const karaokeLine = getKaraokeLyricLine(line, karaokeScriptPreference);
 
                 return (
                   <div
                     key={idx}
+                    id={`karaoke-lyric-${idx}`}
                     data-testid="karaoke-lyric-line"
                     role="button"
                     tabIndex={0}
@@ -451,15 +504,33 @@ export const KaraokeModal: React.FC = () => {
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: '0.94rem',
-                        color: isSelected ? 'var(--accent-cream)' : 'var(--text-primary)',
-                        fontWeight: isSelected ? 600 : 400
-                      }}
-                    >
-                      {translation.text}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <span
+                        data-testid="karaoke-sung-text"
+                        style={{
+                          fontSize: '0.94rem',
+                          color: isSelected ? 'var(--accent-cream)' : 'var(--text-primary)',
+                          fontWeight: isSelected ? 600 : 400
+                        }}
+                      >
+                        {karaokeLine.text}
+                      </span>
+                      {karaokeScriptPreference === 'transliteration' && !karaokeLine.isAvailable && (
+                        <span
+                          data-testid="karaoke-transliteration-unavailable"
+                          style={{
+                            fontSize: '0.66rem',
+                            color: '#F87171',
+                            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            borderRadius: '4px',
+                            padding: '1px 6px'
+                          }}
+                        >
+                          Transliteration unavailable
+                        </span>
+                      )}
+                    </div>
 
                     <span
                       style={{
@@ -513,7 +584,7 @@ export const KaraokeModal: React.FC = () => {
             </div>
           )}
 
-          {/* Translated Lyric Preview Box */}
+          {/* Sung Lyric Preview Box */}
           <div
             data-testid="karaoke-section-snippet"
             style={{
@@ -525,7 +596,7 @@ export const KaraokeModal: React.FC = () => {
             }}
           >
             <div style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Lyrics for this moment
+              Sung Lyrics for this moment ({karaokeScriptPreference === 'transliteration' ? 'Roman Transliteration' : 'Native Script'})
             </div>
             <p
               className="serif-italic"
@@ -536,8 +607,13 @@ export const KaraokeModal: React.FC = () => {
                 lineHeight: 1.3
               }}
             >
-              &ldquo;{sectionTranslation ? sectionTranslation.text : (activeLine ? activeLine.text : currentSnippet)}&rdquo;
+              &ldquo;{activeKaraoke ? activeKaraoke.text : (activeLine ? activeLine.text : currentSnippet)}&rdquo;
             </p>
+            {karaokeScriptPreference === 'transliteration' && activeKaraoke && !activeKaraoke.isAvailable && (
+              <div style={{ fontSize: '0.72rem', color: '#F87171', marginTop: '4px' }}>
+                [Roman transliteration unavailable for this line — displaying native script]
+              </div>
+            )}
           </div>
         </div>
 
