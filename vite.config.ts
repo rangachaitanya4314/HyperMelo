@@ -33,6 +33,8 @@ export default defineConfig({
   },
   preview: {
     allowedHosts: [
+      'hypermelo.app',
+      'www.hypermelo.app',
       'naro-bf5m.onrender.com',
       'naro.onrender.com'
     ]
