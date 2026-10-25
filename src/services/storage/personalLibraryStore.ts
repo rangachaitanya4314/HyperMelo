@@ -10,6 +10,7 @@ export interface User {
   email: string;
   avatar?: string;
   createdAt: number;
+  provider?: 'local' | 'google';
 }
 
 export interface Playlist {
@@ -169,35 +170,57 @@ class PersonalLibraryStore {
   // DOWNLOADED MUSIC
   // =========================================================================
 
-  public getDownloadedSongs(): Song[] {
-    if (typeof window === 'undefined') return [];
+  public getDownloadedSongs(userId?: string): Song[] {
+    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof window !== 'undefined' ? window.localStorage : null);
+    if (!storage) return [];
     try {
-      const raw = localStorage.getItem('naro_downloaded_songs');
+      const key = this.getStorageKey('downloaded_songs', userId);
+      let raw = storage.getItem(key);
+
+      // Migration: If no partitioned downloads exist yet, inherit legacy unpartitioned downloads
+      if (!raw) {
+        const legacyRaw = storage.getItem('naro_downloaded_songs');
+        if (legacyRaw) {
+          try {
+            const parsedLegacy = JSON.parse(legacyRaw);
+            if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+              storage.setItem(key, legacyRaw);
+              raw = legacyRaw;
+            }
+          } catch {
+            // Ignore corrupted legacy data
+          }
+        }
+      }
       return raw ? JSON.parse(raw) : [];
     } catch {
       return [];
     }
   }
 
-  public addDownloadedSong(song: Song): void {
-    if (typeof window === 'undefined' || !song) return;
+  public addDownloadedSong(song: Song, userId?: string): void {
+    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof window !== 'undefined' ? window.localStorage : null);
+    if (!storage || !song) return;
     try {
-      const current = this.getDownloadedSongs();
+      const current = this.getDownloadedSongs(userId);
       if (!current.some((s) => s.id === song.id)) {
         const updated = [song, ...current];
-        localStorage.setItem('naro_downloaded_songs', JSON.stringify(updated));
+        const key = this.getStorageKey('downloaded_songs', userId);
+        storage.setItem(key, JSON.stringify(updated));
       }
     } catch (err) {
       console.warn('[PersonalLibraryStore] Error adding downloaded song:', err);
     }
   }
 
-  public removeDownloadedSong(songId: string): void {
-    if (typeof window === 'undefined') return;
+  public removeDownloadedSong(songId: string, userId?: string): void {
+    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof window !== 'undefined' ? window.localStorage : null);
+    if (!storage) return;
     try {
-      const current = this.getDownloadedSongs();
+      const current = this.getDownloadedSongs(userId);
       const updated = current.filter((s) => s.id !== songId);
-      localStorage.setItem('naro_downloaded_songs', JSON.stringify(updated));
+      const key = this.getStorageKey('downloaded_songs', userId);
+      storage.setItem(key, JSON.stringify(updated));
     } catch (err) {
       console.warn('[PersonalLibraryStore] Error removing downloaded song:', err);
     }
@@ -208,13 +231,16 @@ class PersonalLibraryStore {
   // =========================================================================
 
   public migrateGuestDataToUser(userId: string): void {
-    if (typeof window === 'undefined') return;
+    const storage = typeof localStorage !== 'undefined' ? localStorage : (typeof window !== 'undefined' ? window.localStorage : null);
+    if (!storage || !userId) return;
     try {
+      // 1. Migrate Likes
       const guestLikes = this.getLikedSongIds();
       const userLikes = this.getLikedSongIds(userId);
       const mergedLikes = Array.from(new Set([...userLikes, ...guestLikes]));
-      localStorage.setItem(this.getStorageKey('liked_songs', userId), JSON.stringify(mergedLikes));
+      storage.setItem(this.getStorageKey('liked_songs', userId), JSON.stringify(mergedLikes));
 
+      // 2. Migrate Playlists
       const guestPlaylists = this.getPlaylists();
       const userPlaylists = this.getPlaylists(userId);
       const mergedPlaylists = [...userPlaylists];
@@ -223,7 +249,18 @@ class PersonalLibraryStore {
           mergedPlaylists.push({ ...gp, userId });
         }
       }
-      localStorage.setItem(this.getStorageKey('playlists', userId), JSON.stringify(mergedPlaylists));
+      storage.setItem(this.getStorageKey('playlists', userId), JSON.stringify(mergedPlaylists));
+
+      // 3. Migrate Downloaded Songs
+      const guestDownloads = this.getDownloadedSongs();
+      const userDownloads = this.getDownloadedSongs(userId);
+      const mergedDownloads = [...userDownloads];
+      for (const gd of guestDownloads) {
+        if (!mergedDownloads.some((s) => s.id === gd.id)) {
+          mergedDownloads.push(gd);
+        }
+      }
+      storage.setItem(this.getStorageKey('downloaded_songs', userId), JSON.stringify(mergedDownloads));
     } catch (err) {
       console.warn('[PersonalLibraryStore] Guest data migration warning:', err);
     }

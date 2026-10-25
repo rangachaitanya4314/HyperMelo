@@ -7,7 +7,7 @@ import { karaokePlaybackService } from '../services/audio/karaokePlaybackService
 import { connectivityService } from '../services/connectivity/connectivityService';
 import { userLibraryService } from '../backend/services/UserLibraryService';
 import { lyricsService } from '../services/lyrics/lyricsService';
-import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
+import { lyricsPipelineService, getCanonicalTrackKey, type TrackLyricsResolution } from '../services/lyrics/lyricsPipelineService';
 import { personalLibraryStore, type User, type Playlist, type RecentlyPlayedItem } from '../services/storage/personalLibraryStore';
 import { authService } from '../services/auth/authService';
 import type { SoundMode, SoundPreset } from '../services/audio/naroImmersiveEngine';
@@ -41,6 +41,11 @@ interface AudioPlayerContextType {
   sourceLanguage: string;
   selectedLanguage: Language;
   lyricsRevision: number;
+
+  // Real-time Lyrics Resolution State
+  lyricsResolution: TrackLyricsResolution | undefined;
+  isResolvingLyrics: boolean;
+  retryLyricsResolution: () => Promise<TrackLyricsResolution | undefined>;
 
   // Dual-Mode Synchronized Lyrics Preferences
   karaokeScriptPreference: KaraokeScriptMode;
@@ -263,6 +268,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setLikedSongIds(personalLibraryStore.getLikedSongIds());
     setPlaylists(personalLibraryStore.getPlaylists());
     setRecentlyPlayed(personalLibraryStore.getRecentlyPlayed());
+    setDownloadedSongs(personalLibraryStore.getDownloadedSongs());
   }, []);
 
   // Subscribe to auth service session updates
@@ -273,6 +279,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setLikedSongIds(personalLibraryStore.getLikedSongIds(uid));
       setPlaylists(personalLibraryStore.getPlaylists(uid));
       setRecentlyPlayed(personalLibraryStore.getRecentlyPlayed(uid));
+      setDownloadedSongs(personalLibraryStore.getDownloadedSongs(uid));
     });
     return unsub;
   }, []);
@@ -291,7 +298,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 
   const [downloadedSongs, setDownloadedSongs] = useState<Song[]>(() =>
-    personalLibraryStore.getDownloadedSongs()
+    personalLibraryStore.getDownloadedSongs(authService.getCurrentUser()?.id)
   );
 
   // Add to Playlist modal state
@@ -411,8 +418,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 
   const downloadSong = useCallback((song: Song) => {
-    personalLibraryStore.addDownloadedSong(song);
-    setDownloadedSongs(personalLibraryStore.getDownloadedSongs());
+    const uid = authService.getCurrentUser()?.id;
+    personalLibraryStore.addDownloadedSong(song, uid);
+    setDownloadedSongs(personalLibraryStore.getDownloadedSongs(uid));
   }, []);
 
   const isSongDownloaded = useCallback(
@@ -459,6 +467,61 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return unsub;
   }, []);
 
+  // Real-time Lyrics Resolution State
+  const [lyricsResolution, setLyricsResolution] = useState<TrackLyricsResolution | undefined>(() =>
+    lyricsPipelineService.getResolutionStatus(currentSong)
+  );
+  const [isResolvingLyrics, setIsResolvingLyrics] = useState<boolean>(() =>
+    lyricsPipelineService.isResolving(currentSong)
+  );
+
+  // Subscribe to shared lyrics pipeline updates for current song
+  useEffect(() => {
+    if (!currentSong) {
+      setLyricsResolution(undefined);
+      setIsResolvingLyrics(false);
+      return;
+    }
+    const currentKey = getCanonicalTrackKey(currentSong);
+    const unsub = lyricsPipelineService.subscribe((res) => {
+      if (res.trackId === currentSong.id || res.canonicalKey === currentKey) {
+        setLyricsResolution(res);
+        setIsResolvingLyrics(res.outcome === 'PENDING');
+      }
+    });
+    return unsub;
+  }, [currentSong?.id]);
+
+  const retryLyricsResolution = useCallback(async () => {
+    if (!currentSong) return undefined;
+    setIsResolvingLyrics(true);
+    try {
+      const res = await lyricsPipelineService.resolveTrack(currentSong, true);
+      setLyricsResolution(res);
+      if (
+        res.outcome === 'SYNCED_VERIFIED' ||
+        res.outcome === 'SYNCHRONIZED' ||
+        res.outcome === 'PLAIN_VERIFIED' ||
+        res.outcome === 'VERIFIED_UNTIMED'
+      ) {
+        setCurrentSong((prev) =>
+          prev && prev.id === currentSong.id
+            ? {
+                ...prev,
+                lyrics: currentSong.lyrics ? { ...currentSong.lyrics } : prev.lyrics,
+                lyricsAvailable: true,
+                lyricsSyncAvailable: res.hasSyncedLyrics
+              }
+            : prev
+        );
+      }
+      setLyricsRevision((r) => r + 1);
+      return res;
+    } finally {
+      setIsResolvingLyrics(false);
+    }
+  }, [currentSong]);
+
   // Recalculate default lyrics language when song changes, resolve canonical lyrics & synchronize PlaybackController
   useEffect(() => {
     if (!currentSong) return;
@@ -486,23 +549,37 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     // Asynchronously resolve lyrics via shared lyrics pipeline, checking for stale track
     const targetSongId = currentSong.id;
-    lyricsPipelineService.resolveTrack(currentSong).then((res) => {
-      if (prevSongIdRef.current === targetSongId) {
-        if (res.outcome === 'SYNCHRONIZED' || res.outcome === 'VERIFIED_UNTIMED') {
-          setCurrentSong((prev) =>
-            prev && prev.id === targetSongId
-              ? {
-                  ...prev,
-                  lyrics: currentSong.lyrics ? { ...currentSong.lyrics } : prev.lyrics,
-                  lyricsAvailable: true,
-                  lyricsSyncAvailable: res.hasSyncedLyrics
-                }
-              : prev
-          );
+    setIsResolvingLyrics(true);
+    lyricsPipelineService
+      .resolveTrack(currentSong)
+      .then((res) => {
+        if (prevSongIdRef.current === targetSongId) {
+          setLyricsResolution(res);
+          setIsResolvingLyrics(false);
+          if (
+            res.outcome === 'SYNCED_VERIFIED' ||
+            res.outcome === 'SYNCHRONIZED' ||
+            res.outcome === 'PLAIN_VERIFIED' ||
+            res.outcome === 'VERIFIED_UNTIMED'
+          ) {
+            setCurrentSong((prev) =>
+              prev && prev.id === targetSongId
+                ? {
+                    ...prev,
+                    lyrics: currentSong.lyrics ? { ...currentSong.lyrics } : prev.lyrics,
+                    lyricsAvailable: true,
+                    lyricsSyncAvailable: res.hasSyncedLyrics
+                  }
+                : prev
+            );
+          }
+          setLyricsRevision((prev) => prev + 1);
         }
-        setLyricsRevision((prev) => prev + 1);
-      }
-    });
+      })
+      .catch((err) => {
+        console.warn('Lyrics resolution notice:', err);
+        setIsResolvingLyrics(false);
+      });
   }, [currentSong?.id]);
 
   // Central playback clock states
@@ -641,6 +718,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [currentSong, songs, playSong]);
 
   const seekTo = useCallback((time: number) => {
+    setCurrentTime(time);
     playbackController.seek(time);
   }, []);
 
@@ -781,13 +859,25 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (targetSong && targetSong.id !== currentSong?.id) {
       setCurrentSong(targetSong);
     }
+    const resolvedSection: SongSection = section || targetSong?.sections?.find((s) => s.type === 'chorus') || targetSong?.sections?.[0] || {
+      type: 'verse',
+      label: 'Verse 1',
+      start: 0,
+      end: Math.min(targetSong?.duration || 255, 45)
+    };
+    setSelectedSectionState(resolvedSection);
+
     if (targetSong) {
-      playbackController.load(targetSong, section?.start || 0).catch((err) => {
+      playbackController.load(targetSong, resolvedSection.start).catch((err) => {
         console.warn('openKaraokeForSong load notice:', err);
       });
-    }
-    if (section) {
-      setSelectedSectionState(section);
+      lyricsPipelineService.resolveTrack(targetSong).then((res) => {
+        if (res.outcome === 'SYNCHRONIZED' || res.outcome === 'VERIFIED_UNTIMED') {
+          setLyricsRevision((r) => r + 1);
+        }
+      }).catch((e) => {
+        console.warn('[AudioPlayer] Pre-fetch lyrics notice in openKaraokeForSong:', e);
+      });
     }
     setKaraokeModalOpen(true);
   }, [currentSong]);
@@ -1144,7 +1234,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsLoopingSection,
         setAccountModalOpen,
         refreshLibrary,
-        addSongToCatalog
+        addSongToCatalog,
+        lyricsResolution,
+        isResolvingLyrics,
+        retryLyricsResolution
       }}
     >
       {children}

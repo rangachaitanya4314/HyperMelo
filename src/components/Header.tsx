@@ -319,7 +319,7 @@ export const Header: React.FC = () => {
                 transition: 'all 0.2s ease',
                 touchAction: 'manipulation'
               }}
-              title={isAuthenticated ? currentUser?.name || 'Account' : 'Sign in to NARO'}
+              title={isAuthenticated ? currentUser?.name || 'Account' : 'Sign in to HyperMelo'}
               aria-label={isAuthenticated ? currentUser?.name || 'Account profile' : 'Sign In'}
             >
               <div
