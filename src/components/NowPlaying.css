@@ -571,3 +571,20 @@
     min-height: 48px;
   }
 }
+
+/* =========================================================================
+   ACCESSIBILITY: PREFERS-REDUCED-MOTION
+   Disables layout scale shifts, pulse animations, and ensures instantaneous transitions
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  #naro-now-playing,
+  .now-playing-lyrics-scroller,
+  .now-playing-minimize-btn,
+  .now-playing-play-btn,
+  [data-testid^="lyric-line"],
+  [data-testid="active-lyric-line"] {
+    animation: none !important;
+    transition: opacity 0.15s ease !important;
+    transform: none !important;
+  }
+}

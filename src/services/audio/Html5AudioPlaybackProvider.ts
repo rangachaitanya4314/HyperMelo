@@ -320,7 +320,7 @@ export class Html5AudioPlaybackProvider implements MusicPlaybackProvider {
 
   public seek(time: number): void {
     const duration = this.getDuration();
-    const clamped = Math.max(0, Math.min(duration, time));
+    const clamped = duration > 0 ? Math.max(0, Math.min(duration, time)) : Math.max(0, time);
     try {
       this.audio.currentTime = clamped;
     } catch {

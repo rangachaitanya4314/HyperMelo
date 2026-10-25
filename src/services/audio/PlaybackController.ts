@@ -290,7 +290,7 @@ export class PlaybackController {
     this.syncActiveAudioElement();
   }
 
-  private syncActiveAudioElement(): void {
+  private syncActiveAudioElement(): boolean {
     const isSupported = this.activeProvider?.capabilities.supportsWebAudioRouting ?? false;
     karaokeMixer.setDspSupported(isSupported);
 
@@ -298,9 +298,10 @@ export class PlaybackController {
       const audio = (this.activeProvider as unknown as { getAudioElement(): HTMLAudioElement }).getAudioElement();
       if (audio) {
         (window as unknown as { __naro_audio?: HTMLAudioElement }).__naro_audio = audio;
-        karaokeMixer.connectAudioElement(audio);
+        return isSupported && karaokeMixer.connectAudioElement(audio);
       }
     }
+    return false;
   }
 
   public getAudioElement(): HTMLAudioElement | null {
@@ -462,7 +463,7 @@ export class PlaybackController {
     this.currentTrack = resolvedSong;
     this.addToQueue(resolvedSong);
     this.notifyTrackChanged();
-    this.isKaraokeActive = false;
+    const preserveKaraoke = this.isKaraokeActive;
 
     const provider = this.selectProviderForSong(resolvedSong);
 
@@ -493,6 +494,9 @@ export class PlaybackController {
         console.warn('[PlaybackController] Stale load completed, ignoring play for:', song.id);
         this.activeProvider?.pause();
         return;
+      }
+      if (preserveKaraoke) {
+        this.setKaraokeMode(true, startTime);
       }
       await this.activeProvider?.play();
     } catch (err: unknown) {
@@ -534,7 +538,7 @@ export class PlaybackController {
     this.currentTrack = resolvedSong;
     this.addToQueue(resolvedSong);
     this.notifyTrackChanged();
-    this.isKaraokeActive = false;
+    const preserveKaraoke = this.isKaraokeActive;
 
     if (!resolvedSong.playbackSource?.streamUrl) {
       this.handleClockEvent({
@@ -552,6 +556,9 @@ export class PlaybackController {
     this.switchProvider(provider);
     this.activeProvider?.setVolume(this.volume);
     await this.activeProvider?.load(resolvedSong, startTime);
+    if (preserveKaraoke) {
+      this.setKaraokeMode(true, startTime);
+    }
   }
 
   public async play(): Promise<void> {
@@ -671,6 +678,14 @@ export class PlaybackController {
 
   public setKaraokeMode(enabled: boolean, seekTime?: number): void {
     this.isKaraokeActive = enabled;
+    const audio = this.getAudioElement();
+    const supportsWebAudio = this.activeProvider?.capabilities.supportsWebAudioRouting ?? false;
+    const audioRouteConnected = this.syncActiveAudioElement() || (supportsWebAudio && karaokeMixer.isAudioRouteConnected(audio));
+
+    if (enabled) {
+      karaokeMixer.resumeContext().catch(() => {});
+    }
+
     if (!this.currentTrack) return;
 
     const resolution = vocalRemovalService.resolveMethod(this.currentTrack);
@@ -700,7 +715,7 @@ export class PlaybackController {
       );
       // Lead vocal is already absent from the backing track asset, so bypass center-channel cancellation
       karaokeMixer.setKaraokeMode(false);
-    } else if (resolution.type === 'center_channel_reduction') {
+    } else if (resolution.type === 'center_channel_reduction' && audioRouteConnected) {
       // Ordinary stereo audio fallback: engage real-time center-channel vocal reduction
       karaokeMixer.setKaraokeMode(true);
     } else {

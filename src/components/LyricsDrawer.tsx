@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, RotateCw, Loader2, AlertCircle } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { lyricsService, measureLinePace, getPaceTransition } from '../services/lyrics/lyricsService';
 import { validateScriptForLanguage } from '../services/lyrics/translationService';
@@ -15,7 +15,10 @@ export const LyricsDrawer: React.FC = () => {
     sourceLanguage,
     setDisplayLanguage,
     lyricsRevision,
-    seekTo
+    seekTo,
+    lyricsResolution,
+    isResolvingLyrics,
+    retryLyricsResolution
   } = useAudioPlayer();
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
@@ -26,15 +29,17 @@ export const LyricsDrawer: React.FC = () => {
   }, [currentSong?.id, currentSong?.lyrics, lyricsRevision]);
 
   const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLines);
-  const prevTrackRef = useRef<{ id?: string; rev?: number }>({
+  const prevTrackRef = useRef<{ id?: string; rev?: number; count?: number }>({
     id: currentSong?.id,
-    rev: lyricsRevision
+    rev: lyricsRevision,
+    count: canonicalLines.length
   });
   if (
     currentSong?.id !== prevTrackRef.current.id ||
-    lyricsRevision !== prevTrackRef.current.rev
+    lyricsRevision !== prevTrackRef.current.rev ||
+    canonicalLines.length !== prevTrackRef.current.count
   ) {
-    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision };
+    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision, count: canonicalLines.length };
     setDisplayedLines(canonicalLines);
   }
   const translationRequestRef = useRef<number>(0);
@@ -78,10 +83,14 @@ export const LyricsDrawer: React.FC = () => {
     ? lyricsService.getActiveLyricIndex(displayedLines, currentTime, currentSong.lyricsOffsetMs || 0)
     : -1;
 
-  // Auto-scroll strictly on activeLineIndex changes — never on every audio tick
+  // Auto-scroll strictly on activeLineIndex changes — never on every audio tick (respects prefers-reduced-motion)
   useEffect(() => {
     if (activeLineRef.current) {
-      activeLineRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      activeLineRef.current.scrollIntoView({
+        behavior: prefersReduced ? 'auto' : 'smooth',
+        block: 'center'
+      });
     }
   }, [activeLineIndex]);
 
@@ -123,18 +132,55 @@ export const LyricsDrawer: React.FC = () => {
               Floating Lyrics
             </h3>
             <span
+              id="drawer-lyrics-capability-badge"
+              data-testid="drawer-lyrics-capability-badge"
               style={{
                 fontSize: '0.68rem',
                 fontWeight: 600,
                 letterSpacing: '0.04em',
                 padding: '2px 8px',
                 borderRadius: 'var(--radius-full)',
-                backgroundColor: isSynced ? 'rgba(56, 189, 248, 0.15)' : 'rgba(244, 240, 235, 0.08)',
-                color: isSynced ? '#38BDF8' : 'var(--text-muted)',
-                border: `1px solid ${isSynced ? 'rgba(56, 189, 248, 0.3)' : 'var(--border-subtle)'}`
+                backgroundColor: (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                  ? 'rgba(245, 158, 11, 0.15)'
+                  : isSynced
+                    ? 'rgba(56, 189, 248, 0.15)'
+                    : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                      ? 'rgba(244, 240, 235, 0.08)'
+                      : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                        ? 'rgba(234, 179, 8, 0.15)'
+                        : 'rgba(239, 68, 68, 0.12)',
+                color: (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                  ? '#F59E0B'
+                  : isSynced
+                    ? '#38BDF8'
+                    : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                      ? 'var(--text-muted)'
+                      : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                        ? '#EAB308'
+                        : '#F87171',
+                border: `1px solid ${(isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                    ? 'rgba(245, 158, 11, 0.3)'
+                    : isSynced
+                      ? 'rgba(56, 189, 248, 0.3)'
+                      : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                        ? 'var(--border-subtle)'
+                        : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                          ? 'rgba(234, 179, 8, 0.3)'
+                          : 'rgba(239, 68, 68, 0.3)'
+                }`
               }}
+              data-capability={lyricsCapability}
+              data-outcome={lyricsResolution?.outcome || (isSynced ? 'SYNCED_VERIFIED' : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS') ? 'PLAIN_VERIFIED' : 'UNAVAILABLE')}
             >
-              {isSynced ? 'SYNCED' : lyricsCapability === 'PLAIN_LYRICS' ? 'PLAIN' : 'UNAVAILABLE'}
+              {(isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                ? 'SEARCHING...'
+                : isSynced
+                  ? 'SYNCED'
+                  : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                    ? 'LYRICS'
+                    : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                      ? 'RETRYABLE'
+                      : 'NO LYRICS FOUND'}
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
@@ -218,13 +264,88 @@ export const LyricsDrawer: React.FC = () => {
         }}
       >
         {displayedLines.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '32px 16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '160px', height: '12px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.08)' }} />
-              <div style={{ width: '220px', height: '16px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.12)' }} />
-              <div style={{ width: '140px', height: '12px', borderRadius: '6px', background: 'rgba(244, 240, 235, 0.08)' }} />
+          (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING') ? (
+            <div
+              id="drawer-lyrics-loading"
+              data-testid="drawer-lyrics-loading"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px',
+                color: 'var(--text-muted)',
+                padding: '32px 16px',
+                margin: 'auto',
+                textAlign: 'center'
+              }}
+            >
+              <Loader2 size={22} className="animate-spin" color="var(--accent-warm)" />
+              <span style={{ fontSize: '0.84rem' }}>
+                Resolving canonical lyrics for "{currentSong?.title}"...
+              </span>
             </div>
-          </div>
+          ) : lyricsResolution?.outcome === 'TRANSIENT_FAILURE' ? (
+            <div
+              id="drawer-lyrics-error"
+              data-testid="drawer-lyrics-error"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '12px',
+                color: 'var(--text-muted)',
+                padding: '32px 16px',
+                margin: 'auto',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#FCD34D' }}>
+                <AlertCircle size={16} />
+                <span style={{ fontSize: '0.82rem' }}>
+                  {lyricsResolution?.errorReason || lyricsResolution?.error || 'Temporary issue contacting lyrics providers'}
+                </span>
+              </div>
+              <button
+                type="button"
+                id="drawer-retry-lyrics-btn"
+                data-testid="drawer-retry-lyrics-btn"
+                onClick={() => retryLyricsResolution()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 14px',
+                  borderRadius: 'var(--radius-full)',
+                  backgroundColor: 'rgba(231, 165, 141, 0.15)',
+                  border: '1px solid rgba(231, 165, 141, 0.35)',
+                  color: 'var(--accent-cream)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <RotateCw size={12} />
+                <span>Retry Search</span>
+              </button>
+            </div>
+          ) : (
+            <div
+              id="drawer-no-lyrics"
+              data-testid="drawer-no-lyrics"
+              style={{
+                textAlign: 'center',
+                color: 'var(--text-muted)',
+                padding: '32px 16px',
+                margin: 'auto'
+              }}
+            >
+              <p style={{ margin: '0 0 4px 0', fontSize: '0.88rem', color: 'var(--text-dim)' }}>
+                No lyrics found in catalogue for "{currentSong?.title}"
+              </p>
+              <span style={{ fontSize: '0.74rem' }}>
+                Verified across available catalogue and external sources
+              </span>
+            </div>
+          )
         ) : (
           displayedLines.map((line, idx) => {
             const isCurrent = idx === activeLineIndex;
@@ -263,6 +384,12 @@ export const LyricsDrawer: React.FC = () => {
                     seekTo(startTime);
                   }
                 }}
+                onKeyDown={(e) => {
+                  if (isSynced && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    seekTo(startTime);
+                  }
+                }}
                 role={isSynced ? 'button' : undefined}
                 tabIndex={isSynced ? 0 : undefined}
                 aria-label={isSynced ? `Seek to: ${line.text}` : undefined}
@@ -284,7 +411,9 @@ export const LyricsDrawer: React.FC = () => {
                     fontWeight: isCurrent ? 600 : 400,
                     color: isCurrent ? 'var(--accent-cream)' : 'var(--text-primary)',
                     margin: 0,
-                    lineHeight: 1.35,
+                    lineHeight: 1.5,
+                    overflowWrap: 'break-word',
+                    fontFamily: 'inherit, "Noto Sans Devanagari", "Noto Sans Telugu", "Noto Sans Tamil", "Noto Sans Malayalam", sans-serif',
                     textShadow: isCurrent ? '0 0 25px rgba(244, 223, 201, 0.3)' : 'none'
                   }}
                 >

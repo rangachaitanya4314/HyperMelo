@@ -347,7 +347,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
   public seek(time: number): void {
     if (!this.audio) return;
     const dur = this.getDuration();
-    const clamped = Math.max(0, Math.min(dur, time));
+    const clamped = dur > 0 ? Math.max(0, Math.min(dur, time)) : Math.max(0, time);
     try {
       this.audio.currentTime = clamped;
       this.emitClock();

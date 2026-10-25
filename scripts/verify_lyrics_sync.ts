@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { TEST_SYNCED_LYRICS_FIXTURE, TEST_PLAIN_LYRICS_FIXTURE } from '../src/data/lyricsFixtures';
-import { lyricsService, getActiveLyricIndex } from '../src/services/lyrics/lyricsService';
+import { lyricsService, getActiveLyricIndex, getLyricQueueIndices } from '../src/services/lyrics/lyricsService';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../src/data/songs';
 import type { Song, TimedLyricLine } from '../src/types/music';
 
@@ -81,6 +81,23 @@ function assert(condition: boolean, message: string) {
 }
 
 async function runLyricsSyncTests() {
+  const queueFixture: TimedLyricLine[] = [0, 4, 8, 12, 16, 20].map((startTime, index) => ({
+    id: `queue-${index}`, text: index === 4 ? 'Repeated lyric' : index === 3 ? 'Repeated lyric' : `Known lyric ${index}`, startTime, endTime: startTime + 3
+  }));
+  const queueAt10 = getLyricQueueIndices(queueFixture, 10);
+  if (queueAt10.join(',') !== '1,2,3,4') throw new Error(`Karaoke queue should show previous/current/next two lines, got ${queueAt10}`);
+  if (queueFixture[queueAt10[1]]?.text !== 'Known lyric 2') throw new Error('Karaoke queue current lyric did not follow playback time');
+  const queueAfterSeek = getLyricQueueIndices(queueFixture, 18);
+  if (queueAfterSeek.join(',') !== '3,4,5') throw new Error(`Karaoke queue did not advance after seeking, got ${queueAfterSeek}`);
+  if (queueFixture[queueAfterSeek[1]]?.id !== 'queue-4' || queueFixture[queueAfterSeek[1]]?.text !== 'Repeated lyric') {
+    throw new Error('Repeated lyric occurrences must remain distinct timeline entries after seeking');
+  }
+  const plainLyrics: TimedLyricLine[] = [
+    { id: 'plain-a', text: 'Plain line A', startTime: -1, time: -1 },
+    { id: 'plain-b', text: 'Plain line B', startTime: -1, time: -1 }
+  ];
+  if (getLyricQueueIndices(plainLyrics, 5).length !== 0) throw new Error('Untimed lyrics must not be assigned an invented playback queue');
+
   console.log('======================================================================');
   console.log('NARO — SYNCHRONIZED LYRICS ENGINE VERIFICATION (15 SCENARIOS)');
   console.log('======================================================================\n');
@@ -197,6 +214,28 @@ async function runLyricsSyncTests() {
   // =========================================================================
   console.log('\n[Browser CDP Verification: Scenarios 3, 4, 5, 6, 7, 8, 14, 15]...');
 
+  const configuredBaseUrl = process.env.NARO_TEST_BASE_URL?.replace(/\/$/, '');
+  const appCandidates = configuredBaseUrl
+    ? [configuredBaseUrl]
+    : [5173, 5174, 5175, 5176, 5177, 5178].map((port) => `http://127.0.0.1:${port}`);
+  let baseUrl: string | null = null;
+  for (const candidate of appCandidates) {
+    try {
+      const response = await fetch(candidate, { signal: AbortSignal.timeout(1200) });
+      const html = await response.text();
+      if (response.ok && html.includes('id="root"')) {
+        baseUrl = candidate;
+        break;
+      }
+    } catch {
+      // Probe the next standard Vite port; fail with the exact requirement below if none serves the app.
+    }
+  }
+  if (!baseUrl) {
+    throw new Error(`HyperMelo is not reachable on ${appCandidates.join(', ')}. Start Vite or set NARO_TEST_BASE_URL.`);
+  }
+  console.log(`  [CDP] Using app at ${baseUrl}`);
+
   const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
   const userDataDir = path.resolve(os.tmpdir(), 'chrome_naro_lyrics_sync_' + Date.now());
 
@@ -207,7 +246,7 @@ async function runLyricsSyncTests() {
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     `--user-data-dir=${userDataDir}`,
-    'http://127.0.0.1:5173/'
+    `${baseUrl}/`
   ];
 
   const chromeProcess: ChildProcess = spawn(chromePath, chromeArgs, { stdio: 'ignore' });
@@ -233,30 +272,34 @@ async function runLyricsSyncTests() {
       throw new Error('Failed to connect to Chrome on port 9229');
     }
 
-    const page = listData.find((p) => p.url.includes('5173')) || listData[0];
+    const appPort = new URL(baseUrl).port;
+    const page = listData.find((p) => p.url.includes(appPort)) || listData[0];
     const cdp = new CdpClient();
     await cdp.connect(page.webSocketDebuggerUrl!);
     await cdp.send('Runtime.enable');
     await cdp.send('Page.enable');
 
     console.log('  [CDP] Navigating to NARO application...');
-    await cdp.send('Page.navigate', { url: 'http://127.0.0.1:5173/' });
+    await cdp.send('Page.navigate', { url: `${baseUrl}/` });
 
     // Wait for React app to mount and dismiss intro if present
+    let appReady = false;
     for (let i = 0; i < 40; i++) {
-      const isReady = await cdp.eval(`
+      appReady = await cdp.eval(`
         (() => {
           sessionStorage.setItem('naro_intro_seen', 'true');
           const skipBtn = Array.from(document.querySelectorAll('button')).find(b => b.innerText && (b.innerText.includes('Skip') || b.innerText.includes('Explore') || b.innerText.includes('Enter')));
           if (skipBtn) skipBtn.click();
-          return Boolean(window.__naro_play_song || document.querySelector('#toggle-lyrics-drawer-btn, button[aria-label="Toggle floating lyrics"]'));
+          return typeof window.__naro_play_song === 'function';
         })()
       `);
-      if (isReady) break;
+      if (appReady) break;
       await new Promise((r) => setTimeout(r, 400));
     }
-    await new Promise((r) => setTimeout(r, 800));
-
+    if (!appReady) {
+      const diagnostics = await cdp.eval(`({ url: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0, 300), playBinding: typeof window.__naro_play_song })`);
+      throw new Error(`Application test binding did not become ready: ${JSON.stringify(diagnostics)}`);
+    }
     // Inject synced test track into window for testing
     console.log('  [CDP] Loading verified test track with synchronized lyrics...');
     const playRes = await cdp.eval(`
@@ -277,7 +320,13 @@ async function runLyricsSyncTests() {
           playbackAvailable: true,
           playbackType: 'full',
           playbackSourceType: 'dev-fixture',
-          streamUrl: '/audio/josh-woodward-shot-down-vocal.mp3',
+          playbackSource: {
+            provider: 'naro',
+            streamUrl: '/audio/josh-woodward-shot-down-vocal.mp3',
+            format: 'mp3',
+            isStreamPreview: false,
+            playbackSourceType: 'dev-fixture'
+          },
           artwork: {
             palette: ['#E7A58D', '#1D2538', '#0F172A', '#8FA8C8'],
             pattern: 'orbital',
@@ -311,15 +360,90 @@ async function runLyricsSyncTests() {
           }
         };
 
-        if (window.__naro_play_song) {
+        if (typeof window.__naro_play_song === 'function') {
           window.__naro_play_song(testTrack);
-          return { success: true };
+          return { success: true, url: location.href, readyState: document.readyState };
         }
-        return { success: false, reason: '__naro_play_song not found' };
+        return { success: false, reason: '__naro_play_song not found', url: location.href, readyState: document.readyState, title: document.title, body: document.body?.innerText?.slice(0, 200) };
       })()
     `);
-    assert(playRes?.success === true, 'Injected and loaded test track with synced lyrics');
-    await new Promise((r) => setTimeout(r, 600));
+    if (playRes?.success !== true) console.error('  [CDP] Track injection response:', JSON.stringify(playRes));
+    assert(playRes?.success === true, `Injected and loaded test track with synced lyrics (${playRes?.reason || String(playRes)})`);
+    let loadedTrackId: string | null = null;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      loadedTrackId = await cdp.eval(`window.__naro_playback_controller?.getCurrentTrack()?.id || null`);
+      if (loadedTrackId === 'test-fixture-track') break;
+    }
+    assert(loadedTrackId === 'test-fixture-track', `PlaybackController loaded injected fixture (got ${loadedTrackId || 'no track'})`);
+    await new Promise((r) => setTimeout(r, 300));
+
+    const vocalReductionMeasurement = await cdp.eval(`
+      (async () => {
+        const response = await fetch('/audio/josh-woodward-shot-down-vocal.mp3');
+        if (!response.ok) return { ok: false, reason: 'vocal fixture fetch failed', status: response.status };
+        const bytes = await response.arrayBuffer();
+        const decodeContext = new AudioContext();
+        const decoded = await decodeContext.decodeAudioData(bytes);
+        const { WebAudioVocalSuppressor } = await import('/src/services/audio/vocalSeparation/WebAudioVocalSuppressor.ts');
+
+        async function render(amount) {
+          const offline = new OfflineAudioContext(2, decoded.length, decoded.sampleRate);
+          const source = offline.createBufferSource();
+          const suppressor = new WebAudioVocalSuppressor(offline);
+          source.buffer = decoded;
+          source.connect(suppressor.getInput());
+          suppressor.setSuppression(amount, 0);
+          suppressor.getOutput().connect(offline.destination);
+          source.start(0);
+          return await offline.startRendering();
+        }
+
+        async function centerSpeechBandRms(buffer) {
+          const left = buffer.getChannelData(0);
+          const right = buffer.getChannelData(1);
+          const bandContext = new OfflineAudioContext(1, left.length, buffer.sampleRate);
+          const centerBuffer = bandContext.createBuffer(1, left.length, buffer.sampleRate);
+          const centerData = centerBuffer.getChannelData(0);
+          for (let i = 0; i < left.length; i++) {
+            centerData[i] = (left[i] + right[i]) * 0.5;
+          }
+          const source = bandContext.createBufferSource();
+          source.buffer = centerBuffer;
+          const speechBand = bandContext.createBiquadFilter();
+          speechBand.type = 'bandpass';
+          speechBand.frequency.value = 1200;
+          speechBand.Q.value = 0.6;
+          source.connect(speechBand);
+          speechBand.connect(bandContext.destination);
+          source.start(0);
+          const filtered = await bandContext.startRendering();
+          const samples = filtered.getChannelData(0);
+          let squareSum = 0;
+          for (let i = 0; i < samples.length; i++) squareSum += samples[i] * samples[i];
+          return Math.sqrt(squareSum / samples.length);
+        }
+
+        const dry = await render(0);
+        const suppressed = await render(1);
+        await decodeContext.close();
+        const dryCenterRms = await centerSpeechBandRms(dry);
+        const suppressedCenterRms = await centerSpeechBandRms(suppressed);
+        return {
+          ok: true,
+          source: 'same-origin vocal fixture decoded by Web Audio',
+          channels: decoded.numberOfChannels,
+          sampleRate: decoded.sampleRate,
+          dryCenterRms,
+          suppressedCenterRms,
+          attenuationDb: 20 * Math.log10(Math.max(suppressedCenterRms, 1e-12) / Math.max(dryCenterRms, 1e-12))
+        };
+      })()
+    `);
+    console.log('  [CDP] Real audio DSP measurement:', JSON.stringify(vocalReductionMeasurement));
+    assert(vocalReductionMeasurement?.ok === true, 'Decoded and processed the real vocal audio through Web Audio');
+    assert(vocalReductionMeasurement?.dryCenterRms > 1e-4, 'Real source contains measurable original center speech-band audio');
+    assert(vocalReductionMeasurement?.attenuationDb <= -8, `DSP reduces real center speech-band audio by at least 8 dB (measured ${vocalReductionMeasurement?.attenuationDb?.toFixed(1)} dB)`);
 
     // Open lyrics drawer
     console.log('  [CDP] Opening Lyrics Drawer...');
@@ -593,6 +717,73 @@ async function runLyricsSyncTests() {
       })()
     `);
     assert(karaokeModalCheck?.isOpen === true, 'Karaoke Studio modal opened successfully');
+
+    await cdp.eval(`window.__naro_seek?.(10)`);
+    await new Promise((r) => setTimeout(r, 250));
+    const karaokeQueueAt10 = await cdp.eval(`
+      (() => Array.from(document.querySelectorAll('#karaoke-lyrics-viewer [data-testid="karaoke-lyric-line"]'))
+        .map((line) => Number(line.getAttribute('data-lyric-index'))))()
+    `);
+    assert(karaokeQueueAt10?.join(',') === '0,1,2,3', `Karaoke queue shows previous/current/next two at 10s (got ${karaokeQueueAt10})`);
+    const activeAt10 = await cdp.eval(`document.querySelector('#karaoke-lyrics-viewer [data-active="true"]')?.getAttribute('data-lyric-index')`);
+    assert(activeAt10 === '1', `Karaoke current lyric follows playback time (got ${activeAt10})`);
+
+    await cdp.eval(`window.__naro_seek?.(18)`);
+    await new Promise((r) => setTimeout(r, 250));
+    const karaokeQueueAfterSeek = await cdp.eval(`
+      (() => Array.from(document.querySelectorAll('#karaoke-lyrics-viewer [data-testid="karaoke-lyric-line"]'))
+        .map((line) => Number(line.getAttribute('data-lyric-index'))))()
+    `);
+    assert(karaokeQueueAfterSeek?.join(',') === '1,2,3,4', `Karaoke queue updates after seeking (got ${karaokeQueueAfterSeek})`);
+    const activeAfterSeek = await cdp.eval(`document.querySelector('#karaoke-lyrics-viewer [data-active="true"]')?.getAttribute('data-lyric-index')`);
+    assert(activeAfterSeek === '2', `Karaoke current lyric updates after seek (got ${activeAfterSeek})`);
+
+    await cdp.eval(`document.querySelector('button[aria-label="Close karaoke modal"]')?.click()`);
+    const protectedTrackInjected = await cdp.eval(`
+      (() => {
+        const protectedTrack = {
+          id: 'test-protected-apple-track',
+          title: 'Protected Stream Test',
+          artist: 'NARO Test Studio',
+          duration: 45,
+          fullTrackDuration: 45,
+          playbackAvailable: true,
+          fullLengthAvailable: true,
+          playbackType: 'full',
+          playbackSourceType: 'official-provider',
+          playbackProvider: 'apple-music',
+          isStreamPreview: false,
+          playbackSource: {
+            provider: 'apple-music',
+            providerTrackId: 'protected-test-id',
+            streamUrl: 'https://protected.invalid/test-stream.m4a',
+            format: 'm4a',
+            isStreamPreview: false,
+            playbackSourceType: 'official-provider'
+          },
+          lyrics: { en: { chorusSnippet: 'Known test lyric', lines: ${JSON.stringify(TEST_SYNCED_LYRICS_FIXTURE)} } }
+        };
+        window.__naro_play_song?.(protectedTrack);
+        return typeof window.__naro_play_song === 'function';
+      })()
+    `);
+    assert(protectedTrackInjected === true, 'Injected protected-provider fixture for honest suppression messaging');
+    let protectedTrackId: string | null = null;
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+      protectedTrackId = await cdp.eval(`window.__naro_playback_controller?.getCurrentTrack()?.id || null`);
+      if (protectedTrackId === 'test-protected-apple-track') break;
+    }
+    assert(protectedTrackId === 'test-protected-apple-track', 'PlaybackController accepted protected-provider fixture');
+    await cdp.eval(`window.__naro_open_karaoke_modal?.()`);
+    await new Promise((r) => setTimeout(r, 400));
+    const protectedStatus = await cdp.eval(`document.querySelector('[data-testid="vocal-removal-status-banner"]')?.innerText || ''`);
+    assert(protectedStatus.includes('SING-ALONG (PROTECTED STREAM'), `Protected source displays sing-along-only status (${protectedStatus})`);
+    assert(protectedStatus.includes('Vocal removal is not supported'), 'Protected source explicitly explains that vocal removal cannot work');
+    await cdp.eval(`window.__naro_set_karaoke?.(true)`);
+    await new Promise((r) => setTimeout(r, 200));
+    const protectedStatusAfterToggle = await cdp.eval(`document.querySelector('[data-testid="vocal-removal-status-banner"]')?.innerText || ''`);
+    assert(protectedStatusAfterToggle.includes('Vocal removal is not supported'), 'Enabling karaoke does not relabel protected vocals as removed');
 
     // Close Karaoke Modal
     await cdp.eval(`

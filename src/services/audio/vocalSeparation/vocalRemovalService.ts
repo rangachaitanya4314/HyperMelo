@@ -64,9 +64,8 @@ export class VocalRemovalService {
     );
 
     const hasDedicatedInstrumental = Boolean(
-      song.karaokeAvailable &&
-      song.karaokeSource?.availability === 'available' &&
-      song.karaokeSource.streamUrl &&
+      (song.karaokeAvailable || song.karaokeSource?.availability === 'available') &&
+      song.karaokeSource?.streamUrl &&
       isDistinctInstrumentalUrl &&
       isVerifiedInstrumentalType
     );

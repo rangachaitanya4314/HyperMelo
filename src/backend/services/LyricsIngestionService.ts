@@ -35,6 +35,7 @@ export interface LrclibRecord {
 export interface ProviderContext {
   lastTransientError?: Error;
   authoritativeChecked?: boolean;
+  sourceProvenance?: string;
 }
 
 export interface CandidateMatchResult {
@@ -43,23 +44,76 @@ export interface CandidateMatchResult {
 }
 
 /**
- * Legitimate release descriptor and alternate-title suffix pattern.
+ * Validates whether any language bucket in a SongLyrics object contains genuine non-negative synchronized line timestamps.
  */
-const RELEASE_DESCRIPTOR_REGEX = /^(?:from|soundtrack|ost|theme|remastered|remaster|bonus track|bonus|live|radio edit|single version|single|acoustic|remix|lofi|lo-fi|lyrical|version|instrumental|reprise|deluxe)(?:\s|$)/i;
+export function hasGenuineSynchronizedLines(lyrics: SongLyrics | null | undefined): boolean {
+  if (!lyrics) return false;
+  return Object.values(lyrics).some((bucket) =>
+    bucket?.lines?.some((l: TimedLyricLine) => l.startTime !== undefined && l.startTime >= 0 && l.startTime !== -1)
+  );
+}
+
+/**
+ * Legitimate release descriptor, regional language, and alternate-title suffix pattern.
+ */
+const RELEASE_DESCRIPTOR_REGEX = /^(?:from|soundtrack|ost|theme|remastered|remaster|bonus track|bonus|live|radio edit|single version|single|acoustic|remix|lofi|lo-fi|lyrical|version|instrumental|reprise|deluxe|telugu|tamil|hindi|kannada|malayalam|bengali|marathi|punjabi|gujarati|urdu|original motion picture soundtrack|audio)(?:\s|$)/i;
 
 /**
  * Normalizes title for candidate comparison across languages.
  * Strips bracketed descriptors, featured text, and normalizes punctuation.
  */
 export function normalizeTitleForMatching(title: string): string {
-  return (title || '')
+  return unescapeHtml(title || '')
     .toLowerCase()
     .trim()
     .replace(/\s*[\(\[\{].*?[\)\]\}]\s*/g, ' ')
-    .replace(/\s*[-–—:]\s*(?:from|theme|remastered|remaster|bonus track|bonus|live|radio edit|single version|single|acoustic|remix|lo-fi|lofi|ost|soundtrack).*/i, '')
+    .replace(/\s*[-–—:]\s*(?:from|theme|remastered|remaster|bonus track|bonus|live|radio edit|single version|single|acoustic|remix|lo-fi|lofi|ost|soundtrack|telugu|tamil|hindi|kannada|malayalam|bengali|marathi|punjabi|gujarati|urdu|original motion picture soundtrack|version|audio|lyrical).*/i, '')
     .replace(/[^\p{L}\p{N}\s]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Normalizes common South Asian and Arabic romanization/transliteration spelling variants
+ * (e.g., th vs dh, aa vs a, ee vs i, oo vs u, ae vs e, sh vs s, single vs double consonants).
+ */
+export function normalizePhoneticVariants(text: string): string {
+  return (text || '')
+    .toLowerCase()
+    .replace(/th/g, 'dh')
+    .replace(/aa+/g, 'a')
+    .replace(/ee+/g, 'i')
+    .replace(/oo+/g, 'u')
+    .replace(/ae+/g, 'e')
+    .replace(/sh+/g, 's')
+    .replace(/w/g, 'v')
+    .replace(/(\p{L})\1+/gu, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Safely extracts artist name string from JioSaavn result data,
+ * handling both array of artist objects, string artist names, and subtitle fallback.
+ */
+export function extractSaavnArtistString(moreInfo: any, subtitle?: string): string {
+  if (!moreInfo) return subtitle ? unescapeHtml(subtitle) : '';
+  const primary = moreInfo.artistMap?.primary_artists;
+  if (Array.isArray(primary)) {
+    const names = primary
+      .map((a: any) => (typeof a === 'string' ? a : a?.name || ''))
+      .filter(Boolean);
+    if (names.length > 0) return unescapeHtml(names.join(', '));
+  } else if (typeof primary === 'string' && primary.trim()) {
+    return unescapeHtml(primary);
+  }
+  if (typeof moreInfo.singers === 'string' && moreInfo.singers.trim()) {
+    return unescapeHtml(moreInfo.singers);
+  }
+  if (typeof moreInfo.music === 'string' && moreInfo.music.trim()) {
+    return unescapeHtml(moreInfo.music);
+  }
+  return subtitle ? unescapeHtml(subtitle) : '';
 }
 
 /**
@@ -128,8 +182,30 @@ export function isCandidateValidMatch(
       // Reject reverse-prefix collisions (e.g. target "Stay with Me", candidate "Stay")
       return { isMatch: false, score: 0 };
     }
-  } else {
-    // Short titles (<= 4 chars, e.g. "Stay", "Love", "Hero") MUST match exactly
+  } else if (
+    normTarget.length > 4 &&
+    normCand.length > 4 &&
+    normalizePhoneticVariants(normTarget) === normalizePhoneticVariants(normCand)
+  ) {
+    // Transliteration/phonetic equivalence (e.g. "Kadhale Kadhale" vs "Kaathalae Kaathalae")
+    titleScore = 90;
+    titleMatch = true;
+  } else if (normTarget.length >= 8 && normCand.length >= 8) {
+    // Multi-word titles with very high word overlap (>= 78% Dice coefficient) and matching initial anchor token
+    const tWords = normTarget.split(' ').filter(Boolean);
+    const cWords = normCand.split(' ').filter(Boolean);
+    if (tWords.length >= 2 && cWords.length >= 2) {
+      const common = tWords.filter((w) => cWords.includes(w));
+      const dice = (2 * common.length) / (tWords.length + cWords.length);
+      const anchorsMatch = tWords[0] === cWords[0] || tWords[0].startsWith(cWords[0]) || cWords[0].startsWith(tWords[0]);
+      if (dice >= 0.78 && anchorsMatch) {
+        titleScore = 75;
+        titleMatch = true;
+      }
+    }
+  }
+
+  if (!titleMatch) {
     return { isMatch: false, score: 0 };
   }
 
@@ -181,7 +257,7 @@ export class LyricsIngestionService implements ILyricsService {
     const rawLines = lrcText.split('\n');
     const parsed: { time: number; text: string }[] = [];
 
-    const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+    const timeRegex = /\[(\d{1,3}):(\d{2})(?:[.:,](\d{1,3}))?\]/g;
 
     for (const raw of rawLines) {
       const trimmed = raw.trim();
@@ -193,15 +269,16 @@ export class LyricsIngestionService implements ILyricsService {
       }
 
       timeRegex.lastIndex = 0;
-      let match: RegExpExecArray | null;
       const text = trimmed.replace(timeRegex, '').trim();
+
+      timeRegex.lastIndex = 0;
+      let match: RegExpExecArray | null;
 
       while ((match = timeRegex.exec(trimmed)) !== null) {
         const minutes = parseInt(match[1], 10);
         const seconds = parseInt(match[2], 10);
-        const millisStr = match[3] || '0';
-        const millis = millisStr.length === 2 ? parseInt(millisStr, 10) * 10 : parseInt(millisStr, 10);
-        const time = minutes * 60 + seconds + millis / 1000;
+        const fraction = match[3] ? parseFloat('0.' + match[3]) : 0;
+        const time = minutes * 60 + seconds + fraction;
 
         if (text) {
           parsed.push({ time, text });
@@ -211,12 +288,20 @@ export class LyricsIngestionService implements ILyricsService {
 
     parsed.sort((a, b) => a.time - b.time);
 
-    // Compute durations strictly between lines
+    // Compute durations strictly between lines with natural cap on long instrumental breaks
     const result: TimedLyricLine[] = [];
     for (let i = 0; i < parsed.length; i++) {
       const current = parsed[i];
       const next = parsed[i + 1];
-      const duration = next ? Math.max(0.8, next.time - current.time) : Math.max(2, totalDuration - current.time);
+      let duration: number;
+      if (next) {
+        const gap = next.time - current.time;
+        // Cap excessive line duration during long instrumental breaks (> 8s) to a natural singing line duration (max 6.5s)
+        duration = gap > 8 ? Math.min(gap, 6.5) : Math.max(0.8, gap);
+      } else {
+        const rem = totalDuration - current.time;
+        duration = rem > 8 ? 6.5 : Math.max(2, rem);
+      }
 
       const detected = sourceLanguageToDefaultDisplay(detectLyricLinesLanguage([{ text: current.text } as TimedLyricLine]));
       const translations: Record<string, string> = {};
@@ -284,7 +369,8 @@ export class LyricsIngestionService implements ILyricsService {
     _albumName?: string,
     _isrc?: string,
     originalLanguage?: Language,
-    trackId?: string
+    trackId?: string,
+    callerContext?: ProviderContext
   ): Promise<SongLyrics | null> {
     const { cleanTitle, cleanArtist, primaryArtist } = sanitizeLyricsMetadata(trackName, artistName);
     const effectiveTrackId =
@@ -294,37 +380,75 @@ export class LyricsIngestionService implements ILyricsService {
     // Step 1: Check IndexedDB / local storage cache
     const cached = await indexedDbService.getLyrics(effectiveTrackId);
     if (cached) {
+      if (callerContext) callerContext.sourceProvenance = 'indexeddb-cache';
       return cached;
     }
 
-    const context: ProviderContext = {};
+    const context: ProviderContext = callerContext || {};
+    let fallbackPlainLyrics: SongLyrics | null = null;
+    let fallbackProvenance = '';
 
     // Step 2: Query LRCLIB exact /api/get with multi-artist and retry resilience
     const exactLyrics = await this.queryLrclibExact(cleanTitle, cleanArtist, duration, originalLanguage, primaryArtist, context);
     if (exactLyrics) {
-      await indexedDbService.saveLyrics(effectiveTrackId, exactLyrics, 'lrclib_exact');
-      return exactLyrics;
+      const hasSync = hasGenuineSynchronizedLines(exactLyrics);
+      if (hasSync) {
+        context.sourceProvenance = 'lrclib_exact';
+        await indexedDbService.saveLyrics(effectiveTrackId, exactLyrics, 'lrclib_exact');
+        return exactLyrics;
+      } else if (!fallbackPlainLyrics) {
+        fallbackPlainLyrics = exactLyrics;
+        fallbackProvenance = 'lrclib_exact';
+      }
     }
 
-    // Step 3: If 404, query LRCLIB search /api/search?q={cleanTitle} with artist hint, candidate validation, and preview duration bypass
-    const searchLyrics = await this.queryLrclibSearch(cleanTitle, duration, originalLanguage, primaryArtist || cleanArtist, context);
+    // Step 3: If 404 or plain, query LRCLIB search /api/search?q={cleanTitle} with artist hint, candidate validation, and preview duration bypass
+    const searchLyrics = await this.queryLrclibSearch(cleanTitle, duration, originalLanguage, primaryArtist || cleanArtist, context, _albumName);
     if (searchLyrics) {
-      await indexedDbService.saveLyrics(effectiveTrackId, searchLyrics, 'lrclib_search');
-      return searchLyrics;
+      const hasSync = hasGenuineSynchronizedLines(searchLyrics);
+      if (hasSync) {
+        context.sourceProvenance = 'lrclib_search';
+        await indexedDbService.saveLyrics(effectiveTrackId, searchLyrics, 'lrclib_search');
+        return searchLyrics;
+      } else if (!fallbackPlainLyrics) {
+        fallbackPlainLyrics = searchLyrics;
+        fallbackProvenance = 'lrclib_search';
+      }
     }
 
-    // Step 4: If still missing, query the JioSaavn lyrics endpoint with candidate validation
-    const saavnLyrics = await this.queryJioSaavnLyrics(cleanTitle, primaryArtist || cleanArtist, duration, originalLanguage, context);
-    if (saavnLyrics) {
-      await indexedDbService.saveLyrics(effectiveTrackId, saavnLyrics, 'jiosaavn');
-      return saavnLyrics;
-    }
-
-    // Step 5: Query the NetEase open lyrics endpoint with candidate validation
+    // Step 4: Prioritize NetEase open lyrics endpoint for verified synchronized .lrc lines
     const neteaseLyrics = await this.queryNetEaseLyrics(cleanTitle, primaryArtist || cleanArtist, duration, originalLanguage, context);
     if (neteaseLyrics) {
-      await indexedDbService.saveLyrics(effectiveTrackId, neteaseLyrics, 'netease');
-      return neteaseLyrics;
+      const hasSync = hasGenuineSynchronizedLines(neteaseLyrics);
+      if (hasSync) {
+        context.sourceProvenance = 'netease';
+        await indexedDbService.saveLyrics(effectiveTrackId, neteaseLyrics, 'netease');
+        return neteaseLyrics;
+      } else if (!fallbackPlainLyrics) {
+        fallbackPlainLyrics = neteaseLyrics;
+        fallbackProvenance = 'netease';
+      }
+    }
+
+    // Step 5: Query JioSaavn lyrics endpoint with candidate validation
+    const saavnLyrics = await this.queryJioSaavnLyrics(cleanTitle, primaryArtist || cleanArtist, duration, originalLanguage, context);
+    if (saavnLyrics) {
+      const hasSync = hasGenuineSynchronizedLines(saavnLyrics);
+      if (hasSync) {
+        context.sourceProvenance = 'jiosaavn';
+        await indexedDbService.saveLyrics(effectiveTrackId, saavnLyrics, 'jiosaavn');
+        return saavnLyrics;
+      } else if (!fallbackPlainLyrics) {
+        fallbackPlainLyrics = saavnLyrics;
+        fallbackProvenance = 'jiosaavn';
+      }
+    }
+
+    // Return legitimate plain lyrics if no provider had synchronized timestamps
+    if (fallbackPlainLyrics) {
+      context.sourceProvenance = fallbackProvenance;
+      await indexedDbService.saveLyrics(effectiveTrackId, fallbackPlainLyrics, fallbackProvenance);
+      return fallbackPlainLyrics;
     }
 
     // If no provider responded authoritatively and every attempt encountered transient network/rate/server errors,
@@ -405,14 +529,16 @@ export class LyricsIngestionService implements ILyricsService {
   /**
    * Step 3: Query LRCLIB search /api/search?q={query}.
    * Searches title + artist first, handles preview tracks (duration <= 35s),
-   * strictly validates candidates against title/artist, and prioritizes synced lyrics.
+   * strictly validates candidates against title/artist, and prioritizes genuine synced lyrics
+   * matching the target recording's language and Unicode script.
    */
   public async queryLrclibSearch(
     cleanTitle: string,
     duration?: number,
     originalLanguage?: Language,
     artistHint?: string,
-    context?: ProviderContext
+    context?: ProviderContext,
+    albumHint?: string
   ): Promise<SongLyrics | null> {
     if (!cleanTitle) return null;
 
@@ -420,7 +546,90 @@ export class LyricsIngestionService implements ILyricsService {
       'User-Agent': 'HyperMelo/1.0 (https://github.com/naro/hypermelo)'
     };
 
-    const queries = artistHint ? [`${cleanTitle} ${artistHint}`.trim(), cleanTitle] : [cleanTitle];
+    const queries: string[] = [];
+    if (artistHint) {
+      queries.push(`${cleanTitle} ${artistHint}`.trim());
+    }
+    if (albumHint && albumHint !== cleanTitle) {
+      queries.push(`${cleanTitle} ${albumHint}`.trim());
+    }
+    queries.push(cleanTitle);
+
+    const words = cleanTitle.split(/\s+/).filter(Boolean);
+    if (words.length > 3 && artistHint) {
+      const shortTitle = words.slice(0, 3).join(' ');
+      const qShort = `${shortTitle} ${artistHint}`.trim();
+      if (!queries.includes(qShort)) queries.push(qShort);
+    }
+
+    // Helper to evaluate linguistic affinity of candidate lyrics for regional/Indian film songs
+    const getCandidateLanguageScore = (record: LrclibRecord, targetLang?: Language): number => {
+      if (!targetLang || targetLang === 'en') return 0;
+
+      const rawLyrics = record.syncedLyrics || record.plainLyrics || '';
+      const trackName = unescapeHtml(record.trackName || '').toLowerCase();
+      const artistName = unescapeHtml(record.artistName || '').toLowerCase();
+
+      let langBonus = 0;
+
+      // Unicode script ranges for Indian and regional languages
+      const scriptRegexes: Record<string, RegExp> = {
+        te: /[\u0C00-\u0C7F]/, // Telugu
+        ta: /[\u0B80-\u0BFF]/, // Tamil
+        hi: /[\u0900-\u097F]/, // Devanagari / Hindi
+        ml: /[\u0D00-\u0D7F]/, // Malayalam
+        kn: /[\u0C80-\u0CFF]/, // Kannada
+        pa: /[\u0A00-\u0A7F]/, // Gurmukhi / Punjabi
+        bn: /[\u0980-\u09FF]/  // Bengali
+      };
+
+      const targetScript = scriptRegexes[targetLang];
+      if (targetScript && targetScript.test(rawLyrics)) {
+        langBonus += 80; // High confidence authentic script match
+      } else {
+        // Penalize distinct conflicting regional script
+        for (const [l, reg] of Object.entries(scriptRegexes)) {
+          if (l !== targetLang && reg.test(rawLyrics)) {
+            langBonus -= 50;
+            break;
+          }
+        }
+      }
+
+      // Title/artist language descriptor tokens & lyricists
+      const langKeywords: Record<string, string[]> = {
+        te: ['telugu', 'ramajogayya sastry', 'sirivennela', 'ananta sriram', 'bhaskarabhatla', 'chandrabose'],
+        ta: ['tamil', 'vishnu edavan', 'vairamuthu', 'na muthukumar', 'madhan karky', 'kabilan', 'yugabharathi'],
+        hi: ['hindi', 'manoj muntashir', 'amitabh bhattacharya', 'irshad kamil', 'gulzar', 'javed akhtar'],
+        ml: ['malayalam', 'vinayak sasikumar', 'rafeeq ahammed'],
+        kn: ['kannada', 'jayanth kaykini'],
+        pa: ['punjabi', 'jaani', 'b praak'],
+        bn: ['bengali']
+      };
+
+      const targetKeywords = langKeywords[targetLang] || [targetLang];
+      if (targetKeywords.some((kw) => trackName.includes(kw) || artistName.includes(kw))) {
+        langBonus += 40;
+      }
+
+      // Strongly penalize explicit foreign language tags in title (e.g. "[Tamil]" when searching for Telugu)
+      for (const [l, keywords] of Object.entries(langKeywords)) {
+        if (l !== targetLang) {
+          const mainTag = keywords[0];
+          if (
+            trackName.includes(`[${mainTag}]`) ||
+            trackName.includes(`(${mainTag})`) ||
+            trackName.includes(`- ${mainTag}`) ||
+            trackName.includes(`– ${mainTag}`)
+          ) {
+            langBonus -= 60;
+            break;
+          }
+        }
+      }
+
+      return langBonus;
+    };
 
     for (const q of queries) {
       try {
@@ -473,9 +682,14 @@ export class LyricsIngestionService implements ILyricsService {
           }
         }
 
-        // Sort candidates: match quality score first, then synced lyrics, then duration proximity
+        // Sort candidates: language score + match quality score first, then synced lyrics, then duration proximity
         pool.sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score;
+          const langScoreA = getCandidateLanguageScore(a.record, originalLanguage);
+          const langScoreB = getCandidateLanguageScore(b.record, originalLanguage);
+          const totalA = a.score + langScoreA;
+          const totalB = b.score + langScoreB;
+
+          if (totalB !== totalA) return totalB - totalA;
           if (a.record.syncedLyrics && !b.record.syncedLyrics) return -1;
           if (!a.record.syncedLyrics && b.record.syncedLyrics) return 1;
           if (!isPreview && duration && a.record.duration && b.record.duration) {
@@ -511,57 +725,57 @@ export class LyricsIngestionService implements ILyricsService {
     if (!cleanTitle) return null;
 
     const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.origin);
-    const query = `${cleanTitle} ${cleanArtist}`.trim();
+    const saavnQueries = [`${cleanTitle} ${cleanArtist}`.trim()];
+    const titleWords = cleanTitle.split(/\s+/).filter(Boolean);
+    if (titleWords.length > 3) {
+      const short = `${titleWords.slice(0, 3).join(' ')} ${cleanArtist}`.trim();
+      if (!saavnQueries.includes(short)) saavnQueries.push(short);
+    }
 
-    try {
-      let searchUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(query)}`;
-      if (isBrowser) {
-        searchUrl = `/api/saavn/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(query)}`;
-      }
+    for (const query of saavnQueries) {
+      try {
+        let searchUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(query)}`;
+        if (isBrowser) {
+          searchUrl = `/api/saavn/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=${encodeURIComponent(query)}`;
+        }
 
-      const searchRes = await fetch(searchUrl, {
-        headers: isBrowser
-          ? {}
-          : {
-              'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              cookie: 'DL=english'
-            },
-        signal: AbortSignal.timeout(5000)
-      });
+        const searchRes = await fetch(searchUrl, {
+          headers: isBrowser
+            ? {}
+            : {
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                cookie: 'DL=english'
+              },
+          signal: AbortSignal.timeout(5000)
+        });
 
-      if (searchRes.status === 429 || searchRes.status >= 500) {
-        if (context) context.lastTransientError = new Error(`JioSaavn search returned HTTP ${searchRes.status}`);
-        return null;
-      }
+        if (searchRes.status === 429 || searchRes.status >= 500) {
+          if (context) context.lastTransientError = new Error(`JioSaavn search returned HTTP ${searchRes.status}`);
+          continue;
+        }
 
-      if (!searchRes.ok) return null;
+        if (!searchRes.ok) continue;
 
-      const data: { results?: Array<{ id: string; title: string; subtitle?: string; more_info?: { has_lyrics?: string | boolean; lyrics_id?: string; singers?: string; music?: string; artistMap?: { primary_artists?: string } } }> } = await searchRes.json();
-      if (context) context.authoritativeChecked = true;
-      const results = data.results;
-      if (!Array.isArray(results) || results.length === 0) return null;
+        const data: { results?: Array<{ id: string; title: string; subtitle?: string; more_info?: { has_lyrics?: string | boolean; lyrics_id?: string; singers?: string; music?: string; artistMap?: { primary_artists?: string } } }> } = await searchRes.json();
+        if (context) context.authoritativeChecked = true;
+        const results = data.results;
+        if (!Array.isArray(results) || results.length === 0) continue;
 
-      // Find candidates that genuinely have lyrics AND match title + artist
-      const candidate = results.find((r) => {
-        const hasLyrics = r.more_info?.has_lyrics === 'true' || r.more_info?.has_lyrics === true;
-        if (!hasLyrics) return false;
+        // Find candidates that genuinely have lyrics AND match title + artist
+        const candidate = results.find((r) => {
+          const hasLyrics = r.more_info?.has_lyrics === 'true' || r.more_info?.has_lyrics === true;
+          if (!hasLyrics) return false;
 
-        const candTitle = unescapeHtml(r.title || '');
-        const candArtist = unescapeHtml(
-          r.more_info?.artistMap?.primary_artists ||
-          r.more_info?.singers ||
-          r.more_info?.music ||
-          r.subtitle ||
-          ''
-        );
+          const candTitle = unescapeHtml(r.title || '');
+          const candArtist = extractSaavnArtistString(r.more_info, r.subtitle);
 
-        return isCandidateValidMatch(cleanTitle, cleanArtist, candTitle, candArtist).isMatch;
-      });
+          return isCandidateValidMatch(cleanTitle, cleanArtist, candTitle, candArtist).isMatch;
+        });
 
-      if (!candidate) return null;
+        if (!candidate) continue;
 
-      const targetLyricsId = candidate.more_info?.lyrics_id || candidate.id;
-      if (!targetLyricsId) return null;
+        const targetLyricsId = candidate.more_info?.lyrics_id || candidate.id;
+        if (!targetLyricsId) continue;
 
       let lyrUrl = `https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&lyrics_id=${encodeURIComponent(targetLyricsId)}&ctx=web6dot0&api_version=4&_format=json&_marker=0`;
       if (isBrowser) {
@@ -597,13 +811,14 @@ export class LyricsIngestionService implements ILyricsService {
       const lines = this.parsePlainLyrics(cleanHtml);
       if (lines.length === 0) return null;
 
-      return this.buildSongLyricsFromLines(lines, originalLanguage);
-    } catch (err: unknown) {
-      if (context) {
-        context.lastTransientError = err instanceof Error ? err : new Error(String(err));
+        return this.buildSongLyricsFromLines(lines, originalLanguage);
+      } catch (err: unknown) {
+        if (context) {
+          context.lastTransientError = err instanceof Error ? err : new Error(String(err));
+        }
       }
-      return null;
     }
+    return null;
   }
 
   /**

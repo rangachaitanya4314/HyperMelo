@@ -47,20 +47,35 @@ export function sanitizeTrackTitle(rawTitle: string): string {
   );
   title = title.replace(/\s+(?:feat\.?|ft\.?|featuring|with)\s+.*$/gi, ' ');
 
-  // 3. Strip Descriptors: [Remix], [Lyrical], [Official Video], [Audio], [Slowed + Reverb], etc.
+  // 3. Strip Descriptors: [Remix], [Lyrical], [Official Video], [Audio], [Slowed + Reverb], [Piano Version], etc.
   title = title.replace(
-    /\s*[\(\[\{]\s*(?:remix(?:ed)?(?:\s+by\s+.*?)?|club\s+mix|dance\s+mix|lyrical(?:\s+video)?|lyric\s+video|official(?:\s+(?:music\s+video|video|audio|visualizer))?|audio|video|full(?:\s+(?:video\s+song|video|song))?|slowed(?:\s*[\+&]\s*reverb)?|sped\s+up|acoustic(?:\s+version)?|unplugged|live(?:\s+at\s+.*?)?|radio\s+edit|single\s+version|album\s+version|lo-?fi(?:\s+flip)?|deluxe(?:\s+edition)?|bonus\s+track|teaser|4k(?:\s+ultra\s+hd)?|hd|version)\s*[\)\]\}]/gi,
+    /\s*[\(\[\{]\s*(?:remix(?:ed)?(?:\s+by\s+.*?)?|club\s+mix|dance\s+mix|lyrical(?:\s+video)?|lyric\s+video|official(?:\s+(?:music\s+video|video|audio|visualizer))?|audio|video|full(?:\s+(?:video\s+song|video|song))?|slowed(?:\s*[\+&]\s*reverb)?|sped\s+up|acoustic(?:\s+version)?|unplugged|live(?:\s+at\s+.*?)?|radio\s+edit|single\s+version|album\s+version|lo-?fi(?:\s+flip)?|deluxe(?:\s+edition)?|bonus\s+track|teaser|4k(?:\s+ultra\s+hd)?|hd|version|piano\s+version|orchestral\s+version)\s*[\)\]\}]/gi,
     ' '
   );
 
-  // 4. Strip Remastered notices and trailing catalog metadata: e.g. "- Remastered 2011", "- 2015 Remaster"
+  // 4. Strip Remastered notices and trailing catalog metadata: e.g. "- Remastered 2011", "(2024 Remaster)", "- 2015 Remaster"
+  title = title.replace(
+    /\s*[\(\[\{]\s*(?:remaster(?:ed)?(?:\s+\d{4})?|\d{4}\s+remaster(?:ed)?)\s*[\)\]\}]/gi,
+    ' '
+  );
   title = title.replace(
     /\s*-\s*(?:remaster(?:ed)?(?:\s+\d{4})?|\d{4}\s+remaster|bonus\s+track|mono|stereo).*/gi,
     ' '
   );
 
-  // 5. Clean extra spaces, punctuation, trailing hyphens/colons
+  // 5. Strip trailing regional and language release tags: e.g. "- TELUGU", "- Tamil", "(Telugu)", "(Tamil)", "- Hindi", etc.
+  title = title.replace(
+    /\s*[-–—]\s*(?:telugu|tamil|hindi|malayalam|kannada|punjabi|bengali|english|marathi|gujarati|bhojpuri)(?:\s+version)?\s*$/gi,
+    ' '
+  );
+  title = title.replace(
+    /\s*[\(\[\{]\s*(?:telugu|tamil|hindi|malayalam|kannada|punjabi|bengali|english|marathi|gujarati|bhojpuri)(?:\s+version)?\s*[\)\]\}]/gi,
+    ' '
+  );
+
+  // 6. Clean extra spaces, punctuation, trailing hyphens/colons, and repeated dots/ellipses
   title = title
+    .replace(/\.{2,}/g, ' ')
     .replace(/\s{2,}/g, ' ')
     .replace(/[\s\-_:]+$/g, '')
     .trim();

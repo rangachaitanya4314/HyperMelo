@@ -216,6 +216,23 @@ export function getActiveLyricIndex(
   return -1;
 }
 
+/** Return the small, playback-positioned lyric window shown by karaoke. */
+export function getLyricQueueIndices(
+  lines: TimedLyricLine[] | undefined | null,
+  currentTime: number,
+  offsetMs = 0
+): number[] {
+  if (!lines?.length) return [];
+  const active = getActiveLyricIndex(lines, currentTime, offsetMs);
+  const anchor = active < 0
+    ? lines.findIndex((line) => (line.startTime ?? line.time ?? -1) >= currentTime + offsetMs / 1000)
+    : active;
+  if (anchor < 0) return [];
+  const first = Math.max(0, anchor - 1);
+  const end = Math.min(lines.length, anchor + 3);
+  return Array.from({ length: end - first }, (_, i) => first + i);
+}
+
 /**
  * Detect language script (Telugu, Tamil, Malayalam, Devanagari/Hindi, or English/Latin)
  */
@@ -268,9 +285,13 @@ export function clearCanonicalLinesCache(songId?: string): void {
 export function getCanonicalLyricLines(song: Song | null | undefined): TimedLyricLine[] {
   if (!song) return [];
 
-  // Check cache first
+  // Check cache first (do not return stale empty cache if song now has populated lyrics)
   if (canonicalLinesCache.has(song.id)) {
-    return canonicalLinesCache.get(song.id)!;
+    const cached = canonicalLinesCache.get(song.id)!;
+    const hasLyricsInObject = song.lyrics && Object.values(song.lyrics).some((b) => b?.lines && b.lines.length > 0);
+    if (cached.length > 0 || !hasLyricsInObject) {
+      return cached;
+    }
   }
 
   if (!song.lyrics) return [];

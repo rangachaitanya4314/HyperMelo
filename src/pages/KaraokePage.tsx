@@ -5,10 +5,24 @@ import { AbstractArtwork } from '../components/AbstractArtwork';
 import { capabilityService } from '../services/capability/capabilityService';
 import { musicCatalogService } from '../services/providers/musicCatalogService';
 import { appleMusicCatalogProvider } from '../services/providers/AppleMusicCatalogProvider';
+import {
+  HINDI_POPULAR_SONGS,
+  TELUGU_POPULAR_SONGS,
+  TAMIL_POPULAR_SONGS,
+  MALAYALAM_POPULAR_SONGS,
+  ENGLISH_POPULAR_SONGS
+} from '../data/curatedCatalog';
 import { JOSH_WOODWARD_SHOT_DOWN } from '../data/songs';
 import { takePlaybackService } from '../services/audio/takePlaybackService';
 import type { Song, RecordedTake } from '../types/music';
 import { getCanonicalTrackDuration } from '../shared/track';
+
+// Filter tracks to ensure legitimate karaoke capability and exclude dev fixtures
+const filterValidKaraoke = (list: Song[]) =>
+  list.filter((s) => {
+    const cap = capabilityService.evaluate(s);
+    return cap.karaoke !== 'UNAVAILABLE' && !cap.isDevFixture;
+  });
 
 export const KaraokePage: React.FC = () => {
   const {
@@ -43,50 +57,60 @@ export const KaraokePage: React.FC = () => {
     }
   });
 
-  // Dynamic language section songs state
-  const [hindiTracks, setHindiTracks] = useState<Song[]>([]);
-  const [teluguTracks, setTeluguTracks] = useState<Song[]>([]);
-  const [tamilTracks, setTamilTracks] = useState<Song[]>([]);
-  const [malayalamTracks, setMalayalamTracks] = useState<Song[]>([]);
-  const [englishTracks, setEnglishTracks] = useState<Song[]>([JOSH_WOODWARD_SHOT_DOWN]);
+  // Dynamic language section songs state - pre-populated with verified curated tracks for instant 0ms availability
+  const [hindiTracks, setHindiTracks] = useState<Song[]>(() => filterValidKaraoke(HINDI_POPULAR_SONGS));
+  const [teluguTracks, setTeluguTracks] = useState<Song[]>(() => filterValidKaraoke(TELUGU_POPULAR_SONGS));
+  const [tamilTracks, setTamilTracks] = useState<Song[]>(() => filterValidKaraoke(TAMIL_POPULAR_SONGS));
+  const [malayalamTracks, setMalayalamTracks] = useState<Song[]>(() => filterValidKaraoke(MALAYALAM_POPULAR_SONGS));
+  const [englishTracks, setEnglishTracks] = useState<Song[]>(() => [
+    JOSH_WOODWARD_SHOT_DOWN,
+    ...filterValidKaraoke(ENGLISH_POPULAR_SONGS)
+  ]);
 
-  // Load language sections on mount
+  // Load language section discoveries independently and progressively on mount
   useEffect(() => {
     let isCurrent = true;
 
-    async function loadLanguageSections() {
-      try {
-        const [hindi, telugu, tamilRaw, malayalamRaw, trending] = await Promise.all([
-          appleMusicCatalogProvider.getTrending('hindi').catch(() => []),
-          appleMusicCatalogProvider.getTrending('telugu').catch(() => []),
-          appleMusicCatalogProvider.search('tamil hits', { limit: 8 }).catch(() => []),
-          appleMusicCatalogProvider.search('malayalam hits', { limit: 8 }).catch(() => []),
-          appleMusicCatalogProvider.getTrending('all').catch(() => [])
-        ]);
-
-        if (!isCurrent) return;
-
-        const tamil = await Promise.all(tamilRaw.map((r) => appleMusicCatalogProvider.normalizeSong(r)));
-        const malayalam = await Promise.all(malayalamRaw.map((r) => appleMusicCatalogProvider.normalizeSong(r)));
-
-        // Filter all tracks to ensure legitimate karaoke capability and no dev fixtures
-        const filterValid = (list: Song[]) =>
-          list.filter((s) => {
-            const cap = capabilityService.evaluate(s);
-            return cap.karaoke !== 'UNAVAILABLE' && !cap.isDevFixture;
-          });
-
-        setHindiTracks(filterValid(hindi));
-        setTeluguTracks(filterValid(telugu));
-        setTamilTracks(filterValid(tamil));
-        setMalayalamTracks(filterValid(malayalam));
-        setEnglishTracks([JOSH_WOODWARD_SHOT_DOWN, ...filterValid(trending)]);
-      } catch (err) {
-        console.warn('Error fetching karaoke discovery sections:', err);
+    // Update each language section independently without blocking others
+    appleMusicCatalogProvider.getTrending('hindi').then((res) => {
+      if (isCurrent && res.length > 0) {
+        const valid = filterValidKaraoke(res);
+        if (valid.length > 0) setHindiTracks(valid);
       }
-    }
+    }).catch(() => {});
 
-    loadLanguageSections();
+    appleMusicCatalogProvider.getTrending('telugu').then((res) => {
+      if (isCurrent && res.length > 0) {
+        const valid = filterValidKaraoke(res);
+        if (valid.length > 0) setTeluguTracks(valid);
+      }
+    }).catch(() => {});
+
+    appleMusicCatalogProvider.search('tamil hits', { limit: 8 }).then(async (raw) => {
+      if (!isCurrent || raw.length === 0) return;
+      const normalized = await Promise.all(raw.map((r) => appleMusicCatalogProvider.normalizeSong(r)));
+      if (isCurrent) {
+        const valid = filterValidKaraoke(normalized);
+        if (valid.length > 0) setTamilTracks(valid);
+      }
+    }).catch(() => {});
+
+    appleMusicCatalogProvider.search('malayalam hits', { limit: 8 }).then(async (raw) => {
+      if (!isCurrent || raw.length === 0) return;
+      const normalized = await Promise.all(raw.map((r) => appleMusicCatalogProvider.normalizeSong(r)));
+      if (isCurrent) {
+        const valid = filterValidKaraoke(normalized);
+        if (valid.length > 0) setMalayalamTracks(valid);
+      }
+    }).catch(() => {});
+
+    appleMusicCatalogProvider.getTrending('all').then((res) => {
+      if (isCurrent && res.length > 0) {
+        const valid = filterValidKaraoke(res);
+        if (valid.length > 0) setEnglishTracks([JOSH_WOODWARD_SHOT_DOWN, ...valid]);
+      }
+    }).catch(() => {});
+
     return () => {
       isCurrent = false;
     };
@@ -211,6 +235,16 @@ export const KaraokePage: React.FC = () => {
         id={`karaoke-song-${song.id}`}
         data-testid="karaoke-song-card"
         className="glass-panel"
+        role="button"
+        tabIndex={0}
+        onClick={() => handleSingSong(song)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleSingSong(song);
+          }
+        }}
+        aria-label={`Start Karaoke for ${song.title} by ${song.artist}`}
         style={{
           borderRadius: 'var(--radius-xl)',
           padding: '18px',
@@ -221,7 +255,8 @@ export const KaraokePage: React.FC = () => {
           gap: '16px',
           border: '1px solid rgba(244, 240, 235, 0.08)',
           transition: 'all 0.2s ease',
-          position: 'relative'
+          position: 'relative',
+          cursor: 'pointer'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -423,7 +458,7 @@ export const KaraokePage: React.FC = () => {
                 onClick={() => setSearchQuery('')}
                 aria-label="Clear karaoke search"
                 style={{
-                  background: 'none',
+                  backgroundColor: 'transparent',
                   border: 'none',
                   color: 'var(--text-muted)',
                   cursor: 'pointer',

@@ -1,12 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { X, Sparkles, Music, AlertCircle, Loader2, Play, Volume2, Mic, MicOff } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { X, Sparkles, Music, AlertCircle, Loader2, Play, Volume2, Mic, MicOff, RotateCw } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { karaokePlaybackService } from '../services/audio/karaokePlaybackService';
 import { capabilityService } from '../services/capability/capabilityService';
-import { lyricsService } from '../services/lyrics/lyricsService';
+import { lyricsService, getLyricQueueIndices } from '../services/lyrics/lyricsService';
+import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 import { WaveformTimeline } from './WaveformTimeline';
 import type { TimedLyricLine } from '../types/music';
 import { vocalRemovalService } from '../services/audio/vocalSeparation/vocalRemovalService';
+import { karaokeMixer } from '../services/audio/karaokeMixer';
 import { getKaraokeLyricLine } from '../shared/lyrics';
 
 export const KaraokeModal: React.FC = () => {
@@ -27,6 +29,8 @@ export const KaraokeModal: React.FC = () => {
     isMicEnabled,
     toggleMic,
     seekTo,
+    currentTime,
+    isPlaying,
     lyricsRevision
   } = useAudioPlayer();
 
@@ -40,6 +44,13 @@ export const KaraokeModal: React.FC = () => {
   );
 
   const [selectedLineIndex, setSelectedLineIndex] = useState<number>(-1);
+  const [isLoadingLyrics, setIsLoadingLyrics] = useState<boolean>(() => {
+    if (!currentSong) return false;
+    const res = lyricsPipelineService.getResolutionStatus(currentSong);
+    return !res || res.outcome === 'PENDING';
+  });
+  const [lyricsError, setLyricsError] = useState<string | null>(null);
+  const lyricsListRef = useRef<HTMLDivElement>(null);
 
   const currentLines = useMemo(
     () => lyricsService.getCanonicalLyricLines(currentSong),
@@ -51,6 +62,80 @@ export const KaraokeModal: React.FC = () => {
   );
   const isSyncedLyrics = lyricsCapability === 'SYNCED_LYRICS' && currentLines.length > 0;
 
+  // Reset selected line when song changes
+  useEffect(() => {
+    setSelectedLineIndex(-1);
+  }, [currentSong?.id]);
+
+  // Resolve lyrics for canonical song identity with stale-request protection
+  useEffect(() => {
+    if (!karaokeModalOpen || !currentSong) return;
+    let isCurrent = true;
+    const songId = currentSong.id;
+
+    const currentStatus = lyricsPipelineService.getResolutionStatus(currentSong);
+    if (currentStatus) {
+      if (currentStatus.outcome === 'SYNCHRONIZED' || currentStatus.outcome === 'VERIFIED_UNTIMED') {
+        setIsLoadingLyrics(false);
+        setLyricsError(null);
+        return;
+      }
+      if (currentStatus.outcome === 'CONFIRMED_NO_RESULT') {
+        setIsLoadingLyrics(false);
+        setLyricsError(currentStatus.errorReason || 'No lyrics available for this track');
+        return;
+      }
+    }
+
+    setIsLoadingLyrics(true);
+    setLyricsError(null);
+
+    lyricsPipelineService
+      .resolveTrack(currentSong)
+      .then((res) => {
+        if (!isCurrent || currentSong.id !== songId) return;
+        setIsLoadingLyrics(false);
+        if (res.outcome === 'CONFIRMED_NO_RESULT') {
+          setLyricsError(res.errorReason || 'No lyrics available from supported providers');
+        } else if (res.outcome === 'TRANSIENT_FAILURE') {
+          setLyricsError(res.errorReason || 'Failed to fetch lyrics. Click retry to try again.');
+        } else {
+          setLyricsError(null);
+        }
+      })
+      .catch((err) => {
+        if (!isCurrent || currentSong.id !== songId) return;
+        setIsLoadingLyrics(false);
+        setLyricsError(err?.message || 'Network error while retrieving lyrics');
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [karaokeModalOpen, currentSong?.id]);
+
+  const handleRetryLyrics = () => {
+    if (!currentSong) return;
+    setIsLoadingLyrics(true);
+    setLyricsError(null);
+    lyricsPipelineService
+      .resolveTrack(currentSong, true)
+      .then((res) => {
+        setIsLoadingLyrics(false);
+        if (res.outcome === 'CONFIRMED_NO_RESULT') {
+          setLyricsError(res.errorReason || 'No lyrics available from supported providers');
+        } else if (res.outcome === 'TRANSIENT_FAILURE') {
+          setLyricsError(res.errorReason || 'Failed to fetch lyrics. Click retry to try again.');
+        } else {
+          setLyricsError(null);
+        }
+      })
+      .catch((err) => {
+        setIsLoadingLyrics(false);
+        setLyricsError(err?.message || 'Network error while retrieving lyrics');
+      });
+  };
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,6 +146,50 @@ export const KaraokeModal: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [karaokeModalOpen, closeKaraokeModal]);
+
+  // Active lyric index follows active audio clock or user selection
+  const activeLyricIndex = useMemo(() => {
+    if (!karaokeModalOpen || !currentSong || !isSyncedLyrics || currentLines.length === 0) return -1;
+    if (selectedLineIndex !== -1 && !isPlaying) {
+      return selectedLineIndex;
+    }
+    return lyricsService.getActiveLyricIndex(currentLines, currentTime, currentSong?.lyricsOffsetMs || 0);
+  }, [karaokeModalOpen, currentSong, isSyncedLyrics, currentLines, selectedLineIndex, isPlaying, currentTime]);
+
+  const lyricQueueIndices = useMemo(
+    () => getLyricQueueIndices(currentLines, currentTime, currentSong?.lyricsOffsetMs || 0),
+    [currentLines, currentTime, currentSong?.lyricsOffsetMs]
+  );
+
+  // Active or selected line
+  const activeLine = useMemo(() => {
+    if (!currentSong || currentLines.length === 0) return null;
+    if (activeLyricIndex >= 0 && currentLines[activeLyricIndex]) {
+      return currentLines[activeLyricIndex];
+    }
+    const secStart = selectedSection?.start ?? 0;
+    const secEnd = selectedSection?.end ?? (currentSong?.duration || 255);
+    return (
+      currentLines.find((l) => {
+        const t = l.startTime !== undefined && l.startTime >= 0 ? l.startTime : l.time ?? 0;
+        return t >= secStart && t <= secEnd;
+      }) || currentLines[0] || null
+    );
+  }, [currentSong, currentLines, activeLyricIndex, selectedSection?.start, selectedSection?.end]);
+
+  const activeKaraoke = useMemo(() => {
+    return activeLine ? getKaraokeLyricLine(activeLine, karaokeScriptPreference) : null;
+  }, [activeLine, karaokeScriptPreference]);
+
+  // Auto-scroll active lyric line into view smoothly
+  useEffect(() => {
+    if (karaokeModalOpen && activeLyricIndex >= 0 && lyricsListRef.current) {
+      const activeEl = document.getElementById(`karaoke-lyric-${activeLyricIndex}`);
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [karaokeModalOpen, activeLyricIndex]);
 
   // Backing audio verification before allowing recording
   useEffect(() => {
@@ -75,7 +204,7 @@ export const KaraokeModal: React.FC = () => {
     setBackingStatus('verifying');
 
     karaokePlaybackService
-      .loadBackingSource(currentSong, selectedSection.start)
+      .loadBackingSource(currentSong, selectedSection?.start ?? 0)
       .then(() => {
         if (isCurrent) setBackingStatus('ready');
       })
@@ -87,7 +216,37 @@ export const KaraokeModal: React.FC = () => {
     return () => {
       isCurrent = false;
     };
-  }, [karaokeModalOpen, currentSong, selectedSection.start, isKaraokeEligible]);
+  }, [karaokeModalOpen, currentSong, selectedSection?.start, isKaraokeEligible]);
+
+  const formatTime = (secs?: number) => {
+    if (typeof secs !== 'number' || isNaN(secs) || secs < 0) return '00:00';
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Click on a synchronized lyric line -> Seek playhead & set as starting line
+  const handleLyricLineClick = (line: TimedLyricLine, index: number) => {
+    const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : (line.time || 0);
+    seekTo(lineTime);
+    setSelectedLineIndex(index);
+    setSelectedSection({
+      type: 'custom',
+      label: line.text.slice(0, 24) || 'Custom Line',
+      start: lineTime,
+      end: Math.min(currentSong?.duration || 255, lineTime + 300)
+    });
+  };
+
+  const handleGo = () => {
+    if (backingStatus !== 'ready' || !isKaraokeEligible) return;
+    startKaraokeRecording(selectedSection || {
+      type: 'verse',
+      label: 'Verse 1',
+      start: 0,
+      end: Math.min(currentSong?.duration || 255, 45)
+    });
+  };
 
   if (!karaokeModalOpen) return null;
 
@@ -109,41 +268,7 @@ export const KaraokeModal: React.FC = () => {
     );
   }
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
-
-
   const currentSnippet = currentSong.lyrics?.en?.chorusSnippet || currentSong.title;
-
-  // Active or selected line
-  const activeLine = currentLines.find((l) => {
-    const t = l.startTime !== undefined && l.startTime >= 0 ? l.startTime : l.time ?? 0;
-    return t >= selectedSection.start && t <= selectedSection.end;
-  }) || currentLines[0];
-
-  const activeKaraoke = activeLine ? getKaraokeLyricLine(activeLine, karaokeScriptPreference) : null;
-
-  // Click on a synchronized lyric line -> Seek playhead & set as starting line
-  const handleLyricLineClick = (line: TimedLyricLine, index: number) => {
-    const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : (line.time || 0);
-    seekTo(lineTime);
-    setSelectedLineIndex(index);
-    setSelectedSection({
-      type: 'custom',
-      label: line.text.slice(0, 24) || 'Custom Line',
-      start: lineTime,
-      end: Math.min(currentSong.duration || 255, lineTime + 300)
-    });
-  };
-
-  const handleGo = () => {
-    if (backingStatus !== 'ready' || !isKaraokeEligible) return;
-    startKaraokeRecording(selectedSection);
-  };
 
   return (
     <div
@@ -190,7 +315,7 @@ export const KaraokeModal: React.FC = () => {
             position: 'absolute',
             top: '20px',
             right: '20px',
-            background: 'rgba(244, 240, 235, 0.06)',
+            backgroundColor: 'rgba(244, 240, 235, 0.06)',
             border: '1px solid var(--border-subtle)',
             borderRadius: '50%',
             width: '36px',
@@ -387,7 +512,7 @@ export const KaraokeModal: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
             <span style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {isSyncedLyrics ? 'Tap any lyric line to start singing from that exact moment:' : 'Timeline Navigation:'}
+              {isSyncedLyrics ? 'Tap any lyric line to start singing from that exact moment:' : currentLines.length > 0 ? 'Song Lyrics & Timeline Navigation:' : 'Timeline Navigation:'}
             </span>
 
             {/* Karaoke Writing-System Selector: Native Script vs Roman Transliteration */}
@@ -416,7 +541,7 @@ export const KaraokeModal: React.FC = () => {
                 className={karaokeScriptPreference === 'native' ? 'active' : ''}
                 onClick={() => setKaraokeScriptPreference('native')}
                 style={{
-                  background: karaokeScriptPreference === 'native' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
+                  backgroundColor: karaokeScriptPreference === 'native' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
                   color: karaokeScriptPreference === 'native' ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.55)',
                   border: karaokeScriptPreference === 'native' ? '1px solid rgba(231, 165, 141, 0.4)' : '1px solid transparent',
                   padding: '4px 14px',
@@ -439,7 +564,7 @@ export const KaraokeModal: React.FC = () => {
                 className={karaokeScriptPreference === 'transliteration' ? 'active' : ''}
                 onClick={() => setKaraokeScriptPreference('transliteration')}
                 style={{
-                  background: karaokeScriptPreference === 'transliteration' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
+                  backgroundColor: karaokeScriptPreference === 'transliteration' ? 'rgba(231, 165, 141, 0.28)' : 'transparent',
                   color: karaokeScriptPreference === 'transliteration' ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.55)',
                   border: karaokeScriptPreference === 'transliteration' ? '1px solid rgba(231, 165, 141, 0.4)' : '1px solid transparent',
                   padding: '4px 14px',
@@ -455,13 +580,34 @@ export const KaraokeModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Synchronized Lyrics List or Truthful Fallback */}
-          {isSyncedLyrics ? (
+          {/* Synchronized Lyrics List, Plain Lyrics Reader, Loading, or Truthful Fallback */}
+          {isLoadingLyrics && currentLines.length === 0 ? (
+            <div
+              data-testid="karaoke-lyrics-loading"
+              style={{
+                padding: '28px 20px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(8, 11, 16, 0.85)',
+                border: '1px solid rgba(244, 240, 235, 0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <Loader2 size={18} className="animate-spin" color="var(--accent-warm)" />
+              <span style={{ fontSize: '0.9rem' }}>
+                Fetching canonical lyrics for "{currentSong.title}"...
+              </span>
+            </div>
+          ) : isSyncedLyrics ? (
             <div
               id="karaoke-lyrics-viewer"
               data-testid="karaoke-lyrics-viewer"
+              ref={lyricsListRef}
               style={{
-                maxHeight: '190px',
+                maxHeight: 'min(230px, 34vh)',
                 overflowY: 'auto',
                 borderRadius: 'var(--radius-md)',
                 backgroundColor: 'rgba(8, 11, 16, 0.85)',
@@ -472,11 +618,11 @@ export const KaraokeModal: React.FC = () => {
                 gap: '8px'
               }}
             >
-              {currentLines.map((line, idx) => {
+              {lyricQueueIndices.map((idx) => {
+                const line = currentLines[idx];
                 const lineTime = line.startTime !== undefined && line.startTime >= 0 ? line.startTime : (line.time || 0);
-                const isSelected =
-                  selectedLineIndex === idx ||
-                  (selectedLineIndex === -1 && Math.abs(selectedSection.start - lineTime) < 2);
+                const isSelected = idx === activeLyricIndex || (activeLyricIndex === -1 && selectedLineIndex === idx);
+                const distance = idx - (activeLyricIndex >= 0 ? activeLyricIndex : (lyricQueueIndices[0] ?? 0) + 1);
                 const karaokeLine = getKaraokeLyricLine(line, karaokeScriptPreference);
 
                 return (
@@ -484,6 +630,8 @@ export const KaraokeModal: React.FC = () => {
                     key={idx}
                     id={`karaoke-lyric-${idx}`}
                     data-testid="karaoke-lyric-line"
+                    data-lyric-index={idx}
+                    data-active={isSelected ? 'true' : 'false'}
                     role="button"
                     tabIndex={0}
                     onClick={() => handleLyricLineClick(line, idx)}
@@ -501,6 +649,8 @@ export const KaraokeModal: React.FC = () => {
                       backgroundColor: isSelected ? 'rgba(231, 165, 141, 0.16)' : 'transparent',
                       border: isSelected ? '1px solid var(--accent-warm)' : '1px solid transparent',
                       cursor: 'pointer',
+                      opacity: isSelected ? 1 : distance < 0 ? 0.48 : 0.74,
+                      transform: isSelected ? 'scale(1.01)' : 'none',
                       transition: 'all 0.15s ease'
                     }}
                   >
@@ -545,9 +695,112 @@ export const KaraokeModal: React.FC = () => {
                 );
               })}
             </div>
-          ) : (
-            /* Truthful Synchronized Lyrics Fallback */
+          ) : currentLines.length > 0 ? (
+            /* Plain Untimed Lyrics Display */
             <div
+              id="karaoke-plain-lyrics-viewer"
+              data-testid="karaoke-plain-lyrics-viewer"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div
+                style={{
+                  maxHeight: '170px',
+                  overflowY: 'auto',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(8, 11, 16, 0.85)',
+                  border: '1px solid rgba(244, 240, 235, 0.08)',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      letterSpacing: '0.08em',
+                      color: 'var(--accent-warm)',
+                      backgroundColor: 'rgba(231, 165, 141, 0.12)',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)'
+                    }}
+                  >
+                    UNTIMED PLAIN LYRICS
+                  </span>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-dim)' }}>
+                    Sing along with the words below
+                  </span>
+                </div>
+                {currentLines.map((line, idx) => {
+                  const karaokeLine = getKaraokeLyricLine(line, karaokeScriptPreference);
+                  return (
+                    <div
+                      key={idx}
+                      data-testid="karaoke-plain-lyric-line"
+                      style={{
+                        fontSize: '0.94rem',
+                        color: 'var(--text-primary)',
+                        padding: '4px 0',
+                        lineHeight: 1.4
+                      }}
+                    >
+                      {karaokeLine.text}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Timeline start position selector */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 'var(--radius-md)',
+                  backgroundColor: 'rgba(8, 11, 16, 0.7)',
+                  border: '1px solid rgba(244, 240, 235, 0.08)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>
+                    Set backing start position:
+                  </span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-cream)', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatTime(selectedSection.start)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={currentSong.duration || 255}
+                  step={1}
+                  value={selectedSection.start}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    seekTo(val);
+                    setSelectedSection({
+                      type: 'custom',
+                      label: `Start at ${formatTime(val)}`,
+                      start: val,
+                      end: Math.min(currentSong.duration || 255, val + 300)
+                    });
+                  }}
+                  aria-label="Authoritative timeline start position"
+                  style={{ width: '100%', height: '6px', accentColor: 'var(--accent-warm)', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Truthful Unavailable Fallback with Retry */
+            <div
+              data-testid="karaoke-lyrics-unavailable"
               style={{
                 padding: '16px 20px',
                 borderRadius: 'var(--radius-md)',
@@ -555,12 +808,36 @@ export const KaraokeModal: React.FC = () => {
                 border: '1px solid rgba(244, 240, 235, 0.08)',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px'
+                gap: '12px'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.84rem' }}>
-                <AlertCircle size={15} />
-                <span>Synchronized lyrics unavailable for this track — use timeline to choose your start position</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '0.84rem' }}>
+                  <AlertCircle size={15} color="#F59E0B" />
+                  <span>
+                    {lyricsError || 'Lyrics unavailable for this track — use timeline to choose your start position'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  data-testid="karaoke-retry-lyrics-btn"
+                  onClick={handleRetryLyrics}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 12px',
+                    borderRadius: 'var(--radius-full)',
+                    backgroundColor: 'rgba(231, 165, 141, 0.12)',
+                    border: '1px solid rgba(231, 165, 141, 0.25)',
+                    color: 'var(--accent-cream)',
+                    fontSize: '0.78rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RotateCw size={12} />
+                  <span>Retry</span>
+                </button>
               </div>
               <input
                 type="range"
@@ -656,7 +933,7 @@ export const KaraokeModal: React.FC = () => {
               onClick={toggleMic}
               aria-label={isMicEnabled ? 'Mute microphone' : 'Unmute microphone'}
               style={{
-                background: 'none',
+                backgroundColor: 'transparent',
                 border: 'none',
                 color: isMicEnabled ? 'var(--accent-cream)' : '#EF4444',
                 cursor: 'pointer',
@@ -815,8 +1092,10 @@ export const KaraokeModal: React.FC = () => {
               <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-dim)', margin: 0 }}>
                 {vocalResolution.type === 'verified_instrumental'
                   ? `Verified instrumental backing active • Lead vocal absent • Starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
+                  : vocalResolution.type === 'center_channel_reduction' && !karaokeMixer.isAudioRouteConnected()
+                  ? `Vocal reduction unavailable: this playback source is not routed through Web Audio. Original vocals will remain. Starts at ${formatTime(selectedSection.start)}.`
                   : vocalResolution.type === 'center_channel_reduction'
-                  ? `Center-channel vocal reduction fallback active (approximate) • Starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
+                  ? `Approximate center-channel vocal reduction available • Vocal remnants and centered instruments may remain. Starts at ${formatTime(selectedSection.start)}.`
                   : isSingAlong
                   ? `Live microphone monitoring & synced lyrics active • Backing starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
                   : `Karaoke starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`}

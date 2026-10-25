@@ -112,57 +112,74 @@ export class LiveCatalogAdapter implements ChartProviderAdapter {
       throw new Error(`Unsupported live language catalog chart ID: ${chartId}`);
     }
 
+    if (signal?.aborted) {
+      throw new DOMException('The user aborted a request.', 'AbortError');
+    }
+
     const endpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(
       config.primaryQuery
     )}&country=${encodeURIComponent(config.country)}&entity=song&limit=${limit}`;
 
+    const timeoutCtrl = new AbortController();
+    const timer = setTimeout(() => timeoutCtrl.abort(new Error('Live catalog request timed out after 4000ms')), 4000);
+    if (signal) {
+      signal.addEventListener('abort', () => timeoutCtrl.abort(signal.reason), { once: true });
+    }
+    const effectiveSignal = timeoutCtrl.signal;
+
     try {
-      const response = await fetch(endpoint, {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'HyperMelo/1.0 (Web Client; Catalog Discovery)'
-        },
-        signal
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Online catalog provider returned HTTP ${response.status} (${response.statusText})`
-        );
-      }
-
-      const data: ItunesSearchResponse = await response.json();
-      return this.validateAndNormalizeResponse(data, chartId, config.language, config.country);
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        throw err;
-      }
-
-      // If primary query had an error, try fallback query once before giving up
       try {
-        const fallbackEndpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(
-          config.fallbackQuery
-        )}&country=${encodeURIComponent(config.country)}&entity=song&limit=${limit}`;
-
-        const fallbackRes = await fetch(fallbackEndpoint, {
-          headers: { 'Accept': 'application/json' },
-          signal
+        const response = await fetch(endpoint, {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'HyperMelo/1.0 (Web Client; Catalog Discovery)'
+          },
+          signal: effectiveSignal
         });
 
-        if (fallbackRes.ok) {
-          const fallbackData: ItunesSearchResponse = await fallbackRes.json();
-          return this.validateAndNormalizeResponse(
-            fallbackData,
-            chartId,
-            config.language,
-            config.country
+        if (!response.ok) {
+          throw new Error(
+            `Online catalog provider returned HTTP ${response.status} (${response.statusText})`
           );
         }
-      } catch (fallbackErr: any) {
-        if (fallbackErr.name === 'AbortError') throw fallbackErr;
-      }
 
-      throw new Error(`Failed to load live catalog for ${chartId}: ${err.message}`);
+        const data: ItunesSearchResponse = await response.json();
+        return this.validateAndNormalizeResponse(data, chartId, config.language, config.country);
+      } catch (err: any) {
+        if (err.name === 'AbortError' || signal?.aborted) {
+          throw new DOMException('The user aborted a request.', 'AbortError');
+        }
+
+        // If primary query had an error, try fallback query once before giving up
+        try {
+          const fallbackEndpoint = `https://itunes.apple.com/search?term=${encodeURIComponent(
+            config.fallbackQuery
+          )}&country=${encodeURIComponent(config.country)}&entity=song&limit=${limit}`;
+
+          const fallbackRes = await fetch(fallbackEndpoint, {
+            headers: { 'Accept': 'application/json' },
+            signal: effectiveSignal
+          });
+
+          if (fallbackRes.ok) {
+            const fallbackData: ItunesSearchResponse = await fallbackRes.json();
+            return this.validateAndNormalizeResponse(
+              fallbackData,
+              chartId,
+              config.language,
+              config.country
+            );
+          }
+        } catch (fallbackErr: any) {
+          if (fallbackErr.name === 'AbortError' || signal?.aborted) {
+            throw new DOMException('The user aborted a request.', 'AbortError');
+          }
+        }
+
+        throw new Error(`Failed to load live catalog for ${chartId}: ${err.message}`);
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }
 

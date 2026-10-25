@@ -30,6 +30,9 @@ interface DiscoverSectionData {
   icon: React.ReactNode;
 }
 
+// In-memory cache for artist discoveries to eliminate repeated loading latency
+const artistTrackCache = new Map<string, Song[]>();
+
 export const DiscoverPage: React.FC = () => {
   const { isOnline, setSearchModalOpen, setSearchQuery } = useAudioPlayer();
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -37,23 +40,21 @@ export const DiscoverPage: React.FC = () => {
   const [artistCategoryFilter, setArtistCategoryFilter] = useState<'all' | 'en' | 'hi' | 'te' | 'ta'>('all');
   const [showAllArtists, setShowAllArtists] = useState<boolean>(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const [loading, setLoading] = useState<boolean>(true);
   const [tabLoading, setTabLoading] = useState<boolean>(false);
 
   // AbortController and request ID refs to prevent stale responses from overwriting active tab
   const tabRequestIdRef = React.useRef<number>(0);
   const tabAbortControllerRef = React.useRef<AbortController | null>(null);
 
-  // Discovery section data state
-  const [trendingSongs, setTrendingSongs] = useState<Song[]>([]);
-  const [hindiTop10, setHindiTop10] = useState<Song[]>([]);
-  const [teluguTop10, setTeluguTop10] = useState<Song[]>([]);
-  const [tamilTop10, setTamilTop10] = useState<Song[]>([]);
-  const [malayalamTop10, setMalayalamTop10] = useState<Song[]>([]);
-  const [englishTop10, setEnglishTop10] = useState<Song[]>([]);
-  const [newReleases, setNewReleases] = useState<Song[]>([]);
+  // Discovery section data state - pre-populated with verified curated songs so content is instantly interactive
+  const [trendingSongs, setTrendingSongs] = useState<Song[]>(() => TRENDING_INDIA_SONGS);
+  const [hindiTop10, setHindiTop10] = useState<Song[]>(() => HINDI_POPULAR_SONGS);
+  const [teluguTop10, setTeluguTop10] = useState<Song[]>(() => TELUGU_POPULAR_SONGS);
+  const [tamilTop10, setTamilTop10] = useState<Song[]>(() => TAMIL_POPULAR_SONGS);
+  const [malayalamTop10, setMalayalamTop10] = useState<Song[]>(() => MALAYALAM_POPULAR_SONGS);
+  const [englishTop10, setEnglishTop10] = useState<Song[]>(() => ENGLISH_POPULAR_SONGS);
+  const [newReleases, setNewReleases] = useState<Song[]>(() => NEW_RELEASES_SONGS);
   const [artistSongs, setArtistSongs] = useState<Song[]>([]);
-
 
   const fallbackCatalog = useMemo(() => musicCatalogService.getFallbackCatalog(), []);
 
@@ -72,10 +73,8 @@ export const DiscoverPage: React.FC = () => {
     return [...liveSongs, ...padding];
   };
 
-  // Fetch all sections concurrently on initial load
+  // Fetch all sections progressively on initial load without blocking the UI
   const loadDiscoveryData = useCallback(async () => {
-    setLoading(true);
-
     if (!isOnline) {
       setTrendingSongs(TRENDING_INDIA_SONGS);
       setHindiTop10(HINDI_POPULAR_SONGS);
@@ -84,97 +83,56 @@ export const DiscoverPage: React.FC = () => {
       setMalayalamTop10(MALAYALAM_POPULAR_SONGS);
       setEnglishTop10(ENGLISH_POPULAR_SONGS);
       setNewReleases(NEW_RELEASES_SONGS);
-      setLoading(false);
       return;
     }
 
-    try {
-      const [
-        snapTrending,
-        snapHindi,
-        snapTelugu,
-        snapTamil,
-        snapMalayalam,
-        snapEnglish,
-        newRes
-      ] = await Promise.allSettled([
-        chartService.getChart('trending-india'),
-        chartService.getChart('hindi-top-10'),
-        chartService.getChart('telugu-top-10'),
-        chartService.getChart('tamil-top-10'),
-        chartService.getChart('malayalam-top-10'),
-        chartService.getChart('english-top-10'),
-        appleMusicCatalogProvider.search('new latest single releases 2024', { limit: 20 })
-      ]);
-
-      if (snapTrending.status === 'fulfilled' && snapTrending.value.tracks.length > 0) {
-        const songs = snapTrending.value.tracks.map((t) => chartService.toSong(t));
-        setTrendingSongs(padTracksIfNeeded(songs, TRENDING_INDIA_SONGS));
-      } else {
-        setTrendingSongs(TRENDING_INDIA_SONGS);
-      }
-
-      if (snapHindi.status === 'fulfilled' && snapHindi.value.tracks.length > 0) {
-        const songs = snapHindi.value.tracks.map((t) => chartService.toSong(t));
-        setHindiTop10(padTracksIfNeeded(songs, HINDI_POPULAR_SONGS));
-      } else {
-        setHindiTop10(HINDI_POPULAR_SONGS);
-      }
-
-      if (snapTelugu.status === 'fulfilled' && snapTelugu.value.tracks.length > 0) {
-        const songs = snapTelugu.value.tracks.map((t) => chartService.toSong(t));
-        setTeluguTop10(padTracksIfNeeded(songs, TELUGU_POPULAR_SONGS));
-      } else {
-        setTeluguTop10(TELUGU_POPULAR_SONGS);
-      }
-
-      if (snapTamil.status === 'fulfilled' && snapTamil.value.tracks.length > 0) {
-        const songs = snapTamil.value.tracks.map((t) => chartService.toSong(t));
-        setTamilTop10(padTracksIfNeeded(songs, TAMIL_POPULAR_SONGS));
-      } else {
-        setTamilTop10(TAMIL_POPULAR_SONGS);
-      }
-
-      if (snapMalayalam.status === 'fulfilled' && snapMalayalam.value.tracks.length > 0) {
-        const songs = snapMalayalam.value.tracks.map((t) => chartService.toSong(t));
-        setMalayalamTop10(padTracksIfNeeded(songs, MALAYALAM_POPULAR_SONGS));
-      } else {
-        setMalayalamTop10(MALAYALAM_POPULAR_SONGS);
-      }
-
-      if (snapEnglish.status === 'fulfilled' && snapEnglish.value.tracks.length > 0) {
-        const songs = snapEnglish.value.tracks.map((t) => chartService.toSong(t));
-        setEnglishTop10(padTracksIfNeeded(songs, ENGLISH_POPULAR_SONGS));
-      } else {
-        setEnglishTop10(ENGLISH_POPULAR_SONGS);
-      }
-
-      if (newRes.status === 'fulfilled' && Array.isArray(newRes.value) && newRes.value.length > 0) {
-        const normNew = await Promise.all(newRes.value.map((item) => appleMusicCatalogProvider.normalizeSong(item)));
-        const mergedMap = new Map<string, Song>();
-        for (const s of normNew) {
-          mergedMap.set(s.title.toLowerCase().trim(), s);
+    const loadSection = async (
+      chartId: string,
+      fallback: Song[],
+      setter: React.Dispatch<React.SetStateAction<Song[]>>
+    ) => {
+      try {
+        const snap = await chartService.getChart(chartId);
+        if (snap?.tracks && snap.tracks.length > 0) {
+          const songs = snap.tracks.map((t) => chartService.toSong(t));
+          setter(padTracksIfNeeded(songs, fallback));
         }
-        for (const s of NEW_RELEASES_SONGS) {
-          if (!mergedMap.has(s.title.toLowerCase().trim())) {
+      } catch {
+        // Fallback already active
+      }
+    };
+
+    const loadNewReleases = async () => {
+      try {
+        const res = await appleMusicCatalogProvider.search('new latest single releases 2024', { limit: 20 });
+        if (res && res.length > 0) {
+          const normNew = await Promise.all(res.map((item) => appleMusicCatalogProvider.normalizeSong(item)));
+          const mergedMap = new Map<string, Song>();
+          for (const s of normNew) {
             mergedMap.set(s.title.toLowerCase().trim(), s);
           }
+          for (const s of NEW_RELEASES_SONGS) {
+            if (!mergedMap.has(s.title.toLowerCase().trim())) {
+              mergedMap.set(s.title.toLowerCase().trim(), s);
+            }
+          }
+          setNewReleases(Array.from(mergedMap.values()));
         }
-        setNewReleases(Array.from(mergedMap.values()));
-      } else {
-        setNewReleases(NEW_RELEASES_SONGS);
+      } catch {
+        // Fallback already active
       }
-    } catch {
-      setTrendingSongs(TRENDING_INDIA_SONGS);
-      setHindiTop10(HINDI_POPULAR_SONGS);
-      setTeluguTop10(TELUGU_POPULAR_SONGS);
-      setTamilTop10(TAMIL_POPULAR_SONGS);
-      setMalayalamTop10(MALAYALAM_POPULAR_SONGS);
-      setEnglishTop10(ENGLISH_POPULAR_SONGS);
-      setNewReleases(NEW_RELEASES_SONGS);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    // Run independent section loads concurrently; each section renders as soon as ready
+    await Promise.allSettled([
+      loadSection('trending-india', TRENDING_INDIA_SONGS, setTrendingSongs),
+      loadSection('hindi-top-10', HINDI_POPULAR_SONGS, setHindiTop10),
+      loadSection('telugu-top-10', TELUGU_POPULAR_SONGS, setTeluguTop10),
+      loadSection('tamil-top-10', TAMIL_POPULAR_SONGS, setTamilTop10),
+      loadSection('malayalam-top-10', MALAYALAM_POPULAR_SONGS, setMalayalamTop10),
+      loadSection('english-top-10', ENGLISH_POPULAR_SONGS, setEnglishTop10),
+      loadNewReleases()
+    ]);
   }, [isOnline]);
 
   // Pre-resolve lyrics for visible tracks in the background using bounded concurrency
@@ -298,10 +256,15 @@ export const DiscoverPage: React.FC = () => {
     loadDiscoveryData();
   }, [loadDiscoveryData]);
 
-  // Load artist songs when artist is selected: query local curated catalog, all 12 moods, and live catalog search
+  // Load artist songs when artist is selected: immediate local match render + background live catalog merge + memory cache
   useEffect(() => {
     if (!selectedArtist) {
       setArtistSongs([]);
+      return;
+    }
+
+    if (artistTrackCache.has(selectedArtist)) {
+      setArtistSongs(artistTrackCache.get(selectedArtist)!);
       return;
     }
 
@@ -343,8 +306,13 @@ export const DiscoverPage: React.FC = () => {
         }
       }
 
+      // Render local matches immediately so user sees tracks in <1ms without delay
+      if (isMounted) {
+        setArtistSongs(localMatches);
+        artistTrackCache.set(selectedArtist, localMatches);
+      }
+
       if (!isOnline) {
-        if (isMounted) setArtistSongs(localMatches);
         return;
       }
 
@@ -363,10 +331,12 @@ export const DiscoverPage: React.FC = () => {
           }
         }
         if (isMounted) {
-          setArtistSongs(merged.length > 0 ? merged : localMatches);
+          const finalList = merged.length > 0 ? merged : localMatches;
+          setArtistSongs(finalList);
+          artistTrackCache.set(selectedArtist, finalList);
         }
       } catch {
-        if (isMounted) setArtistSongs(localMatches);
+        // Local matches already active
       }
     };
 
@@ -866,22 +836,7 @@ export const DiscoverPage: React.FC = () => {
       })()}
 
       {/* Main Discover Content */}
-      {loading ? (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '12px',
-            color: 'var(--text-muted)',
-            padding: '60px 0'
-          }}
-        >
-          <Loader2 size={24} className="animate-spin" color="var(--accent-warm)" />
-          <span>Loading music sections...</span>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
           {tabLoading && (
             <div
               data-testid="tab-loading-state"
@@ -1012,7 +967,6 @@ export const DiscoverPage: React.FC = () => {
               );
             })}
         </div>
-      )}
 
       <style>{`
         @media (max-width: 1080px) {

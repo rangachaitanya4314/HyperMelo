@@ -44,13 +44,15 @@ class KaraokeMixer {
     }
   }
 
-  private getContext(): AudioContext {
+  private getContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null;
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return null;
       this.ctx = new AudioCtx();
       this.setupGraph();
     }
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;
@@ -112,6 +114,7 @@ class KaraokeMixer {
     }
     try {
       const ctx = this.getContext();
+      if (!ctx) return false;
       if (!audio.crossOrigin) {
         audio.crossOrigin = 'anonymous';
       }
@@ -145,6 +148,9 @@ class KaraokeMixer {
           // ignore
         }
         source.connect(this.vocalSuppressor.getInput());
+        if (this.isKaraokeActive) {
+          this.vocalSuppressor.setSuppression(1.0, 0);
+        }
       }
       return true;
     } catch (err) {
@@ -158,6 +164,7 @@ class KaraokeMixer {
    */
   public connectMicStream(stream: MediaStream) {
     const ctx = this.getContext();
+    if (!ctx) return;
     this.micStream = stream;
 
     try {
@@ -179,6 +186,9 @@ class KaraokeMixer {
    */
   public setKaraokeMode(enabled: boolean): void {
     this.isKaraokeActive = enabled;
+    if (enabled) {
+      this.resumeContext().catch(() => {});
+    }
     if (this.vocalSuppressor) {
       this.vocalSuppressor.setSuppression(enabled ? 1.0 : 0.0, 80);
     }
@@ -186,6 +196,11 @@ class KaraokeMixer {
 
   public get isKaraoke(): boolean {
     return this.isKaraokeActive;
+  }
+
+  public getVocalSuppressor(): WebAudioVocalSuppressor | null {
+    this.getContext(); // Ensure graph is initialized
+    return this.vocalSuppressor;
   }
 
   public setBgmVolume(vol: number): void {
@@ -254,6 +269,24 @@ class KaraokeMixer {
     const data = new Uint8Array(this.masterAnalyser.frequencyBinCount);
     this.masterAnalyser.getByteFrequencyData(data);
     return data;
+  }
+
+  public getAudioSourceNode(): MediaElementAudioSourceNode | null {
+    return this.audioSourceNode;
+  }
+
+  public getConnectedAudioElement(): HTMLAudioElement | null {
+    return this.connectedAudioElement;
+  }
+
+  /** True only when the selected media element has a source node routed into this graph. */
+  public isAudioRouteConnected(audio?: HTMLAudioElement | null): boolean {
+    if (!this.audioSourceNode || !this.connectedAudioElement) return false;
+    return !audio || audio === this.connectedAudioElement;
+  }
+
+  public getAudioContextState(): AudioContextState | 'unavailable' {
+    return this.ctx?.state || 'unavailable';
   }
 
   public setSoundMode(mode: SoundMode): void {

@@ -6,7 +6,7 @@
 // 3. Authentic metadata, real artist credits, real release years, and genuine durations
 // 4. Zero filler tracks or duplicate IDs
 
-import type { Song, Language, ArtworkStyle } from '../types/music';
+import type { Song, Language, ArtworkStyle, SongLyrics } from '../types/music';
 import { getVerifiedSongArtwork } from './verifiedArtwork';
 
 export interface CuratedTrackParams {
@@ -23,6 +23,7 @@ export interface CuratedTrackParams {
   artworkUrl?: string;
   streamUrl?: string;
   karaokeReady?: boolean;
+  lyrics?: SongLyrics;
 }
 
 export function createCuratedSong(params: CuratedTrackParams): Song {
@@ -109,13 +110,18 @@ export function createCuratedSong(params: CuratedTrackParams): Song {
     karaokeAvailable: !!params.karaokeReady,
     karaokeAvailability: params.karaokeReady ? 'available' : 'unavailable',
     lyricsAvailable: true,
-    lyricsSyncAvailable: false,
+    lyricsSyncAvailable: Boolean(
+      params.lyrics &&
+      Object.values(params.lyrics).some((b) =>
+        b?.lines?.some((l) => l.startTime !== undefined && l.startTime >= 0 && l.startTime !== -1)
+      )
+    ),
     artwork,
     sections: [
       { type: 'verse', label: 'Verse', start: 0, end: Math.floor(playableDuration * 0.4) },
       { type: 'chorus', label: 'Chorus', start: Math.floor(playableDuration * 0.4), end: playableDuration }
     ],
-    lyrics: {
+    lyrics: params.lyrics || {
       [params.language]: {
         chorusSnippet: `${params.title} — ${params.artist}`,
         lines: []
@@ -142,7 +148,12 @@ export function createCuratedSong(params: CuratedTrackParams): Song {
       playbackSourceType: isPreview ? 'preview' : 'open-license',
       lyrics: true,
       lyricsAvailable: true,
-      lyricsSyncAvailable: false,
+      lyricsSyncAvailable: Boolean(
+        params.lyrics &&
+        Object.values(params.lyrics).some((b) =>
+          b?.lines?.some((l) => l.startTime !== undefined && l.startTime >= 0 && l.startTime !== -1)
+        )
+      ),
       karaoke: !!params.karaokeReady,
       karaokeAvailable: !!params.karaokeReady,
       recording: false

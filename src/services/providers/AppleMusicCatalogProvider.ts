@@ -16,6 +16,8 @@ import {
   getCanonicalTrackDuration
 } from '../../shared';
 import { lyricsService } from '../lyrics/lyricsService';
+import { indexedDbService } from '../storage/indexedDbService';
+import { sanitizeLyricsMetadata } from '../lyrics/lyricsSanitizer';
 
 interface ItunesResult {
   trackId: number;
@@ -196,14 +198,15 @@ export class AppleMusicCatalogProvider implements MusicProvider {
       imageUrl: result.artworkUrl
     };
 
-    // Attempt to fetch real synced lyrics online with exact metadata matching
-    const lyrics = await lyricsService.fetchLyrics(
-      result.title,
-      result.artist,
-      result.duration,
-      result.album,
-      result.isrc
-    );
+    // Fast local lookup: check IndexedDB for already-cached lyrics without blocking catalog discovery on remote network calls
+    const { cleanTitle, cleanArtist } = sanitizeLyricsMetadata(result.title, result.artist);
+    const effectiveTrackId = `track_${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${cleanArtist.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    let lyrics: SongLyrics | null = null;
+    try {
+      lyrics = await indexedDbService.getLyrics(effectiveTrackId);
+    } catch {
+      lyrics = null;
+    }
 
     const hasLyrics = !!lyrics && Boolean(
       (lyrics.en?.lines && lyrics.en.lines.length > 0) ||

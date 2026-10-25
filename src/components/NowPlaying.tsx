@@ -15,7 +15,10 @@ import {
   Moon,
   Plus,
   Sliders,
-  ChevronDown
+  ChevronDown,
+  RotateCw,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
@@ -95,7 +98,10 @@ export const NowPlaying: React.FC = () => {
     toggleLikeSong,
     isSongLiked,
     openAddToPlaylist,
-    setCurrentView
+    setCurrentView,
+    lyricsResolution,
+    isResolvingLyrics,
+    retryLyricsResolution
   } = useAudioPlayer();
 
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
@@ -121,17 +127,19 @@ export const NowPlaying: React.FC = () => {
   // State to expand / collapse the Audiophile Sound Engine panel (collapsed by default)
   const [isAudiophileExpanded, setIsAudiophileExpanded] = useState<boolean>(false);
 
-  // Displayed lines state - initialized with canonical lines and reset immediately on track switch or revision update
+  // Displayed lines state - initialized with canonical lines and reset immediately on track switch, revision update, or line resolution
   const [displayedLines, setDisplayedLines] = useState<TimedLyricLine[]>(canonicalLyricLines);
-  const prevTrackRef = useRef<{ id?: string; rev?: number }>({
+  const prevTrackRef = useRef<{ id?: string; rev?: number; count?: number }>({
     id: currentSong?.id,
-    rev: lyricsRevision
+    rev: lyricsRevision,
+    count: canonicalLyricLines.length
   });
   if (
     currentSong?.id !== prevTrackRef.current.id ||
-    lyricsRevision !== prevTrackRef.current.rev
+    lyricsRevision !== prevTrackRef.current.rev ||
+    canonicalLyricLines.length !== prevTrackRef.current.count
   ) {
-    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision };
+    prevTrackRef.current = { id: currentSong?.id, rev: lyricsRevision, count: canonicalLyricLines.length };
     setDisplayedLines(canonicalLyricLines);
   }
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
@@ -199,11 +207,12 @@ export const NowPlaying: React.FC = () => {
     return lyricsService.getActiveLyricIndex(displayedLines, currentTime, currentSong.lyricsOffsetMs || 0);
   }, [hasLyrics, isSynced, displayedLines, currentTime, currentSong]);
 
-  // Smooth scroll active lyric into view
+  // Smooth scroll active lyric into view (respects prefers-reduced-motion)
   useEffect(() => {
     if (activeLyricRef.current && lyricsContainerRef.current) {
+      const prefersReduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       activeLyricRef.current.scrollIntoView({
-        behavior: 'smooth',
+        behavior: prefersReduced ? 'auto' : 'smooth',
         block: 'center'
       });
     }
@@ -1162,26 +1171,48 @@ export const NowPlaying: React.FC = () => {
                   letterSpacing: '0.08em',
                   padding: '3px 8px',
                   borderRadius: 'var(--radius-full, 9999px)',
-                  backgroundColor: isSynced
-                    ? 'rgba(56, 189, 248, 0.15)'
-                    : lyricsCapability === 'PLAIN_LYRICS'
-                      ? 'rgba(244, 240, 235, 0.08)'
-                      : 'rgba(239, 68, 68, 0.12)',
-                  color: isSynced
-                    ? '#38BDF8'
-                    : lyricsCapability === 'PLAIN_LYRICS'
-                      ? 'var(--text-muted, #94A3B8)'
-                      : '#F87171',
-                  border: `1px solid ${isSynced
-                      ? 'rgba(56, 189, 248, 0.3)'
-                      : lyricsCapability === 'PLAIN_LYRICS'
-                        ? 'rgba(244, 240, 235, 0.15)'
-                        : 'rgba(239, 68, 68, 0.3)'
+                  backgroundColor: (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                    ? 'rgba(245, 158, 11, 0.15)'
+                    : isSynced
+                      ? 'rgba(56, 189, 248, 0.15)'
+                      : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                        ? 'rgba(244, 240, 235, 0.08)'
+                        : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                          ? 'rgba(234, 179, 8, 0.15)'
+                          : 'rgba(239, 68, 68, 0.12)',
+                  color: (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                    ? '#F59E0B'
+                    : isSynced
+                      ? '#38BDF8'
+                      : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                        ? 'var(--text-muted, #94A3B8)'
+                        : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                          ? '#EAB308'
+                          : '#F87171',
+                  border: `1px solid ${(isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                      ? 'rgba(245, 158, 11, 0.3)'
+                      : isSynced
+                        ? 'rgba(56, 189, 248, 0.3)'
+                        : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                          ? 'rgba(244, 240, 235, 0.15)'
+                          : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                            ? 'rgba(234, 179, 8, 0.3)'
+                            : 'rgba(239, 68, 68, 0.3)'
                     }`,
                   textTransform: 'uppercase'
                 }}
+                data-capability={lyricsCapability}
+                data-outcome={lyricsResolution?.outcome || (isSynced ? 'SYNCED_VERIFIED' : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS') ? 'PLAIN_VERIFIED' : 'UNAVAILABLE')}
               >
-                {isSynced ? 'SYNCED' : lyricsCapability === 'PLAIN_LYRICS' ? 'PLAIN' : 'UNAVAILABLE'}
+                {(isResolvingLyrics || lyricsResolution?.outcome === 'PENDING')
+                  ? 'SEARCHING...'
+                  : isSynced
+                    ? 'SYNCED'
+                    : (displayedLines.length > 0 || lyricsCapability === 'PLAIN_LYRICS')
+                      ? 'LYRICS'
+                      : lyricsResolution?.outcome === 'TRANSIENT_FAILURE'
+                        ? 'RETRYABLE'
+                        : 'NO LYRICS FOUND'}
               </span>
               <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)', fontWeight: 500 }}>
                 Listening Mode • Original + Meaning
@@ -1289,6 +1320,49 @@ export const NowPlaying: React.FC = () => {
             ref={lyricsContainerRef}
             className="now-playing-lyrics-scroller"
           >
+            {!isSynced && hasLyrics && (
+              <div
+                id="now-playing-plain-lyrics-banner"
+                data-testid="now-playing-plain-lyrics-banner"
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(244, 240, 235, 0.04)',
+                  border: '1px solid rgba(244, 240, 235, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  margin: '0 0 14px 0',
+                  gap: '8px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                  Untimed Plain Lyrics — Synchronized timestamps not yet verified for this track
+                </span>
+                <button
+                  type="button"
+                  id="now-playing-check-synced-btn"
+                  data-testid="now-playing-check-synced-btn"
+                  onClick={() => retryLyricsResolution()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'rgba(231, 165, 141, 0.12)',
+                    border: '1px solid rgba(231, 165, 141, 0.3)',
+                    color: 'var(--accent-cream)',
+                    fontSize: '0.72rem',
+                    borderRadius: 'var(--radius-full, 9999px)',
+                    padding: '2px 8px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RotateCw size={11} />
+                  <span>Check Synced</span>
+                </button>
+              </div>
+            )}
             {hasLyrics ? (
               displayedLines.map((line, idx) => {
                 const isActive = idx === activeLyricIndex;
@@ -1321,6 +1395,12 @@ export const NowPlaying: React.FC = () => {
                     }}
                     role={isSynced ? 'button' : undefined}
                     tabIndex={isSynced ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if (isSynced && (e.key === 'Enter' || e.key === ' ') && typeof lineTime === 'number' && !isNaN(lineTime) && lineTime >= 0) {
+                        e.preventDefault();
+                        seekTo(lineTime);
+                      }
+                    }}
                     style={{
                       padding: '12px 18px',
                       borderRadius: '14px',
@@ -1342,7 +1422,9 @@ export const NowPlaying: React.FC = () => {
                       data-testid="listening-primary-lyric"
                       style={{
                         letterSpacing: '0.01em',
-                        lineHeight: 1.3
+                        lineHeight: 1.5,
+                        overflowWrap: 'break-word',
+                        fontFamily: 'inherit, "Noto Sans Devanagari", "Noto Sans Telugu", "Noto Sans Tamil", "Noto Sans Malayalam", sans-serif'
                       }}
                     >
                       {display.originalText}
@@ -1369,6 +1451,69 @@ export const NowPlaying: React.FC = () => {
                   </div>
                 );
               })
+            ) : (isResolvingLyrics || lyricsResolution?.outcome === 'PENDING') ? (
+              <div
+                id="now-playing-lyrics-loading"
+                data-testid="now-playing-lyrics-loading"
+                style={{
+                  margin: 'auto',
+                  textAlign: 'center',
+                  padding: '32px',
+                  color: 'var(--text-muted, #94A3B8)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <Loader2 size={24} className="animate-spin" color="var(--accent-warm)" />
+                <span style={{ fontSize: '0.88rem' }}>
+                  Resolving canonical lyrics for "{currentSong?.title}"...
+                </span>
+              </div>
+            ) : lyricsResolution?.outcome === 'TRANSIENT_FAILURE' ? (
+              <div
+                id="now-playing-lyrics-error"
+                data-testid="now-playing-lyrics-error"
+                style={{
+                  margin: 'auto',
+                  textAlign: 'center',
+                  padding: '32px',
+                  color: 'var(--text-muted, #94A3B8)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#FCD34D' }}>
+                  <AlertCircle size={18} />
+                  <span style={{ fontSize: '0.88rem' }}>
+                    {lyricsResolution.errorReason || lyricsResolution.error || 'Temporary issue contacting lyrics providers'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  id="now-playing-retry-lyrics-btn"
+                  data-testid="now-playing-retry-lyrics-btn"
+                  onClick={() => retryLyricsResolution()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 16px',
+                    borderRadius: 'var(--radius-full, 9999px)',
+                    backgroundColor: 'rgba(231, 165, 141, 0.15)',
+                    border: '1px solid rgba(231, 165, 141, 0.35)',
+                    color: 'var(--accent-cream)',
+                    fontSize: '0.82rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RotateCw size={13} />
+                  <span>Retry Lyrics Search</span>
+                </button>
+              </div>
             ) : (
               <div
                 id="now-playing-no-lyrics"
@@ -1377,14 +1522,19 @@ export const NowPlaying: React.FC = () => {
                   margin: 'auto',
                   textAlign: 'center',
                   padding: '32px',
-                  color: 'var(--text-muted, #94A3B8)'
+                  color: 'var(--text-muted, #94A3B8)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '220px', height: '14px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.08)' }} />
-                  <div style={{ width: '300px', height: '20px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.12)' }} />
-                  <div style={{ width: '180px', height: '14px', borderRadius: '8px', background: 'rgba(244, 240, 235, 0.08)' }} />
-                </div>
+                <span style={{ fontSize: '0.92rem', color: 'var(--text-dim)' }}>
+                  No lyrics found in catalogue for "{currentSong?.title}"
+                </span>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Verified across available catalogue and external providers
+                </span>
               </div>
             )}
           </div>

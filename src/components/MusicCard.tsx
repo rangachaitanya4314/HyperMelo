@@ -59,7 +59,6 @@ export const MusicCard: React.FC<MusicCardProps> = ({ song }) => {
       style={{
         position: 'relative',
         borderRadius: 'var(--radius-md)',
-        backgroundColor: 'var(--bg-surface)',
         background: 'linear-gradient(155deg, rgba(19, 25, 36, 0.75) 0%, rgba(9, 13, 19, 0.95) 100%)',
         border: isCurrent
           ? '1px solid var(--border-warm)'

@@ -86,9 +86,18 @@ class SafeRateLimiter {
   }
 
   public async acquire(): Promise<boolean> {
-    const now = Date.now();
+    let now = Date.now();
     if (now < this.circuitOpenUntil) {
-      return false; // Circuit breaker open due to active rate limit
+      const waitMs = this.circuitOpenUntil - now;
+      if (waitMs > 0 && waitMs <= 60000) {
+        console.warn(
+          `\n[RateLimiter] Circuit open (cooldown active); waiting ${(waitMs / 1000).toFixed(1)}s for provider recovery...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs + 200));
+        now = Date.now();
+      } else if (waitMs > 60000) {
+        return false;
+      }
     }
 
     const elapsed = now - this.lastRequestTime;
@@ -170,9 +179,24 @@ class CheckpointManager {
       records: cleanedRecords
     };
 
-    const tmpPath = `${this.filePath}.tmp`;
-    fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
-    fs.renameSync(tmpPath, this.filePath);
+    const tmpPath = `${this.filePath}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
+    const serialized = JSON.stringify(data, null, 2);
+    try {
+      fs.writeFileSync(tmpPath, serialized, 'utf-8');
+      if (process.platform === 'win32') {
+        fs.copyFileSync(tmpPath, this.filePath);
+        fs.unlinkSync(tmpPath);
+      } else {
+        fs.renameSync(tmpPath, this.filePath);
+      }
+    } catch {
+      try {
+        fs.writeFileSync(this.filePath, serialized, 'utf-8');
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+      } catch (err) {
+        console.warn(`[CheckpointManager] Save warning: ${err}`);
+      }
+    }
   }
 }
 
@@ -217,7 +241,8 @@ async function auditTrack(
   const effectiveTrackId = `track_${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${cleanArtist.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
   const localCached = await indexedDbService.getLyrics(effectiveTrackId);
   if (localCached) {
-    const lines = lyricsService.parseCanonicalLyrics(localCached, songObj);
+    songObj.lyrics = localCached;
+    const lines = lyricsService.getCanonicalLyricLines(songObj);
     if (lines && lines.length > 0) {
       const hasRealTimestamps = lines.some(
         (l) => (l.startTime !== undefined && l.startTime >= 0) || (l.time !== undefined && l.time >= 0 && l.startTime !== -1)
@@ -241,204 +266,93 @@ async function auditTrack(
     };
   }
 
-  // 4. Check circuit breaker status
-  if (rateLimiter.isCircuitOpen()) {
+  // 4. Query Providers with Pacing and Candidate Validation using Shared Ingestion Service
+  const effectiveDuration = record.fullTrackDuration || (record.duration && record.duration > 35 ? record.duration : undefined);
+  const maxAttempts = 2;
+  let attempts = 0;
+  let lastContext: { lastTransientError?: Error; authoritativeChecked?: boolean; sourceProvenance?: string } = {};
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    const acquired = await rateLimiter.acquire();
+    if (!acquired) {
+      return {
+        status: 'Transient provider failure',
+        errorCategory: 'Rate limit active on provider (Circuit breaker open)',
+        provider: 'circuit-breaker',
+        auditTimestamp: Date.now(),
+        notes: `Provider throttled; circuit open for ${(rateLimiter.getCircuitRemainingMs() / 1000).toFixed(1)}s`
+      };
+    }
+
+    const context: { lastTransientError?: Error; authoritativeChecked?: boolean; sourceProvenance?: string } = {};
+    lastContext = context;
+
+    try {
+      const fetched = await lyricsIngestionService.fetchLyrics(
+        record.title,
+        record.artist,
+        effectiveDuration,
+        undefined,
+        undefined,
+        record.language as any,
+        record.id,
+        context
+      );
+
+      if (fetched) {
+        songObj.lyrics = fetched;
+        const parsed = lyricsService.getCanonicalLyricLines(songObj);
+        if (parsed && parsed.length > 0) {
+          const hasRealTimestamps = parsed.some(
+            (l) => (l.startTime !== undefined && l.startTime >= 0) || (l.time !== undefined && l.time >= 0 && l.startTime !== -1)
+          );
+          return {
+            status: hasRealTimestamps ? 'Verified synchronized lyrics' : 'Verified plain lyrics',
+            provider: context.sourceProvenance || 'shared-provider',
+            lineCount: parsed.length,
+            sampleSnippet: parsed[0]?.text || '',
+            auditTimestamp: Date.now()
+          };
+        }
+      }
+
+      // If fetched returned null and provider was authoritatively checked without transient errors, exit retry loop
+      if (context.authoritativeChecked && !context.lastTransientError) {
+        break;
+      }
+    } catch (err: unknown) {
+      context.lastTransientError = err instanceof Error ? err : new Error(String(err));
+    }
+
+    // If a transient error was encountered (429, timeout, ECONNRESET, fetch failed)
+    if (context.lastTransientError) {
+      const errMessage = context.lastTransientError.message;
+      if (/429/.test(errMessage)) {
+        rateLimiter.handleResponse(429);
+      }
+      if (attempts < maxAttempts) {
+        const cooldownMs = /429/.test(errMessage)
+          ? Math.max(rateLimiter.getCircuitRemainingMs(), 5000)
+          : 1500 * attempts;
+        console.warn(
+          `\n[Audit] Retrying "${record.title.slice(0, 20)}" (attempt ${attempts + 1}/${maxAttempts}) after error: ${errMessage.slice(0, 50)} | cooling down ${(cooldownMs / 1000).toFixed(1)}s`
+        );
+        await new Promise((resolve) => setTimeout(resolve, cooldownMs));
+      }
+    }
+  }
+
+  // Handle transient errors (429, timeouts, ECONNRESET, fetch failed, etc.)
+  if (lastContext.lastTransientError) {
+    const errMessage = lastContext.lastTransientError.message;
+    if (/429/.test(errMessage)) {
+      rateLimiter.handleResponse(429);
+    }
     return {
       status: 'Transient provider failure',
-      errorCategory: 'Rate limit active on provider (Circuit breaker open)',
-      provider: 'circuit-breaker',
-      auditTimestamp: Date.now(),
-      notes: `Provider throttled; circuit open for ${(rateLimiter.getCircuitRemainingMs() / 1000).toFixed(1)}s`
-    };
-  }
-
-  // 5. Query Providers with Pacing and Candidate Validation
-  let ambiguousCandidateFound: string | null = null;
-  let lastTransientError: string | null = null;
-  let lastTransientProvider: string | null = null;
-
-  // --- Provider Tier 1: LRCLIB Exact /api/get ---
-  try {
-    const acquired = await rateLimiter.acquire();
-    if (acquired) {
-      const exactUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(cleanTitle)}&artist_name=${encodeURIComponent(primaryArtist || cleanArtist)}`;
-      const getRes = await fetch(exactUrl, {
-        headers: { 'User-Agent': 'HyperMelo-Audit/1.0 (https://github.com/naro/hypermelo)' },
-        signal: AbortSignal.timeout(6000)
-      });
-      rateLimiter.handleResponse(getRes.status, getRes.headers);
-
-      if (getRes.status === 200) {
-        const data: LrclibRecord = await getRes.json();
-        if (data && (data.syncedLyrics || data.plainLyrics)) {
-          const lines = data.syncedLyrics
-            ? lyricsIngestionService.parseLrc(data.syncedLyrics, record.duration || 180)
-            : lyricsIngestionService.parsePlainLyrics(data.plainLyrics || '');
-          if (lines.length > 0) {
-            return {
-              status: data.syncedLyrics ? 'Verified synchronized lyrics' : 'Verified plain lyrics',
-              provider: 'lrclib_exact',
-              lineCount: lines.length,
-              sampleSnippet: lines[0]?.text || '',
-              auditTimestamp: Date.now()
-            };
-          }
-        }
-      } else if (getRes.status === 429 || getRes.status >= 500) {
-        lastTransientError = `LRCLIB exact returned HTTP ${getRes.status}`;
-        lastTransientProvider = 'lrclib';
-      }
-    }
-  } catch (err: unknown) {
-    lastTransientError = err instanceof Error ? err.message : String(err);
-    lastTransientProvider = 'lrclib';
-  }
-
-  // --- Provider Tier 2: LRCLIB Search /api/search?q={query} ---
-  try {
-    const acquired = await rateLimiter.acquire();
-    if (acquired) {
-      const query = `${cleanTitle} ${primaryArtist || cleanArtist}`.trim();
-      const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-      const searchRes = await fetch(searchUrl, {
-        headers: { 'User-Agent': 'HyperMelo-Audit/1.0 (https://github.com/naro/hypermelo)' },
-        signal: AbortSignal.timeout(6000)
-      });
-      rateLimiter.handleResponse(searchRes.status, searchRes.headers);
-
-      if (searchRes.status === 200) {
-        const candidates: LrclibRecord[] = await searchRes.json();
-        if (Array.isArray(candidates) && candidates.length > 0) {
-          const withLyrics = candidates.filter((c) => c.syncedLyrics || c.plainLyrics);
-          if (withLyrics.length > 0) {
-            // Validate each candidate
-            let matchedCandidate: LrclibRecord | null = null;
-            for (const cand of withLyrics) {
-              const evalRes = isCandidateValidMatch(cleanTitle, cleanArtist, cand.trackName, cand.artistName);
-              if (evalRes.isMatch) {
-                matchedCandidate = cand;
-                break;
-              } else {
-                ambiguousCandidateFound = `Candidate "${cand.trackName}" by "${cand.artistName}" rejected (score: ${evalRes.score})`;
-              }
-            }
-
-            if (matchedCandidate) {
-              const lines = matchedCandidate.syncedLyrics
-                ? lyricsIngestionService.parseLrc(matchedCandidate.syncedLyrics, record.duration || matchedCandidate.duration || 180)
-                : lyricsIngestionService.parsePlainLyrics(matchedCandidate.plainLyrics || '');
-              if (lines.length > 0) {
-                return {
-                  status: matchedCandidate.syncedLyrics ? 'Verified synchronized lyrics' : 'Verified plain lyrics',
-                  provider: 'lrclib_search',
-                  lineCount: lines.length,
-                  sampleSnippet: lines[0]?.text || '',
-                  auditTimestamp: Date.now()
-                };
-              }
-            }
-          }
-        }
-      } else if (searchRes.status === 429 || searchRes.status >= 500) {
-        lastTransientError = `LRCLIB search returned HTTP ${searchRes.status}`;
-        lastTransientProvider = 'lrclib';
-      }
-    }
-  } catch (err: unknown) {
-    lastTransientError = err instanceof Error ? err.message : String(err);
-    lastTransientProvider = 'lrclib';
-  }
-
-  // --- Provider Tier 3: JioSaavn Lyrics API ---
-  try {
-    const acquired = await rateLimiter.acquire();
-    if (acquired) {
-      const saavnSearchUrl = `https://www.jiosaavn.com/api.php?__call=search.getResults&q=${encodeURIComponent(`${cleanTitle} ${primaryArtist || cleanArtist}`.trim())}&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1`;
-      const saavnRes = await fetch(saavnSearchUrl, {
-        headers: {
-          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          cookie: 'DL=english'
-        },
-        signal: AbortSignal.timeout(5000)
-      });
-      rateLimiter.handleResponse(saavnRes.status, saavnRes.headers);
-
-      if (saavnRes.status === 200) {
-        const data: { results?: Array<{ id: string; title: string; subtitle?: string; more_info?: { has_lyrics?: string | boolean; lyrics_id?: string; singers?: string; music?: string } }> } = await saavnRes.json();
-        const results = data.results;
-        if (Array.isArray(results) && results.length > 0) {
-          const cand = results.find((r) => {
-            const hasLyrics = r.more_info?.has_lyrics === 'true' || r.more_info?.has_lyrics === true;
-            if (!hasLyrics) return false;
-            const candTitle = unescapeHtml(r.title || '');
-            const candArtist = unescapeHtml(r.more_info?.singers || r.more_info?.music || r.subtitle || '');
-            const evalRes = isCandidateValidMatch(cleanTitle, cleanArtist, candTitle, candArtist);
-            if (!evalRes.isMatch && hasLyrics) {
-              ambiguousCandidateFound = `JioSaavn candidate "${candTitle}" by "${candArtist}" rejected (score: ${evalRes.score})`;
-            }
-            return evalRes.isMatch;
-          });
-
-          if (cand) {
-            const lyricsId = cand.more_info?.lyrics_id || cand.id;
-            const lyrUrl = `https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&lyrics_id=${encodeURIComponent(lyricsId)}&ctx=web6dot0&api_version=4&_format=json&_marker=0`;
-            const lyrRes = await fetch(lyrUrl, {
-              headers: {
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                cookie: 'DL=english'
-              },
-              signal: AbortSignal.timeout(5000)
-            });
-            rateLimiter.handleResponse(lyrRes.status, lyrRes.headers);
-
-            if (lyrRes.status === 200) {
-              const lyrData: { lyrics?: string } = await lyrRes.json();
-              if (lyrData.lyrics && typeof lyrData.lyrics === 'string') {
-                const cleanHtml = unescapeHtml(lyrData.lyrics)
-                  .replace(/<br\s*\/?>/gi, '\n')
-                  .replace(/<\/p>/gi, '\n')
-                  .replace(/<[^>]+>/g, '')
-                  .trim();
-                const lines = lyricsIngestionService.parsePlainLyrics(cleanHtml);
-                if (lines.length > 0) {
-                  return {
-                    status: 'Verified plain lyrics',
-                    provider: 'jiosaavn',
-                    lineCount: lines.length,
-                    sampleSnippet: lines[0]?.text || '',
-                    auditTimestamp: Date.now()
-                  };
-                }
-              }
-            }
-          }
-        }
-      } else if (saavnRes.status === 429 || saavnRes.status >= 500) {
-        lastTransientError = `JioSaavn search returned HTTP ${saavnRes.status}`;
-        lastTransientProvider = 'jiosaavn';
-      }
-    }
-  } catch (err: unknown) {
-    lastTransientError = err instanceof Error ? err.message : String(err);
-    lastTransientProvider = 'jiosaavn';
-  }
-
-  // Final Classification for Unresolved Track
-  if (lastTransientError) {
-    return {
-      status: 'Transient provider failure',
-      errorCategory: lastTransientError,
-      provider: lastTransientProvider || undefined,
+      errorCategory: errMessage,
       auditTimestamp: Date.now()
-    };
-  }
-
-  if (ambiguousCandidateFound) {
-    return {
-      status: 'Ambiguous or mismatched candidate',
-      candidateDetails: ambiguousCandidateFound,
-      auditTimestamp: Date.now(),
-      notes: 'Search candidate rejected by title/artist candidate validator'
     };
   }
 

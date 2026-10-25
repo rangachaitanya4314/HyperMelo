@@ -476,6 +476,47 @@ export const KaraokeRecordingState: React.FC = () => {
                   </p>
                 )}
               </div>
+            ) : currentLines.length > 0 ? (
+              <div
+                style={{
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  padding: '12px 24px',
+                  borderRadius: 'var(--radius-lg)',
+                  backgroundColor: 'rgba(244, 240, 235, 0.04)',
+                  border: '1px solid var(--border-subtle)',
+                  width: '100%',
+                  maxWidth: '650px'
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    color: 'var(--accent-warm)',
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  Plain Lyrics
+                </span>
+                {currentLines.map((line, idx) => (
+                  <p
+                    key={idx}
+                    style={{
+                      fontSize: 'clamp(1rem, 2vw, 1.3rem)',
+                      color: 'var(--text-primary)',
+                      margin: 0,
+                      lineHeight: 1.4
+                    }}
+                  >
+                    {getKaraokeLyricLine(line, karaokeScriptPreference).text}
+                  </p>
+                ))}
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
                 <span style={{ color: 'var(--text-dim)', fontSize: '0.95rem' }}>

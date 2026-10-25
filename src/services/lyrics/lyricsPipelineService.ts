@@ -4,15 +4,41 @@
 
 import type { Song, TimedLyricLine } from '../../shared';
 import { lyricsService } from './lyricsService';
-import { lyricsIngestionService } from '../../backend/services/LyricsIngestionService';
+import { lyricsIngestionService, hasGenuineSynchronizedLines } from '../../backend/services/LyricsIngestionService';
 import { detectSongLanguage } from './lyricsService';
 
 export type LyricsResolutionOutcome =
+  | 'SYNCED_VERIFIED'
+  | 'PLAIN_VERIFIED'
+  | 'CONFIRMED_NO_MATCH'
+  | 'TRANSIENT_FAILURE'
+  | 'AMBIGUOUS_MATCH'
+  | 'NOT_CHECKED'
   | 'PENDING'
+  // Backward compatibility aliases
   | 'SYNCHRONIZED'
   | 'VERIFIED_UNTIMED'
-  | 'CONFIRMED_NO_RESULT'
-  | 'TRANSIENT_FAILURE';
+  | 'CONFIRMED_NO_RESULT';
+
+export function isSyncedOutcome(outcome?: LyricsResolutionOutcome): boolean {
+  return outcome === 'SYNCED_VERIFIED' || outcome === 'SYNCHRONIZED';
+}
+
+export function isPlainOutcome(outcome?: LyricsResolutionOutcome): boolean {
+  return outcome === 'PLAIN_VERIFIED' || outcome === 'VERIFIED_UNTIMED';
+}
+
+export function isConfirmedNoMatchOutcome(outcome?: LyricsResolutionOutcome): boolean {
+  return outcome === 'CONFIRMED_NO_MATCH' || outcome === 'CONFIRMED_NO_RESULT';
+}
+
+export function isTransientFailureOutcome(outcome?: LyricsResolutionOutcome): boolean {
+  return outcome === 'TRANSIENT_FAILURE';
+}
+
+export function isAmbiguousOutcome(outcome?: LyricsResolutionOutcome): boolean {
+  return outcome === 'AMBIGUOUS_MATCH';
+}
 
 export interface TrackLyricsResolution {
   canonicalKey: string;
@@ -28,6 +54,7 @@ export interface TrackLyricsResolution {
   resolvedAt: number;
   sourceProvenance?: string;
   errorReason?: string;
+  error?: string;
 }
 
 export function getCanonicalTrackKey(song: Partial<Song> | { title: string; artist: string; id?: string }): string {
@@ -96,7 +123,7 @@ class LyricsPipelineService {
         title: song.title,
         artist: song.artist,
         language: song.originalLanguage,
-        outcome: isSynced ? 'SYNCHRONIZED' : 'VERIFIED_UNTIMED',
+        outcome: isSynced ? 'SYNCED_VERIFIED' : 'PLAIN_VERIFIED',
         hasSyncedLyrics: isSynced,
         hasPlainLyrics: !isSynced,
         lineCount: lines.length,
@@ -112,6 +139,15 @@ class LyricsPipelineService {
   }
 
   /**
+   * Checks whether lyrics resolution is currently in-flight for this track
+   */
+  public isResolving(song: Song | null | undefined): boolean {
+    if (!song) return false;
+    const key = getCanonicalTrackKey(song);
+    return this.inFlight.has(key);
+  }
+
+  /**
    * Resolves lyrics for a track with request deduplication and truthful outcomes
    */
   public async resolveTrack(song: Song | null | undefined, forceRetry = false): Promise<TrackLyricsResolution> {
@@ -121,7 +157,7 @@ class LyricsPipelineService {
         trackId: 'unknown',
         title: 'Unknown',
         artist: 'Unknown',
-        outcome: 'CONFIRMED_NO_RESULT',
+        outcome: 'CONFIRMED_NO_MATCH',
         hasSyncedLyrics: false,
         hasPlainLyrics: false,
         lineCount: 0,
@@ -135,10 +171,18 @@ class LyricsPipelineService {
     // Return cached if successful or non-retryable within TTL
     if (!forceRetry && this.cache.has(key)) {
       const existing = this.cache.get(key)!;
-      if (existing.outcome === 'SYNCHRONIZED' || existing.outcome === 'VERIFIED_UNTIMED') {
+      if (
+        existing.outcome === 'SYNCED_VERIFIED' ||
+        existing.outcome === 'SYNCHRONIZED' ||
+        existing.outcome === 'PLAIN_VERIFIED' ||
+        existing.outcome === 'VERIFIED_UNTIMED'
+      ) {
         return existing;
       }
-      if (existing.outcome === 'CONFIRMED_NO_RESULT' && Date.now() - existing.resolvedAt < 300000) {
+      if (
+        (existing.outcome === 'CONFIRMED_NO_MATCH' || existing.outcome === 'CONFIRMED_NO_RESULT') &&
+        Date.now() - existing.resolvedAt < 300000
+      ) {
         return existing;
       }
       if (existing.outcome === 'TRANSIENT_FAILURE' && Date.now() - existing.resolvedAt < 10000) {
@@ -180,25 +224,39 @@ class LyricsPipelineService {
 
     try {
       let lines: TimedLyricLine[] = lyricsService.getCanonicalLyricLines(song);
+      const initialHasSync = lines && lines.length > 0 && lines.some(
+        (l) => (l.startTime !== undefined && l.startTime >= 0) || (l.time !== undefined && l.time >= 0 && l.startTime !== -1)
+      );
 
-      if (!lines || lines.length === 0) {
+      // If lyrics are absent OR untimed (plain text only), attempt network resolution to discover synchronized timestamps
+      if (!initialHasSync) {
         const origLang = detectSongLanguage(song);
         const effectiveDuration = (song as any).fullTrackDuration || (song.duration > 35 ? song.duration : undefined);
-        const fetched = await lyricsIngestionService.fetchLyrics(
-          song.title,
-          song.artist,
-          effectiveDuration,
-          song.album,
-          (song as unknown as { isrc?: string }).isrc,
-          origLang,
-          song.id
-        );
+        try {
+          const fetched = await lyricsIngestionService.fetchLyrics(
+            song.title,
+            song.artist,
+            effectiveDuration,
+            song.album,
+            (song as unknown as { isrc?: string }).isrc,
+            origLang,
+            song.id
+          );
 
-        if (fetched) {
-          if (!song.lyrics) song.lyrics = {};
-          Object.assign(song.lyrics, fetched);
-          lyricsService.clearCanonicalLinesCache(song.id);
-          lines = lyricsService.getCanonicalLyricLines(song);
+          if (fetched) {
+            const fetchedHasSync = hasGenuineSynchronizedLines(fetched);
+            if (fetchedHasSync || !lines || lines.length === 0) {
+              if (!song.lyrics) song.lyrics = {};
+              Object.assign(song.lyrics, fetched);
+              lyricsService.clearCanonicalLinesCache(song.id);
+              lines = lyricsService.getCanonicalLyricLines(song);
+            }
+          }
+        } catch (fetchErr) {
+          // If network resolution encounters transient error but we already have plain lines, preserve plain lines
+          if (!lines || lines.length === 0) {
+            throw fetchErr;
+          }
         }
       }
 
@@ -207,7 +265,7 @@ class LyricsPipelineService {
           (l) => (l.startTime !== undefined && l.startTime >= 0) || (l.time !== undefined && l.time >= 0 && l.startTime !== -1)
         );
 
-        const outcome: LyricsResolutionOutcome = hasRealTimestamps ? 'SYNCHRONIZED' : 'VERIFIED_UNTIMED';
+        const outcome: LyricsResolutionOutcome = hasRealTimestamps ? 'SYNCED_VERIFIED' : 'PLAIN_VERIFIED';
         song.lyricsAvailable = true;
         song.lyricsSyncAvailable = hasRealTimestamps;
 
@@ -241,7 +299,7 @@ class LyricsPipelineService {
         title: song.title,
         artist: song.artist,
         language: song.originalLanguage,
-        outcome: 'CONFIRMED_NO_RESULT',
+        outcome: 'CONFIRMED_NO_MATCH',
         hasSyncedLyrics: false,
         hasPlainLyrics: false,
         lineCount: 0,
@@ -262,12 +320,13 @@ class LyricsPipelineService {
         title: song.title,
         artist: song.artist,
         language: song.originalLanguage,
-        outcome: isNetworkError ? 'TRANSIENT_FAILURE' : 'CONFIRMED_NO_RESULT',
+        outcome: isNetworkError ? 'TRANSIENT_FAILURE' : 'CONFIRMED_NO_MATCH',
         hasSyncedLyrics: false,
         hasPlainLyrics: false,
         lineCount: 0,
         resolvedAt: Date.now(),
-        errorReason: isNetworkError ? 'Network request failed or timed out' : 'Provider lookup failed'
+        errorReason: isNetworkError ? 'Network request failed or timed out' : 'Provider lookup failed',
+        error: isNetworkError ? 'Network request failed or timed out' : 'Provider lookup failed'
       };
 
       this.cache.set(key, failed);

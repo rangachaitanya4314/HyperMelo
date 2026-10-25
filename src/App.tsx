@@ -17,6 +17,7 @@ import { AccountConnectionModal } from './components/AccountConnectionModal';
 import { NowPlaying } from './components/NowPlaying';
 import { AuthModal } from './components/AuthModal';
 import { AddToPlaylistModal } from './components/AddToPlaylistModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const AppContent: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => {
@@ -71,7 +72,9 @@ export const AppContent: React.FC = () => {
       </main>
 
       {/* Floating Elements & Modals */}
-      <KaraokeModal />
+      <ErrorBoundary fallbackTitle="Karaoke Studio encountered an issue">
+        <KaraokeModal />
+      </ErrorBoundary>
       <KaraokeRecordingState />
       <PerformanceReviewModal />
       <LyricsDrawer />

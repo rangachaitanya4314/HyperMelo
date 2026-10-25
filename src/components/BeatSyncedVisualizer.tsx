@@ -583,129 +583,47 @@ export const BeatSyncedVisualizer: React.FC<BeatSyncedVisualizerProps> = ({
               height: '100%',
               objectFit: 'cover',
               borderRadius: '50%',
-              opacity: 0.55,
-              filter: 'brightness(0.65) contrast(1.1)',
+              opacity: 0.95,
+              filter: 'brightness(0.95) contrast(1.05)',
               pointerEvents: 'none'
             }}
           />
         )}
 
-        {/* Center Content: Song Title & Artist (Displayed in Home/Hero mode; suppressed in Fullscreen mode where artwork disc is unobstructed) */}
-        {mode !== 'fullscreen' && (
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 3,
-              width: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              pointerEvents: 'none',
-              transform: isHovered ? 'translateY(-10px)' : 'translateY(0)',
-              transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-            }}
-          >
-            {/* Song Title: Prominent, elegant typography with dynamic scaling & multi-line wrapping */}
-            {(() => {
-              const titleLen = songTitle.length;
-              const titleFontSize = titleLen > 24
-                ? 'clamp(0.62rem, 1.8vw, 0.78rem)'
-                : titleLen > 14
-                  ? 'clamp(0.70rem, 2.0vw, 0.92rem)'
-                  : 'clamp(0.80rem, 2.2vw, 1.15rem)';
-
-              const artistLen = songArtist.length;
-              const artistFontSize = artistLen > 22
-                ? 'clamp(0.56rem, 1.4vw, 0.70rem)'
-                : 'clamp(0.64rem, 1.6vw, 0.82rem)';
-
-              return (
-                <>
-                  <span
-                    id="visualizer-song-title"
-                    title={songTitle}
-                    style={{
-                      fontSize: titleFontSize,
-                      fontWeight: 600,
-                      color: 'var(--text-primary)',
-                      letterSpacing: '-0.01em',
-                      maxWidth: '86%',
-                      textAlign: 'center',
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      lineHeight: 1.25,
-                      textShadow: '0 2px 12px rgba(0, 0, 0, 0.85)',
-                      padding: '0 2px'
-                    }}
-                  >
-                    {songTitle}
-                  </span>
-
-                  <span
-                    id="visualizer-song-artist"
-                    title={songArtist}
-                    style={{
-                      fontSize: artistFontSize,
-                      fontWeight: 400,
-                      color: 'var(--text-muted)',
-                      letterSpacing: '0.01em',
-                      maxWidth: '86%',
-                      textAlign: 'center',
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      lineHeight: 1.25,
-                      marginTop: '3px',
-                      textShadow: '0 1px 8px rgba(0, 0, 0, 0.8)'
-                    }}
-                  >
-                    {songArtist}
-                  </span>
-                </>
-              );
-            })()}
-          </div>
-        )}
-
-        {/* Interactive Play/Pause Cue (Appears cleanly on hover or when paused) */}
+        {/* Interactive Play/Pause Cue (Appears cleanly on hover or when paused, preserving unobstructed artwork during playback) */}
         <div
           aria-hidden="true"
           style={{
             position: 'absolute',
-            bottom: '18%',
             zIndex: 4,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             opacity: isHovered || !isPlaying ? 1 : 0,
-            transform: isHovered || !isPlaying ? 'scale(1) translateY(0)' : 'scale(0.85) translateY(6px)',
+            transform: isHovered || !isPlaying ? 'scale(1)' : 'scale(0.85)',
             transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
             pointerEvents: 'none'
           }}
         >
           <div
             style={{
-              width: '34px',
-              height: '34px',
+              width: '42px',
+              height: '42px',
               borderRadius: '50%',
-              backgroundColor: isHovered ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.15)',
+              backgroundColor: isHovered ? 'var(--accent-cream)' : 'rgba(8, 11, 16, 0.65)',
               backdropFilter: 'blur(8px)',
-              border: `1px solid ${isHovered ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.25)'}`,
+              border: `1.5px solid ${isHovered ? 'var(--accent-cream)' : 'rgba(244, 240, 235, 0.35)'}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: isHovered ? '0 4px 16px rgba(0, 0, 0, 0.5)' : 'none',
+              boxShadow: isHovered ? '0 4px 20px rgba(0, 0, 0, 0.6)' : '0 2px 10px rgba(0, 0, 0, 0.4)',
               transition: 'all 0.2s ease'
             }}
           >
             {isPlaying ? (
-              <Pause size={14} color={isHovered ? '#080B10' : 'var(--accent-cream)'} />
+              <Pause size={18} color={isHovered ? '#080B10' : 'var(--accent-cream)'} />
             ) : (
-              <Play size={14} color={isHovered ? '#080B10' : 'var(--accent-cream)'} style={{ marginLeft: '1.5px' }} />
+              <Play size={18} color={isHovered ? '#080B10' : 'var(--accent-cream)'} style={{ marginLeft: '2px' }} />
             )}
           </div>
         </div>

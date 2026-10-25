@@ -68,7 +68,7 @@ class AppleMusicKitService {
     if (instance && typeof instance === 'object' && 'isAuthorized' in instance) {
       return Boolean((instance as { isAuthorized: boolean }).isAuthorized);
     }
-    return Boolean(localStorage.getItem('naro_apple_user_token'));
+    return typeof localStorage !== 'undefined' ? Boolean(localStorage.getItem('naro_apple_user_token')) : false;
   }
 
   public setDeveloperToken(token: string): void {
