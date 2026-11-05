@@ -76,7 +76,7 @@
 }
 
 .player-icon-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 /* Play/Pause Master Button */
@@ -105,7 +105,7 @@
 }
 
 .player-master-play-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 
 /* -------------------------------------------------------------------------
@@ -221,7 +221,7 @@
   }
 
   .player-control-icon-btn:active {
-    transform: scale(0.95);
+    transform: scale(0.97);
   }
 
   .player-scrubber-row {

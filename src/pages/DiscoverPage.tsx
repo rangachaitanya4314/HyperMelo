@@ -20,7 +20,6 @@ import {
 } from '../data/curatedCatalog';
 import { MOOD_CATALOG } from '../data/moodCatalog';
 import type { Song } from '../types/music';
-import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 
 interface DiscoverSectionData {
   id: string;
@@ -134,22 +133,6 @@ export const DiscoverPage: React.FC = () => {
       loadNewReleases()
     ]);
   }, [isOnline]);
-
-  // Pre-resolve lyrics for visible tracks in the background using bounded concurrency
-  useEffect(() => {
-    const visible = [
-      ...trendingSongs,
-      ...hindiTop10,
-      ...teluguTop10,
-      ...tamilTop10,
-      ...malayalamTop10,
-      ...englishTop10,
-      ...newReleases
-    ];
-    if (visible.length > 0) {
-      lyricsPipelineService.preResolveTracks(visible);
-    }
-  }, [trendingSongs, hindiTop10, teluguTop10, tamilTop10, malayalamTop10, englishTop10, newReleases]);
 
   // Clean up any in-flight tab request on unmount
   useEffect(() => {

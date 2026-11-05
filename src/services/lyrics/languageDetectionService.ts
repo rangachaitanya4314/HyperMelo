@@ -62,7 +62,7 @@ const ROMANIZED_TELUGU_WORDS = new Set([
   'cheppu', 'kalisi', 'eppudu', 'ela', 'chala', 'enti', 'chey', 'vaste',
   'undhi', 'unnadi', 'manasu', 'kani', 'kavali', 'samayama', 'vennela', 'urike',
   'gopikamma', 'choosi', 'raave', 'kallu', 'preminche', 'madhi', 'kanulu',
-  'nijama', 'choodamake', 'kalale'
+  'nijama', 'choodamake', 'kalale', 'rendu', 'okati', 'moodu', 'kunuku', 'poolane'
 ]);
 
 const ROMANIZED_MALAYALAM_WORDS = new Set([
@@ -243,16 +243,21 @@ export function identifyLatinScriptLanguage(text: string): {
 
   let highestLang: DetectedSourceLanguage = 'en';
   let highestScore = 0;
+  let secondHighestScore = 0;
 
   for (const [lang, score] of Object.entries(scores)) {
     if (score > highestScore) {
+      secondHighestScore = highestScore;
       highestScore = score;
       highestLang = lang as DetectedSourceLanguage;
+    } else if (score > secondHighestScore) {
+      secondHighestScore = score;
     }
   }
 
   const totalTokens = words.length || 1;
-  const confidence = Math.min(1.0, highestScore / (totalTokens * 0.5));
+  const margin = highestScore - secondHighestScore;
+  const confidence = highestScore > 0 ? Math.min(1.0, (margin / highestScore) * (highestScore / (totalTokens * 0.5))) : 0;
 
   // If Indic score is zero and English score is high, it's English
   if (highestScore === 0) {
@@ -335,18 +340,22 @@ export function detectSongSourceLanguage(song: Song | null | undefined): Detecte
     return scriptInfoTitle.dominantLanguage;
   }
 
+  // 3. Explicit track originalLanguage or language metadata (if standard code)
+  const explicitTrackLang = (song.originalLanguage || (song as any).original_language || song.language || '').toLowerCase().trim();
+  const hasValidExplicitLang = ['en', 'hi', 'te', 'ta', 'ml', 'pa', 'kn', 'bn', 'mr', 'gu', 'ur'].includes(explicitTrackLang);
+
   const latinTitle = identifyLatinScriptLanguage(titleAndArtist);
   if (latinTitle.confidence > 0.6 && latinTitle.language !== 'en') {
+    if (hasValidExplicitLang && explicitTrackLang !== 'en' && latinTitle.language !== explicitTrackLang) {
+      if (latinTitle.confidence < 0.85) {
+        return explicitTrackLang as DetectedSourceLanguage;
+      }
+    }
     return latinTitle.language;
   }
 
-  // 3. Fallback to song.originalLanguage ONLY if explicitly defined as a standard language code (e.g. 'ta', 'te', 'hi', 'ml', 'pa')
-  if (
-    song.originalLanguage &&
-    typeof song.originalLanguage === 'string' &&
-    ['en', 'hi', 'te', 'ta', 'ml', 'pa', 'kn', 'bn', 'mr', 'gu', 'ur'].includes(song.originalLanguage.toLowerCase())
-  ) {
-    return song.originalLanguage.toLowerCase();
+  if (hasValidExplicitLang) {
+    return explicitTrackLang as DetectedSourceLanguage;
   }
 
   return 'en';

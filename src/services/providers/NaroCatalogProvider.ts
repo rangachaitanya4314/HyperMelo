@@ -29,8 +29,9 @@ export class NaroCatalogProvider implements MusicProvider {
       }
 
       const isMidnightDrive = s.id === 'midnight-drive';
-      const streamUrl = isMidnightDrive ? '/audio/midnight-drive.wav' : (s.playbackSource?.streamUrl || '/audio/midnight-drive.wav');
+      const streamUrl = isMidnightDrive ? '/audio/midnight-drive.wav' : (s.playbackSource?.streamUrl || '');
       const duration = isMidnightDrive ? 195 : s.duration;
+      const hasAudio = Boolean(streamUrl);
 
       const karaokeSource: KaraokeSource = s.karaokeSource || {
         type: 'dev_fixture',
@@ -38,24 +39,24 @@ export class NaroCatalogProvider implements MusicProvider {
         providerTrackId: s.id,
         streamUrl,
         duration,
-        availability: s.karaokeReady ? 'available' : 'unavailable'
+        availability: s.karaokeReady && hasAudio ? 'available' : 'unavailable'
       };
 
       return {
         ...s,
         duration,
         fullTrackDuration: duration,
-        isFallbackDemo: true,
-        playbackAvailable: true,
-        playbackType: s.playbackType || ('full' as const),
-        playbackAvailability: s.playbackAvailability || ('full' as const),
-        playbackSourceType: s.playbackSourceType || ('dev-fixture' as const),
+        isFallbackDemo: isMidnightDrive,
+        playbackAvailable: hasAudio,
+        playbackType: hasAudio ? (s.playbackType || ('full' as const)) : ('unavailable' as const),
+        playbackAvailability: hasAudio ? (s.playbackAvailability || ('full' as const)) : ('unavailable' as const),
+        playbackSourceType: hasAudio ? (s.playbackSourceType || ('dev-fixture' as const)) : ('unavailable' as const),
         playbackProvider: s.playbackProvider || ('naro' as const),
         previewAvailable: s.previewAvailable ?? false,
-        fullLengthAvailable: s.fullLengthAvailable ?? false,
-        karaokeAvailable: s.karaokeReady,
-        karaokeReady: s.karaokeReady,
-        karaokeAvailability: (s.karaokeReady ? 'available' : 'unavailable') as 'available' | 'unavailable',
+        fullLengthAvailable: isMidnightDrive ? false : Boolean(hasAudio && (s.fullLengthAvailable ?? false)),
+        karaokeAvailable: Boolean(s.karaokeReady && hasAudio),
+        karaokeReady: Boolean(s.karaokeReady && hasAudio),
+        karaokeAvailability: (s.karaokeReady && hasAudio ? 'available' : 'unavailable') as 'available' | 'unavailable',
         lyricsAvailable: true,
         lyricsSyncAvailable: true,
         karaokeSource,

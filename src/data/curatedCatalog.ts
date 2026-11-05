@@ -205,7 +205,7 @@ export const TRENDING_INDIA_SONGS: Song[] = [
     bpm: 126,
     musicalKey: 'E Minor',
     artworkUrl: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/dd/ee/ff/cover.jpg/600x600bb.jpg',
-    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/dd/ee/ff/preview.mp3'
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/4b/a5/204ba5f1-aa95-9204-049a-3af28613dfdb/mzaf_9848955577816183835.plus.aac.p.m4a'
   }),
   createCuratedSong({
     id: 'tr-illuminati',
@@ -474,7 +474,7 @@ export const HINDI_POPULAR_SONGS: Song[] = [
     releaseYear: 2016,
     bpm: 88,
     musicalKey: 'G# Minor',
-    streamUrl: '/audio/channa-mereya-full.wav'
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/d5/f9/98/d5f998a7-0090-ee2d-03f8-557ad6c5bf65/mzaf_14251357991592637728.plus.aac.p.m4a'
   }),
   createCuratedSong({
     id: 'hi-dil-diyan-gallan',
@@ -860,7 +860,8 @@ export const TAMIL_POPULAR_SONGS: Song[] = [
     language: 'ta',
     releaseYear: 2023,
     bpm: 126,
-    musicalKey: 'E Minor'
+    musicalKey: 'E Minor',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/4b/a5/204ba5f1-aa95-9204-049a-3af28613dfdb/mzaf_9848955577816183835.plus.aac.p.m4a'
   }),
   createCuratedSong({
     id: 'ta-rowdy-baby',
@@ -1392,7 +1393,8 @@ export const ENGLISH_POPULAR_SONGS: Song[] = [
     language: 'en',
     releaseYear: 2016,
     bpm: 93,
-    musicalKey: 'G Major'
+    musicalKey: 'G Major',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/11/71/d6/1171d6ad-3c96-e027-2af6-58028426588c/mzaf_15137631797407745471.plus.aac.p.m4a'
   }),
   createCuratedSong({
     id: 'en-ocean-eyes',
@@ -1696,7 +1698,7 @@ export const QUICK_PICKS_SONGS = [
     releaseYear: 2018,
     bpm: 118,
     musicalKey: 'C Major',
-    streamUrl: '/audio/anirudh-gaali-vaaluga-vocal.mp3',
+    streamUrl: 'https://aac.saavncdn.com/243/3275e815673ba51aefd34100830875fc_160.mp4',
     karaokeReady: true
   }),
   createCuratedSong({

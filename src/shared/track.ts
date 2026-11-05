@@ -112,18 +112,35 @@ export type Song = Track;
 
 /**
  * Resolves the genuine canonical track duration based on authoritative duration priority:
- * 1. Use genuine resolved full-track duration when fullLengthAvailable is true.
- * 2. Otherwise use the legitimate catalog duration if it is not merely the 30-second preview duration.
- * 3. Use 30 seconds only for genuinely preview-only tracks.
+ * 1. If the track is a preview stream or preview playback type, return the actual playable duration (30s).
+ * 2. Use genuine resolved full-track duration when fullLengthAvailable is true.
+ * 3. Otherwise use legitimate catalog duration if available.
  */
 export function getCanonicalTrackDuration(track?: {
   duration?: number;
   fullTrackDuration?: number;
   fullLengthAvailable?: boolean;
+  isStreamPreview?: boolean;
+  playbackType?: string;
+  playbackSourceType?: string;
 } | null): number {
   if (!track) return 30;
 
-  // 1. Use genuine resolved full-track duration when fullLengthAvailable is true
+  // 1. If this is a preview stream or preview playback type, return playable preview duration
+  const isPreview = Boolean(
+    track.isStreamPreview ||
+    track.playbackType === 'preview' ||
+    track.playbackSourceType === 'preview'
+  );
+
+  if (isPreview) {
+    if (track.duration && track.duration > 0 && track.duration <= 60) {
+      return track.duration;
+    }
+    return 30;
+  }
+
+  // 2. Use genuine resolved full-track duration when fullLengthAvailable is true
   if (track.fullLengthAvailable) {
     if (track.fullTrackDuration && track.fullTrackDuration > 0) {
       return track.fullTrackDuration;
@@ -133,7 +150,7 @@ export function getCanonicalTrackDuration(track?: {
     }
   }
 
-  // 2. Otherwise use the legitimate catalog duration if it is not merely the 30-second preview duration
+  // 3. Otherwise use the legitimate catalog duration
   if (track.fullTrackDuration && track.fullTrackDuration > 0 && track.fullTrackDuration !== 30) {
     return track.fullTrackDuration;
   }
@@ -141,7 +158,6 @@ export function getCanonicalTrackDuration(track?: {
     return track.duration;
   }
 
-  // 3. Use 30 seconds only for genuinely preview-only tracks
   return track.duration || track.fullTrackDuration || 30;
 }
 

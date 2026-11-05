@@ -31,11 +31,6 @@ export function validateScriptForLanguage(
 ): boolean {
   if (!text || text.trim().length === 0) return false;
 
-  // If target language is the same as the original song's language, source text is valid
-  if (originalLanguage && targetLanguage === originalLanguage) {
-    return true;
-  }
-
   const hasTamil = /[\u0B80-\u0BFF]/.test(text);
   const hasTelugu = /[\u0C00-\u0C7F]/.test(text);
   const hasDevanagari = /[\u0900-\u097F]/.test(text);
@@ -43,6 +38,17 @@ export function validateScriptForLanguage(
   const hasGurmukhi = /[\u0A00-\u0A7F]/.test(text);
   const hasAnyIndic = hasTamil || hasTelugu || hasDevanagari || hasMalayalam || hasGurmukhi;
   const hasLatinLetters = /[a-zA-Z]/.test(text);
+
+  // If target language is the same as the original song's language:
+  // For Indic target languages (te, ta, hi, ml), Romanized Latin text without native script is NOT valid native script
+  if (originalLanguage && targetLanguage === originalLanguage) {
+    if (['te', 'ta', 'hi', 'ml'].includes(targetLanguage)) {
+      if (!hasAnyIndic && hasLatinLetters) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   // Non-lexical markers e.g. (Music), [Instrumental], numbers
   const trimmed = text.trim();
@@ -88,7 +94,13 @@ export function validateTimelineScript(
   originalLanguage?: string
 ): boolean {
   if (!lines || lines.length === 0) return false;
-  if (originalLanguage && targetLanguage === originalLanguage) return true;
+  if (originalLanguage && targetLanguage === originalLanguage) {
+    if (['te', 'ta', 'hi', 'ml'].includes(targetLanguage)) {
+      const hasIndic = lines.some((l) => validateScriptForLanguage(l.text, targetLanguage, originalLanguage));
+      return hasIndic;
+    }
+    return true;
+  }
 
   let validCount = 0;
   for (const line of lines) {

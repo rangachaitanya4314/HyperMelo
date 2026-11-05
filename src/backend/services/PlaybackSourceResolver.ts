@@ -20,6 +20,8 @@ interface SaavnResult {
     singers?: string;
     music?: string;
     album?: string;
+    primary_artists?: string | string[];
+    artistMap?: { primary_artists?: string | string[] };
   };
 }
 
@@ -67,6 +69,51 @@ export class PlaybackSourceResolver {
       .replace(/[[({].*?[)\]}]/g, '')
       .replace(/-\s*(telugu|tamil|hindi|kannada|malayalam|english|punjabi|bengali)/gi, '')
       .replace(/[^a-z0-9]/g, '')
+      .trim();
+  }
+
+  public isTitleSimilarityMatch(normSong: string, normCand: string): boolean {
+    if (normSong.length < 4 || normCand.length < 4) return false;
+    const phonSong = this.normalizePhoneticVariants(normSong);
+    const phonCand = this.normalizePhoneticVariants(normCand);
+
+    if (phonSong === phonCand) return true;
+
+    // Check anchor token match (first 3 phonetic characters)
+    const anchorS = phonSong.slice(0, 3);
+    const anchorC = phonCand.slice(0, 3);
+    if (anchorS !== anchorC) return false;
+
+    const bigrams = new Map<string, number>();
+    for (let i = 0; i < phonSong.length - 1; i++) {
+      const bg = phonSong.slice(i, i + 2);
+      bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
+    }
+    let intersection = 0;
+    for (let i = 0; i < phonCand.length - 1; i++) {
+      const bg = phonCand.slice(i, i + 2);
+      const count = bigrams.get(bg) || 0;
+      if (count > 0) {
+        bigrams.set(bg, count - 1);
+        intersection++;
+      }
+    }
+    const dice = (2.0 * intersection) / (phonSong.length - 1 + (phonCand.length - 1));
+    return dice >= 0.70;
+  }
+
+  public normalizePhoneticVariants(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      .replace(/th/g, 'dh')
+      .replace(/aa+/g, 'a')
+      .replace(/ee+/g, 'i')
+      .replace(/oo+/g, 'u')
+      .replace(/ae+/g, 'e')
+      .replace(/sh+/g, 's')
+      .replace(/w/g, 'v')
+      .replace(/(\p{L})\1+/gu, '$1')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
@@ -144,6 +191,8 @@ export class PlaybackSourceResolver {
       (normCleanRTitle.includes(normCleanSongTitle) || normCleanSongTitle.includes(normCleanRTitle))
     ) {
       titleScore = 75;
+    } else if (this.isTitleSimilarityMatch(normCleanSongTitle, normCleanRTitle)) {
+      titleScore = 70;
     } else {
       return -1; // REJECT: Title must align
     }
@@ -151,18 +200,28 @@ export class PlaybackSourceResolver {
     // 3. Artist Matching
     const cleanArtist = song.artist.split('&')[0].split(',')[0].replace(/feat\..*/i, '').trim();
     const normSongArtist = this.normalizeText(cleanArtist);
+    const primaryArts = Array.isArray(r.more_info?.primary_artists)
+      ? r.more_info.primary_artists.map((a: any) => (typeof a === 'string' ? a : a?.name || '')).join(' ')
+      : String(r.more_info?.primary_artists || '');
     const rArtistInfo = this.normalizeText(
-      `${r.subtitle || ''} ${r.header_desc || ''} ${r.more_info?.singers || ''} ${r.more_info?.music || ''}`
+      `${r.subtitle || ''} ${r.header_desc || ''} ${r.more_info?.singers || ''} ${r.more_info?.music || ''} ${primaryArts}`
     );
 
     let artistScore = 0;
     if (normSongArtist.length >= 3) {
       if (rArtistInfo.includes(normSongArtist)) {
         artistScore = 50;
-      } else if (normSongArtist.length >= 4 && rArtistInfo.includes(normSongArtist.slice(0, 4))) {
-        artistScore = 30;
       } else {
-        return -1; // REJECT: Artist must match
+        const artistTokens = cleanArtist
+          .toLowerCase()
+          .split(/[\s,&/-]+/)
+          .filter((t) => t.length >= 4);
+        const hasTokenMatch = artistTokens.length > 0 && artistTokens.some((token) => rArtistInfo.includes(token));
+        if (hasTokenMatch) {
+          artistScore = 35;
+        } else {
+          return -1; // REJECT: Artist must match
+        }
       }
     }
 
@@ -186,14 +245,23 @@ export class PlaybackSourceResolver {
     }
 
     // 6. Duration Matching
-    if (song.duration && r.more_info?.duration) {
+    const expectedDuration = (!song.isStreamPreview && song.duration > 35) ? song.duration : (song.fullTrackDuration || 0);
+    if (expectedDuration > 0 && r.more_info?.duration) {
       const rDur = parseInt(String(r.more_info.duration), 10);
       if (!isNaN(rDur) && rDur > 0) {
-        const diff = Math.abs(rDur - song.duration);
-        if (diff <= 3) totalScore += 30;
-        else if (diff <= 10) totalScore += 15;
+        const diff = Math.abs(rDur - expectedDuration);
+        if (diff <= 5) totalScore += 40;
+        else if (diff <= 15) totalScore += 20;
         else if (diff > 60) totalScore -= 50;
       }
+    }
+
+    // 7. Version / Remix Penalty:
+    // If the requested song title does NOT ask for Reloaded/Remix/Promo/Lofi, penalize candidate that is Reloaded/Remix
+    const isSongRemix = /\b(reloaded|remix|lofi|lo-fi|promo|trailer|teaser|dialogue|bgm|instrumental)\b/i.test(song.title);
+    const isCandRemix = /\b(reloaded|remix|lofi|lo-fi|promo|trailer|teaser|dialogue|bgm|instrumental)\b/i.test(unescapeHtml(r.title));
+    if (!isSongRemix && isCandRemix) {
+      totalScore -= 60; // Penalize alternative/trailer/reloaded versions over original soundtrack
     }
 
     return totalScore;
@@ -202,6 +270,45 @@ export class PlaybackSourceResolver {
   /**
    * Resolve a full-length playable audio source for a catalog song
    */
+  private preservePreviewSong(song: Song): Song {
+    const isPreview = Boolean(
+      song.isStreamPreview ||
+      song.playbackSource?.isStreamPreview ||
+      song.playbackType === 'preview' ||
+      song.playbackSource?.streamUrl?.includes('itunes.apple.com')
+    );
+
+    if (isPreview && song.playbackSource?.streamUrl) {
+      return {
+        ...song,
+        duration: 30,
+        fullTrackDuration: song.fullTrackDuration || song.duration || 30,
+        isStreamPreview: true,
+        previewAvailable: true,
+        fullLengthAvailable: false,
+        playbackType: 'preview',
+        playbackAvailability: 'preview',
+        playbackSourceType: 'preview',
+        playbackSource: {
+          ...song.playbackSource,
+          isStreamPreview: true,
+          playbackSourceType: 'preview'
+        },
+        capabilities: {
+          ...song.capabilities,
+          playback: song.capabilities?.playback ?? true,
+          lyrics: song.capabilities?.lyrics ?? true,
+          karaoke: song.capabilities?.karaoke ?? false,
+          recording: song.capabilities?.recording ?? true,
+          playbackAvailable: true,
+          playbackType: 'preview',
+          playbackSourceType: 'preview'
+        }
+      };
+    }
+    return song;
+  }
+
   public async resolvePlaybackSource(song: Song | null): Promise<Song> {
     if (!song) {
       throw new Error('Cannot resolve source for null song');
@@ -216,7 +323,7 @@ export class PlaybackSourceResolver {
       return song;
     }
 
-    // 2. Dev fixtures remain tagged as dev fixtures
+    // 3. Dev fixtures remain tagged as dev fixtures
     if (song.playbackSourceType === 'dev-fixture') {
       return song;
     }
@@ -263,31 +370,52 @@ export class PlaybackSourceResolver {
         return Array.isArray(data.results) ? data.results : [];
       };
 
-      // Primary search query
-      const primaryQuery = `${cleanTitle} ${cleanArtist}`.trim();
-      let results = await fetchSearchResults(primaryQuery);
+      // Build targeted search queries
+      const queries: string[] = [];
+      if (targetLang && targetLang !== 'english') {
+        queries.push(`${cleanTitle} ${cleanArtist} ${targetLang}`.trim());
+      }
+      queries.push(`${cleanTitle} ${cleanArtist}`.trim());
+      queries.push(cleanTitle);
 
-      // Score candidates from primary search
-      let scored = results
+      const titleWords = cleanTitle.split(/\s+/).filter(Boolean);
+      if (titleWords.length > 1 && cleanArtist) {
+        queries.push(`${titleWords[0]} ${cleanArtist}`.trim());
+      }
+
+      let results: SaavnResult[] = [];
+      for (const q of queries) {
+        const res = await fetchSearchResults(q);
+        if (res.length > 0) {
+          results.push(...res);
+        }
+        // If language-specific search returned positive scored candidates, no need to over-fetch
+        if (results.length > 0 && targetLang) {
+          const testScored = results
+            .map((r) => ({ result: r, score: this.scoreCandidate(song, r) }))
+            .filter((c) => c.score > 0);
+          if (testScored.length > 0) break;
+        }
+      }
+
+      // Deduplicate results by ID
+      const seenIds = new Set<string>();
+      const uniqueResults = results.filter((r) => {
+        if (!r.id || seenIds.has(r.id)) return false;
+        seenIds.add(r.id);
+        return true;
+      });
+
+      // Score candidates
+      let scored = uniqueResults
         .map((r) => ({ result: r, score: this.scoreCandidate(song, r) }))
         .filter((c) => c.score > 0)
         .sort((a, b) => b.score - a.score);
 
-      // If no candidate matched with positive score and a target language is known,
-      // retry with a language-targeted query
-      if (scored.length === 0 && targetLang) {
-        const langQuery = `${cleanTitle} ${cleanArtist} ${targetLang}`.trim();
-        const langResults = await fetchSearchResults(langQuery);
-        scored = langResults
-          .map((r) => ({ result: r, score: this.scoreCandidate(song, r) }))
-          .filter((c) => c.score > 0)
-          .sort((a, b) => b.score - a.score);
-      }
-
       if (scored.length === 0) {
         // No legitimate matching recording found for this exact version/language.
         // Never substitute an alternate-language dub or unrelated audio file.
-        return song;
+        return this.preservePreviewSong(song);
       }
 
       // Conservative Selection Rule when target language is unknown:
@@ -317,20 +445,20 @@ export class PlaybackSourceResolver {
         if (hasConflictingLanguage) {
           // Multiple language versions compete with insufficient confidence to choose.
           // Return safe unresolved song rather than silently playing an arbitrary dub.
-          return song;
+          return this.preservePreviewSong(song);
         }
       }
 
       const match = scored[0].result;
       const encUrl = match.more_info?.encrypted_media_url;
       if (!encUrl) {
-        return song;
+        return this.preservePreviewSong(song);
       }
 
       // Decrypt DES ECB stream URL
       const decrypted = decryptDesEcb(encUrl, this.cipherKey);
       if (!decrypted || !decrypted.startsWith('http')) {
-        return song;
+        return this.preservePreviewSong(song);
       }
 
       // Use 160kbps high-quality AAC stream
@@ -373,7 +501,7 @@ export class PlaybackSourceResolver {
       return resolvedSong;
     } catch (err) {
       console.warn('PlaybackSourceResolver error, falling back to original song:', err);
-      return song;
+      return this.preservePreviewSong(song);
     }
   }
 }

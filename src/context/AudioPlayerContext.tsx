@@ -104,11 +104,24 @@ interface AudioPlayerContextType {
   setAddToPlaylistModalOpen: (open: boolean) => void;
   openAddToPlaylist: (song: Song) => void;
 
+  // Share Moment Video Creation Modal
+  shareMomentOpen: boolean;
+  shareMomentSong: Song | null;
+  openShareMoment: (song?: Song | null) => void;
+  closeShareMoment: () => void;
+
   // Personal Library: Recently Played & Downloads
   recentlyPlayed: RecentlyPlayedItem[];
   downloadedSongs: Song[];
   downloadSong: (song: Song) => void;
   isSongDownloaded: (songId: string) => boolean;
+
+  // Authoritative Playback Queue
+  queue: Song[];
+  removeFromQueue: (songId: string) => void;
+  clearQueue: () => void;
+  reorderQueue: (newQueue: Song[]) => void;
+  addToQueue: (song: Song) => void;
 
   // Actions
   playSong: (song: Song, startTime?: number) => void;
@@ -301,6 +314,44 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     personalLibraryStore.getDownloadedSongs(authService.getCurrentUser()?.id)
   );
 
+  // Authoritative Playback Queue state & synchronization
+  const [queueState, setQueueState] = useState<Song[]>(() => playbackController.getQueue());
+
+  useEffect(() => {
+    const unsub = playbackController.subscribeQueue((q) => {
+      setQueueState([...q]);
+    });
+    return unsub;
+  }, []);
+
+  const removeFromQueue = useCallback((songId: string) => {
+    playbackController.removeFromQueue(songId);
+  }, []);
+
+  const clearQueue = useCallback(() => {
+    playbackController.clearQueue();
+  }, []);
+
+  const reorderQueue = useCallback((newQueue: Song[]) => {
+    playbackController.reorderQueue(newQueue);
+  }, []);
+
+  const addToQueue = useCallback((song: Song) => {
+    playbackController.addToQueue(song);
+  }, []);
+
+  // Ensure playbackController has an initial queue if empty
+  useEffect(() => {
+    if (playbackController.getQueue().length === 0) {
+      if (currentSong) {
+        const remaining = songs.filter((s) => s.id !== currentSong.id);
+        playbackController.setQueue([currentSong, ...remaining]);
+      } else if (songs.length > 0) {
+        playbackController.setQueue(songs);
+      }
+    }
+  }, [songs, currentSong]);
+
   // Add to Playlist modal state
   const [addToPlaylistModalOpen, setAddToPlaylistModalOpen] = useState(false);
   const [playlistTargetSong, setPlaylistTargetSong] = useState<Song | null>(null);
@@ -308,6 +359,56 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const openAddToPlaylist = useCallback((song: Song) => {
     setPlaylistTargetSong(song);
     setAddToPlaylistModalOpen(true);
+  }, []);
+
+  // Share Moment modal state & single playback ownership lifecycle
+  const [shareMomentOpen, setShareMomentOpen] = useState(false);
+  const [shareMomentSong, setShareMomentSong] = useState<Song | null>(null);
+  const preShareMomentSnapshotRef = useRef<{
+    song: Song | null;
+    currentTime: number;
+    wasPlaying: boolean;
+  } | null>(null);
+
+  const openShareMoment = useCallback((song?: Song | null) => {
+    const target = song || currentSong;
+    const clock = playbackController.getCurrentClock();
+    const wasPlaying = Boolean(clock.isPlaying);
+    const currentTime = Number(clock.currentTime) || 0;
+
+    // 1. Capture snapshot of main player state
+    preShareMomentSnapshotRef.current = {
+      song: currentSong,
+      currentTime,
+      wasPlaying
+    };
+
+    // 2. Pause main player immediately and acquire exclusive playback lock
+    playbackController.pause();
+    playbackController.acquirePlaybackLock('share-moment');
+
+    setShareMomentSong(target || null);
+    setShareMomentOpen(true);
+  }, [currentSong]);
+
+  const closeShareMoment = useCallback(() => {
+    setShareMomentOpen(false);
+
+    // Release exclusive playback lock
+    playbackController.releasePlaybackLock('share-moment');
+
+    const snapshot = preShareMomentSnapshotRef.current;
+    preShareMomentSnapshotRef.current = null;
+
+    if (snapshot && snapshot.song) {
+      if (snapshot.wasPlaying) {
+        // Resume main player from exact saved position
+        playbackController.loadAndPlay(snapshot.song, snapshot.currentTime).catch(console.warn);
+      } else {
+        // Restore exact position and leave paused
+        playbackController.load(snapshot.song, snapshot.currentTime).catch(console.warn);
+      }
+    }
   }, []);
 
   const toggleLikeSong = useCallback((song: Song) => {
@@ -1032,15 +1133,21 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         __naro_play_song_by_id?: (id: string) => void;
         __naro_lyrics_pipeline?: typeof lyricsPipelineService;
         __naro_get_lyrics_status?: (s?: Song) => unknown;
+        __naro_open_share_moment?: (s?: Song | null) => void;
+        __naro_close_share_moment?: () => void;
+        __naro_is_share_moment_open?: () => boolean;
       };
 
       win.__naro_play_song = playSong;
       win.__naro_toggle_play = togglePlay;
       win.__naro_playback_controller = playbackController;
       win.__naro_current_song = currentSong;
-      win.__naro_get_songs = () => songs;
+      win.__naro_get_songs = () => [...songs, ...getAllCuratedSongs().filter((cs) => !songs.some((s) => s.id === cs.id))];
       win.__naro_play_song_by_id = (id: string) => {
-        const found = songs.find((s) => s.id === id) || SONGS.find((s) => s.id === id);
+        const found =
+          songs.find((s) => s.id === id) ||
+          SONGS.find((s) => s.id === id) ||
+          getAllCuratedSongs().find((s) => s.id === id);
         if (found) playSong(found);
       };
       win.__naro_set_karaoke = setKaraokeMode;
@@ -1083,6 +1190,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       win.__naro_get_karaoke_script_preference = () => karaokeScriptPreference;
       win.__naro_set_listening_meaning_language = setListeningMeaningLanguage;
       win.__naro_get_listening_meaning_language = () => listeningMeaningLanguage;
+      win.__naro_open_share_moment = openShareMoment;
+      win.__naro_close_share_moment = closeShareMoment;
+      win.__naro_is_share_moment_open = () => shareMomentOpen;
     }
   }, [
     playSong,
@@ -1118,6 +1228,9 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setKaraokeScriptPreference,
     listeningMeaningLanguage,
     setListeningMeaningLanguage,
+    openShareMoment,
+    closeShareMoment,
+    shareMomentOpen,
     togglePlay,
     lyricsRevision,
     sourceLanguage,
@@ -1192,10 +1305,19 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         playlistTargetSong,
         setAddToPlaylistModalOpen,
         openAddToPlaylist,
+        shareMomentOpen,
+        shareMomentSong,
+        openShareMoment,
+        closeShareMoment,
         recentlyPlayed,
         downloadedSongs,
         downloadSong,
         isSongDownloaded,
+        queue: queueState,
+        removeFromQueue,
+        clearQueue,
+        reorderQueue,
+        addToQueue,
         playSong,
         togglePlay,
         seekTo,

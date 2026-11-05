@@ -17,6 +17,7 @@ import { AccountConnectionModal } from './components/AccountConnectionModal';
 import { NowPlaying } from './components/NowPlaying';
 import { AuthModal } from './components/AuthModal';
 import { AddToPlaylistModal } from './components/AddToPlaylistModal';
+import { ShareMomentModal } from './components/ShareMomentModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const AppContent: React.FC = () => {
@@ -34,7 +35,11 @@ export const AppContent: React.FC = () => {
     setAuthModalOpen,
     addToPlaylistModalOpen,
     playlistTargetSong,
-    setAddToPlaylistModalOpen
+    setAddToPlaylistModalOpen,
+    shareMomentOpen,
+    shareMomentSong,
+    closeShareMoment,
+    currentSong
   } = useAudioPlayer();
 
   const handleIntroComplete = React.useCallback(() => {
@@ -92,6 +97,11 @@ export const AppContent: React.FC = () => {
         isOpen={addToPlaylistModalOpen}
         song={playlistTargetSong}
         onClose={() => setAddToPlaylistModalOpen(false)}
+      />
+      <ShareMomentModal
+        isOpen={shareMomentOpen}
+        song={shareMomentSong || currentSong}
+        onClose={closeShareMoment}
       />
       <NowPlaying />
 

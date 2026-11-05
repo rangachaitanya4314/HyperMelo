@@ -173,8 +173,11 @@ async function runResponsiveVerification() {
     // Start playing a track so Now Playing is active
     await cdp.eval(`
       (() => {
-        if (window.__naro_play_song && window.__naro_current_song) {
-          window.__naro_play_song(window.__naro_current_song, 2.0);
+        if (window.__naro_play_song) {
+          const song = window.__naro_current_song || (window.__naro_get_songs ? window.__naro_get_songs()[0] : null);
+          if (song) {
+            window.__naro_play_song(song, 2.0);
+          }
         }
       })()
     `);

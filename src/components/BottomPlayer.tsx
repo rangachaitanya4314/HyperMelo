@@ -14,12 +14,13 @@ import {
   Maximize2,
   Heart,
   Plus,
+  Share2,
   Sparkles
 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { AbstractArtwork } from './AbstractArtwork';
 import { MulticolorSpectrum } from './MulticolorSpectrum';
-import { getConsumerLicenseLabel } from '../shared';
+import { getConsumerLicenseLabel, getCanonicalTrackDuration } from '../shared';
 import './BottomPlayer.css';
 
 export const BottomPlayer: React.FC = () => {
@@ -47,7 +48,8 @@ export const BottomPlayer: React.FC = () => {
     cycleSoundMode,
     toggleLikeSong,
     isSongLiked,
-    openAddToPlaylist
+    openAddToPlaylist,
+    openShareMoment
   } = useAudioPlayer();
 
   const isLiked = currentSong ? isSongLiked(currentSong.id) : false;
@@ -118,7 +120,15 @@ export const BottomPlayer: React.FC = () => {
     seekTo(parseFloat(e.target.value));
   };
 
-  const effectiveDuration = duration > 0 ? duration : (currentSong?.duration || 1);
+  const isPreview = Boolean(
+    currentSong?.isStreamPreview ||
+    currentSong?.playbackType === 'preview' ||
+    currentSong?.playbackSourceType === 'preview'
+  );
+  const canonicalDuration = getCanonicalTrackDuration(currentSong);
+  const effectiveDuration = isPreview
+    ? (duration > 0 && duration <= 60 ? duration : canonicalDuration)
+    : (duration > 0 ? duration : canonicalDuration);
   const progressPercent = currentSong && effectiveDuration > 0 ? Math.max(0, Math.min(100, (currentTime / effectiveDuration) * 100)) : 0;
   const bufferPercent = currentSong && effectiveDuration > 0 ? Math.max(0, Math.min(100, (bufferedTime / effectiveDuration) * 100)) : 0;
 
@@ -172,6 +182,27 @@ export const BottomPlayer: React.FC = () => {
             <span className="player-track-artist">
               {currentSong?.artist || 'Select a track to play'}
             </span>
+
+            {isPreview && (
+              <span
+                id="player-preview-badge"
+                data-testid="player-preview-badge"
+                style={{
+                  fontSize: '0.62rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: 'rgba(231, 165, 141, 0.15)',
+                  color: 'var(--accent-warm)',
+                  border: '1px solid rgba(231, 165, 141, 0.3)',
+                  whiteSpace: 'nowrap'
+                }}
+                title="30-second official preview stream"
+              >
+                PREVIEW (30s)
+              </span>
+            )}
 
             {(() => {
               const lic = getConsumerLicenseLabel(currentSong?.attribution);
@@ -403,22 +434,43 @@ export const BottomPlayer: React.FC = () => {
         {/* Honest Error / Status Feedback */}
         {(() => {
           const userFriendlyError = formatPlaybackError(playbackError);
-          if (!userFriendlyError) return null;
-          return (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.72rem',
-                color: '#FCA5A5',
-                padding: '2px 0'
-              }}
-            >
-              <AlertCircle size={12} />
-              <span>{userFriendlyError}</span>
-            </div>
-          );
+          if (userFriendlyError) {
+            return (
+              <div
+                id="player-status-message"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.72rem',
+                  color: '#FCA5A5',
+                  padding: '2px 0'
+                }}
+              >
+                <AlertCircle size={12} />
+                <span>{userFriendlyError}</span>
+              </div>
+            );
+          }
+          if (playbackState === 'ended' && isPreview) {
+            return (
+              <div
+                id="player-preview-ended-notice"
+                data-testid="player-preview-ended-notice"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '0.72rem',
+                  color: 'var(--accent-warm)',
+                  padding: '2px 0'
+                }}
+              >
+                <span>30-second preview completed. Full track requires authorized provider subscription.</span>
+              </div>
+            );
+          }
+          return null;
         })()}
       </div>
 
@@ -533,6 +585,19 @@ export const BottomPlayer: React.FC = () => {
           title="Floating Synchronized Lyrics"
         >
           <FileText size={18} />
+        </button>
+
+        {/* Share Moment Button */}
+        <button
+          type="button"
+          id="bottom-player-share-moment-btn"
+          data-testid="bottom-player-share-moment-btn"
+          onClick={() => openShareMoment(currentSong)}
+          aria-label="Share Moment"
+          className="player-icon-btn"
+          title="Create & Share 9:16 Lyric Moment"
+        >
+          <Share2 size={18} />
         </button>
 
         {/* Expand Now Playing Button — Always independently accessible with min 44x44px touch target */}

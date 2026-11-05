@@ -13,7 +13,7 @@ export interface SanitizedLyricsMetadata {
  * Unescape common HTML entities found in catalog metadata and API responses
  */
 export function unescapeHtml(text: string): string {
-  if (!text) return '';
+  if (!text || typeof text !== 'string') return '';
   return text
     .replace(/&quot;/gi, '"')
     .replace(/&#039;|&#39;/gi, "'")
@@ -28,7 +28,7 @@ export function unescapeHtml(text: string): string {
  * Strips movie tags (From "..."), features (feat. ...), and descriptors [Remix], [Lyrical].
  */
 export function sanitizeTrackTitle(rawTitle: string): string {
-  if (!rawTitle) return '';
+  if (!rawTitle || typeof rawTitle !== 'string') return '';
   let title = unescapeHtml(rawTitle).trim();
 
   // 1. Strip Movie tags: (From "..."), [From '...'], - From "...", (Original Motion Picture Soundtrack), (OST)
@@ -49,7 +49,7 @@ export function sanitizeTrackTitle(rawTitle: string): string {
 
   // 3. Strip Descriptors: [Remix], [Lyrical], [Official Video], [Audio], [Slowed + Reverb], [Piano Version], etc.
   title = title.replace(
-    /\s*[\(\[\{]\s*(?:remix(?:ed)?(?:\s+by\s+.*?)?|club\s+mix|dance\s+mix|lyrical(?:\s+video)?|lyric\s+video|official(?:\s+(?:music\s+video|video|audio|visualizer))?|audio|video|full(?:\s+(?:video\s+song|video|song))?|slowed(?:\s*[\+&]\s*reverb)?|sped\s+up|acoustic(?:\s+version)?|unplugged|live(?:\s+at\s+.*?)?|radio\s+edit|single\s+version|album\s+version|lo-?fi(?:\s+flip)?|deluxe(?:\s+edition)?|bonus\s+track|teaser|4k(?:\s+ultra\s+hd)?|hd|version|piano\s+version|orchestral\s+version)\s*[\)\]\}]/gi,
+    /\s*[\(\[\{]\s*(?:remix(?:ed)?(?:\s+by\s+.*?)?|club\s+mix|dance\s+mix|lyrical(?:\s+video)?|lyric\s+video|official(?:\s+(?:music\s+video|video|audio|visualizer))?|audio|video|full(?:\s+(?:video\s+song|video|song))?|slowed(?:\s*[\+&]\s*reverb)?|sped\s+up|acoustic(?:\s+version)?|unplugged|live(?:\s+at\s+.*?)?|radio\s+edit|single\s+version|album\s+version|lo-?fi(?:\s+flip)?|deluxe(?:\s+edition)?|bonus\s+track|teaser|4k(?:\s+ultra\s+hd)?|hd|version|piano\s+version|orchestral\s+version|first\s+(?:love\s+song|single|track)|promo(?:\s+song)?|title\s+track|female\s+version|male\s+version|duet\s+version|sad\s+version|reprise(?:\s+version)?|extended(?:\s+version)?|original\s+version)\s*[\)\]\}]/gi,
     ' '
   );
 
@@ -87,7 +87,7 @@ export function sanitizeTrackTitle(rawTitle: string): string {
  * Sanitize artist name by removing parenthetical metadata and trailing features
  */
 export function sanitizeArtistName(rawArtist: string): string {
-  if (!rawArtist) return '';
+  if (!rawArtist || typeof rawArtist !== 'string') return '';
   let artist = unescapeHtml(rawArtist).trim();
 
   // Remove parenthetical notes

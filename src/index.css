@@ -66,10 +66,40 @@
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.7), 0 0 25px rgba(231, 165, 141, 0.14);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Global button and interactive touch reset — eliminates white masking, tap highlights, and text wash-out */
+button,
+[role="button"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  color: inherit;
+}
+
+button:active:not(:disabled),
+[role="button"]:active:not([aria-disabled="true"]) {
+  transform: scale(0.98);
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 html, body {
@@ -168,7 +198,13 @@ html, body {
 }
 
 .btn-primary:active {
-  transform: translateY(0);
+  transform: scale(0.98);
+  background-color: #df977e;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+  background: rgba(244, 240, 235, 0.16);
 }
 
 .btn-secondary {
@@ -217,7 +253,8 @@ html, body {
 }
 
 .btn-icon:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
+  background: rgba(244, 240, 235, 0.18);
 }
 
 /* Animations */
@@ -297,12 +334,18 @@ html, body {
   animation: glowPulse 6s ease-in-out infinite;
 }
 
-/* Focus styles */
+/* Focus styles: Accessible outline on keyboard navigation, no outline on mouse/touch */
+button:focus,
+[role="button"]:focus {
+  outline: none;
+}
+
 button:focus-visible,
+[role="button"]:focus-visible,
 input:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent-warm) !important;
+  outline-offset: 2px !important;
 }
 
 /* Accessible reduced motion */
@@ -314,6 +357,10 @@ a:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  button:active,
+  [role="button"]:active {
+    transform: none !important;
   }
   .animate-disc,
   .animate-float-1,
@@ -404,6 +451,28 @@ a:focus-visible {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes nowPlayingSlideUp {
+  from {
+    opacity: 0.6;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nowPlayingSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
   }
 }
 

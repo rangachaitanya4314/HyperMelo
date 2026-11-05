@@ -1,0 +1,534 @@
+/* =========================================================================
+   CUSTOM LYRIC TIMELINE — MOBILE-FIRST TIMELINE COMPONENT
+   Strict 44px+ touch targets, zero horizontal page overflow, sticky bottom dock.
+   ========================================================================= */
+
+.custom-timeline-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  background-color: rgba(4, 6, 10, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .custom-timeline-overlay {
+    align-items: center;
+    padding: 16px;
+  }
+}
+
+.custom-timeline-container {
+  width: 100%;
+  max-width: 540px;
+  max-height: 94vh;
+  height: 94vh;
+  background-color: rgba(14, 18, 26, 0.98);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  box-shadow: 0 -20px 80px rgba(0, 0, 0, 0.9), 0 0 50px rgba(231, 165, 141, 0.15);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: timelineSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (min-width: 640px) {
+  .custom-timeline-container {
+    border-radius: 24px;
+    height: auto;
+    max-height: 90vh;
+  }
+}
+
+@keyframes timelineSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Header */
+.custom-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(244, 240, 235, 0.08);
+  flex-shrink: 0;
+  background-color: rgba(14, 18, 26, 0.9);
+}
+
+.custom-timeline-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #F4F0EB;
+  letter-spacing: -0.01em;
+}
+
+.custom-timeline-subtitle {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: #94A3B8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.timeline-icon-btn {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 50%;
+  background-color: rgba(244, 240, 235, 0.06);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  color: #F4F0EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.timeline-icon-btn:hover {
+  background-color: rgba(244, 240, 235, 0.15);
+  transform: scale(1.05);
+}
+
+/* Scrollable Main Area */
+.custom-timeline-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* Section 1: Stats Readout Card */
+.timeline-stats-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(5, 7, 12, 0.75);
+  border: 1px solid rgba(244, 240, 235, 0.1);
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.timeline-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.timeline-stat-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #64748B;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.timeline-stat-val {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #F4F0EB;
+  font-family: monospace;
+}
+
+.timeline-stat-val.accent {
+  color: var(--accent-warm, #E7A58D);
+  font-size: 0.96rem;
+  text-shadow: 0 0 12px rgba(231, 165, 141, 0.4);
+}
+
+.timeline-stat-divider {
+  width: 1px;
+  height: 28px;
+  background-color: rgba(244, 240, 235, 0.08);
+}
+
+/* Section Wrappers */
+.timeline-section-wrap {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.timeline-section-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #94A3B8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+/* Section 2: Duration Presets (5s, 10s, 15s, 20s, 30s) — Strictly fits 320px screens */
+.timeline-presets-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.timeline-preset-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  background-color: rgba(244, 240, 235, 0.06);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  color: #94A3B8;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.timeline-preset-chip:hover {
+  background-color: rgba(244, 240, 235, 0.12);
+  color: #F4F0EB;
+}
+
+.timeline-preset-chip.active {
+  background-color: var(--accent-warm, #E7A58D);
+  border-color: var(--accent-warm, #E7A58D);
+  color: #080A0F;
+  box-shadow: 0 0 14px rgba(231, 165, 141, 0.4);
+}
+
+/* Section 3: Interactive Touch Timeline */
+.timeline-zoom-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeline-mini-tool-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 6px;
+  background-color: rgba(244, 240, 235, 0.06);
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  color: #CBD5E1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.timeline-mini-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.timeline-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background-color: #05070B;
+  border: 1px solid rgba(244, 240, 235, 0.12);
+  border-radius: 16px;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+}
+
+.timeline-track {
+  height: 96px;
+  position: relative;
+  user-select: none;
+  touch-action: none;
+  cursor: pointer;
+}
+
+/* Waveform Bars */
+.timeline-waveform-canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  pointer-events: none;
+  gap: 2px;
+}
+
+.timeline-wave-bar {
+  flex: 1;
+  min-width: 2px;
+  background-color: rgba(244, 240, 235, 0.18);
+  border-radius: 9999px;
+  transition: background-color 0.15s ease;
+}
+
+.timeline-wave-bar.active {
+  background-color: var(--accent-warm, #E7A58D);
+  box-shadow: 0 0 6px rgba(231, 165, 141, 0.4);
+}
+
+/* Highlighted Selection Region */
+.timeline-selection-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(231, 165, 141, 0.16);
+  border-top: 2px solid var(--accent-warm, #E7A58D);
+  border-bottom: 2px solid var(--accent-warm, #E7A58D);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Draggable Handles — Guaranteed >= 44x44px touch target */
+.timeline-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  min-width: 44px;
+  height: 100%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 10;
+  box-sizing: border-box;
+}
+
+.timeline-handle-pill {
+  width: 14px;
+  height: 52px;
+  border-radius: 8px;
+  background-color: var(--accent-warm, #E7A58D);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6), 0 0 12px rgba(231, 165, 141, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.timeline-handle.dragging .timeline-handle-pill {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8), 0 0 20px rgba(231, 165, 141, 0.9);
+}
+
+.timeline-handle-grip {
+  width: 2px;
+  height: 18px;
+  border-left: 2px dotted #080A0F;
+}
+
+.timeline-handle-tag {
+  position: absolute;
+  top: -22px;
+  font-family: monospace;
+  font-size: 0.64rem;
+  font-weight: 700;
+  background-color: rgba(8, 10, 15, 0.9);
+  color: var(--accent-warm, #E7A58D);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(231, 165, 141, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.timeline-drag-hint {
+  font-size: 0.7rem;
+  color: #64748B;
+  text-align: center;
+  margin-top: 6px;
+}
+
+/* Section 4: Separate Vertically Scrollable Lyrics Section */
+.timeline-lyrics-scroller {
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: rgba(5, 7, 12, 0.6);
+  border: 1px solid rgba(244, 240, 235, 0.08);
+  border-radius: 14px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-sizing: border-box;
+}
+
+.timeline-lyric-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: none;
+  border: 1px solid transparent;
+  color: #94A3B8;
+  cursor: pointer;
+  text-align: left;
+  min-height: 44px;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.timeline-lyric-row:hover {
+  background-color: rgba(244, 240, 235, 0.04);
+  color: #F4F0EB;
+}
+
+.timeline-lyric-row.selected {
+  background-color: rgba(231, 165, 141, 0.12);
+  border-color: rgba(231, 165, 141, 0.3);
+  color: #F4F0EB;
+  font-weight: 600;
+}
+
+/* Checkbox Indicator */
+.timeline-checkbox {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(244, 240, 235, 0.25);
+  background-color: rgba(244, 240, 235, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.timeline-checkbox.checked {
+  background-color: var(--accent-warm, #E7A58D);
+  border-color: var(--accent-warm, #E7A58D);
+}
+
+.timeline-lyric-time {
+  font-family: monospace;
+  font-size: 0.72rem;
+  color: #64748B;
+  flex-shrink: 0;
+}
+
+.timeline-lyric-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.82rem;
+}
+
+/* Section 5: Sticky Bottom Dock (One-Handed Ergonomics) */
+.timeline-sticky-dock {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  background-color: rgba(10, 14, 22, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(244, 240, 235, 0.1);
+  z-index: 100;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.timeline-dock-preview-btn {
+  flex: 1;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 12px;
+  background-color: rgba(244, 240, 235, 0.08);
+  border: 1px solid rgba(244, 240, 235, 0.16);
+  color: #F4F0EB;
+  font-size: 0.88rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+}
+
+.timeline-dock-preview-btn:hover {
+  background-color: rgba(244, 240, 235, 0.14);
+}
+
+.timeline-dock-apply-btn {
+  flex: 1.5;
+  height: 48px;
+  min-height: 48px;
+  border-radius: 12px;
+  background-color: var(--accent-warm, #E7A58D);
+  border: 1px solid var(--accent-warm, #E7A58D);
+  color: #080A0F;
+  font-size: 0.88rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 18px rgba(231, 165, 141, 0.35);
+}
+
+.timeline-dock-apply-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(231, 165, 141, 0.5);
+}
+

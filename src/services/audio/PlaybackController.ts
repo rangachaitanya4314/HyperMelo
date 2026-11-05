@@ -51,6 +51,7 @@ export class PlaybackController {
   // Authoritative Playback Clock
   private clockListeners: Set<PlaybackClockListener> = new Set();
   private trackListeners: Set<(track: Song | null) => void> = new Set();
+  private queueListeners: Set<(queue: Song[]) => void> = new Set();
   private currentClock: PlaybackClockEvent;
 
   // Loop / Moment behavior
@@ -59,6 +60,7 @@ export class PlaybackController {
 
   // Karaoke backing coordination on active provider
   private isKaraokeActive = false;
+  private playbackLockOwner: string | null = null;
 
   // Connectivity unsubscription
   private unsubscribeConnectivity: (() => void) | null = null;
@@ -201,6 +203,30 @@ export class PlaybackController {
   };
 
   // =========================================================================
+  // =========================================================================
+  // PLAYBACK OWNERSHIP / LOCK COORDINATION
+  // =========================================================================
+
+  public acquirePlaybackLock(ownerId: string): boolean {
+    this.playbackLockOwner = ownerId;
+    this.pause();
+    return true;
+  }
+
+  public releasePlaybackLock(ownerId: string): void {
+    if (this.playbackLockOwner === ownerId) {
+      this.playbackLockOwner = null;
+    }
+  }
+
+  public isPlaybackLocked(): boolean {
+    return this.playbackLockOwner !== null;
+  }
+
+  public getPlaybackLockOwner(): string | null {
+    return this.playbackLockOwner;
+  }
+
   // PROVIDER LIFECYCLE & SELECTION
   // =========================================================================
 
@@ -265,6 +291,29 @@ export class PlaybackController {
         } catch {
           // ignore
         }
+      }
+    }
+  }
+
+  public clearAllProvidersAudio(): void {
+    const providers = [
+      this.naroFullLengthProvider,
+      this.appleMusicProvider,
+      this.html5Provider,
+      this.youtubeProvider
+    ];
+    for (const p of providers) {
+      try {
+        if (typeof p.pause === 'function') {
+          p.pause();
+        }
+        if ('destroy' in p && typeof (p as { destroy?: () => void }).destroy === 'function') {
+          (p as { destroy: () => void }).destroy();
+        } else if ('dispose' in p && typeof (p as { dispose?: () => void }).dispose === 'function') {
+          (p as { dispose: () => void }).dispose();
+        }
+      } catch {
+        // ignore
       }
     }
   }
@@ -379,18 +428,62 @@ export class PlaybackController {
     });
   }
 
+  public subscribeQueue(listener: (queue: Song[]) => void): () => void {
+    this.queueListeners.add(listener);
+    try {
+      listener(this.getQueue());
+    } catch (err) {
+      console.error('Error in initial queue listener call:', err);
+    }
+    return () => {
+      this.queueListeners.delete(listener);
+    };
+  }
+
+  private notifyQueueChanged(): void {
+    const current = this.getQueue();
+    this.queueListeners.forEach((listener) => {
+      try {
+        listener(current);
+      } catch (err) {
+        console.error('Error in queue listener:', err);
+      }
+    });
+  }
+
   public getQueue(): Song[] {
     return [...this.queue];
   }
 
   public setQueue(queue: Song[]): void {
     this.queue = [...queue];
+    this.notifyQueueChanged();
   }
 
   public addToQueue(song: Song): void {
     if (!this.queue.some((s) => s.id === song.id)) {
       this.queue.push(song);
+      this.notifyQueueChanged();
     }
+  }
+
+  public removeFromQueue(songId: string): void {
+    this.queue = this.queue.filter((s) => s.id !== songId);
+    this.notifyQueueChanged();
+  }
+
+  public clearQueue(): void {
+    if (this.currentTrack) {
+      this.queue = [this.currentTrack];
+    } else {
+      this.queue = [];
+    }
+    this.notifyQueueChanged();
+  }
+
+  public reorderQueue(newQueue: Song[]): void {
+    this.queue = [...newQueue];
+    this.notifyQueueChanged();
   }
 
   public async nextTrack(): Promise<void> {
@@ -414,6 +507,10 @@ export class PlaybackController {
   private currentLoadId = 0;
 
   public async loadAndPlay(song: Song, startTime = 0): Promise<void> {
+    if (this.playbackLockOwner) {
+      console.warn(`[PlaybackController] loadAndPlay ignored: playback locked by ${this.playbackLockOwner}`);
+      return;
+    }
     const loadId = ++this.currentLoadId;
 
     // Immediately pause all currently active playback so the previous track cannot continue audibly
@@ -447,6 +544,7 @@ export class PlaybackController {
 
     // If the resolved song has no streamUrl, display honest error and never fall back to another track
     if (!resolvedSong.playbackSource?.streamUrl) {
+      this.clearAllProvidersAudio();
       this.currentTrack = resolvedSong;
       this.notifyTrackChanged();
       this.handleClockEvent({
@@ -474,6 +572,7 @@ export class PlaybackController {
       !this.youtubeProvider.canPlay(resolvedSong) &&
       !this.html5Provider.canPlay(resolvedSong)
     ) {
+      this.clearAllProvidersAudio();
       this.handleClockEvent({
         currentTime: 0,
         duration: resolvedSong.duration,
@@ -512,6 +611,7 @@ export class PlaybackController {
           errorMsg = `Playback error: ${domErr?.name || 'Error'} - ${domErr?.message || 'Failed to play'}`;
         }
       }
+      this.clearAllProvidersAudio();
       this.handleClockEvent({
         currentTime: this.currentClock.currentTime || 0,
         duration: resolvedSong.duration,
@@ -524,6 +624,10 @@ export class PlaybackController {
   }
 
   public async load(song: Song, startTime = 0): Promise<void> {
+    if (this.playbackLockOwner) {
+      console.warn(`[PlaybackController] loadAndPlay ignored: playback locked by ${this.playbackLockOwner}`);
+      return;
+    }
     const loadId = ++this.currentLoadId;
 
     // Immediately pause all currently active playback so the previous track cannot continue audibly
@@ -541,6 +645,7 @@ export class PlaybackController {
     const preserveKaraoke = this.isKaraokeActive;
 
     if (!resolvedSong.playbackSource?.streamUrl) {
+      this.clearAllProvidersAudio();
       this.handleClockEvent({
         currentTime: 0,
         duration: resolvedSong.duration,
@@ -562,6 +667,10 @@ export class PlaybackController {
   }
 
   public async play(): Promise<void> {
+    if (this.playbackLockOwner) {
+      console.warn('[PlaybackController] play ignored: locked by ' + this.playbackLockOwner);
+      return;
+    }
     if (!this.currentTrack) return;
     if (this.activeProvider) {
       await this.activeProvider.play();
@@ -575,6 +684,10 @@ export class PlaybackController {
   }
 
   public async togglePlay(fallbackSong?: Song): Promise<void> {
+    if (this.playbackLockOwner) {
+      console.warn('[PlaybackController] togglePlay ignored: locked by ' + this.playbackLockOwner);
+      return;
+    }
     const targetSong = fallbackSong || this.currentTrack;
     if (!targetSong) return;
 

@@ -83,7 +83,7 @@ class LyricsPipelineService {
   private listeners = new Set<(res: TrackLyricsResolution) => void>();
   private preResolveQueue: Song[] = [];
   private isProcessingQueue = false;
-  private readonly MAX_CONCURRENCY = 3;
+  private readonly MAX_CONCURRENCY = 1;
 
   /**
    * Subscribe to resolution status updates
@@ -181,11 +181,11 @@ class LyricsPipelineService {
       }
       if (
         (existing.outcome === 'CONFIRMED_NO_MATCH' || existing.outcome === 'CONFIRMED_NO_RESULT') &&
-        Date.now() - existing.resolvedAt < 300000
+        Date.now() - existing.resolvedAt < 600000 // 10 minutes
       ) {
         return existing;
       }
-      if (existing.outcome === 'TRANSIENT_FAILURE' && Date.now() - existing.resolvedAt < 10000) {
+      if (existing.outcome === 'TRANSIENT_FAILURE' && Date.now() - existing.resolvedAt < 60000) { // 60 seconds
         return existing;
       }
     }
@@ -312,7 +312,7 @@ class LyricsPipelineService {
       return noResult;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
-      const isNetworkError = /network|timeout|fetch|abort|transient|rate|503|502|504|429/i.test(errorMessage);
+      const isNetworkError = /network|timeout|fetch|abort|transient|rate|cooldown|503|502|504|429/i.test(errorMessage);
 
       const failed: TrackLyricsResolution = {
         canonicalKey: key,
@@ -362,8 +362,8 @@ class LyricsPipelineService {
       while (this.preResolveQueue.length > 0) {
         const batch = this.preResolveQueue.splice(0, this.MAX_CONCURRENCY);
         await Promise.allSettled(batch.map((song) => this.resolveTrack(song)));
-        // Brief pause to stay well under rate limits
-        await new Promise((r) => setTimeout(r, 120));
+        // Gentle pause to stay well under rate limits
+        await new Promise((r) => setTimeout(r, 1000));
       }
     } finally {
       this.isProcessingQueue = false;

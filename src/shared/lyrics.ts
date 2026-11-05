@@ -43,6 +43,7 @@ export interface TimedLyricLine {
   start_ms?: number;  // millisecond start timestamp if provided
   end_ms?: number;    // millisecond end timestamp if provided
   text: string;
+  rawText?: string;
   translations?: Record<string, string>;
   time?: number;      // legacy start time in seconds (backward compatibility)
   duration?: number;  // legacy duration in seconds (backward compatibility)
@@ -67,6 +68,70 @@ export interface TimedLyricLine {
  */
 export type LyricLine = TimedLyricLine;
 
+/**
+ * Strips raw lyric timestamps (e.g. <00:09.62>, [00:13.12], trailing '<')
+ * from visible text while preserving legitimate punctuation and words.
+ */
+export function cleanDisplayLyricText(text: string | null | undefined): string {
+  if (!text || typeof text !== 'string') return '';
+  return text
+    // Strip <mm:ss.xx>, <mm:ss.xxx>, <mm:ss>, <m:ss.xx> (word timestamps)
+    .replace(/<(\d{1,3}):(\d{2})(?:[.:,](\d{1,3}))?>/g, '')
+    // Strip [mm:ss.xx], [mm:ss.xxx], [mm:ss] (line timestamps)
+    .replace(/\[(\d{1,3}):(\d{2})(?:[.:,](\d{1,3}))?\]/g, '')
+    // Strip trailing incomplete timestamp opener e.g. '<' or '<00:'
+    .replace(/<(?:\d{1,3}(?::\d{0,2})?)?$/g, '')
+    // Clean multiple spaces caused by stripping tags
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/**
+ * Parse word-level timestamps from enhanced LRC line content
+ * e.g. "<00:09.62>Mujhko <00:13.12>itna <00:13.86>bataye <00:14.20>"
+ * Preserves timestamps internally for word-level karaoke or timing synchronization.
+ */
+export function parseLyricWords(
+  rawText: string | null | undefined,
+  _lineStartTime: number,
+  lineEndTime: number
+): LyricWord[] | undefined {
+  if (!rawText || typeof rawText !== 'string' || !rawText.includes('<')) return undefined;
+
+  const wordTimeRegex = /<(\d{1,3}):(\d{2})(?:[.:,](\d{1,3}))?>/g;
+  const matches: { time: number; index: number; length: number }[] = [];
+  let m: RegExpExecArray | null;
+
+  while ((m = wordTimeRegex.exec(rawText)) !== null) {
+    const minutes = parseInt(m[1], 10);
+    const seconds = parseInt(m[2], 10);
+    const fraction = m[3] ? parseFloat('0.' + m[3]) : 0;
+    const time = Number((minutes * 60 + seconds + fraction).toFixed(2));
+    matches.push({ time, index: m.index, length: m[0].length });
+  }
+
+  if (matches.length === 0) return undefined;
+
+  const words: LyricWord[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const nextIndex = i < matches.length - 1 ? matches[i + 1].index : rawText.length;
+    let wordChunk = rawText.slice(cur.index + cur.length, nextIndex);
+    // Remove trailing incomplete tag if any
+    wordChunk = wordChunk.replace(/<.*$/, '').trim();
+    if (wordChunk) {
+      const nextTime = i < matches.length - 1 ? matches[i + 1].time : lineEndTime;
+      words.push({
+        text: wordChunk,
+        start: cur.time,
+        end: Math.max(cur.time + 0.1, nextTime)
+      });
+    }
+  }
+
+  return words.length > 0 ? words : undefined;
+}
+
 import { transliterateText, canTransliterate, isLatinScript } from '../services/lyrics/transliterationService';
 import { validateScriptForLanguage } from '../services/lyrics/translationService';
 
@@ -86,7 +151,8 @@ export function getKaraokeLyricLine(
 ): { text: string; isTransliteration: boolean; isAvailable: boolean; nativeText: string } {
   if (!line) return { text: '', isTransliteration: false, isAvailable: false, nativeText: '' };
 
-  const native = (line.karaoke?.native || line.text || '').trim();
+  const rawNative = (line.karaoke?.native || line.text || '').trim();
+  const native = cleanDisplayLyricText(rawNative);
   const translit = line.karaoke?.transliteration?.trim();
 
   if (preference === 'transliteration') {
@@ -130,41 +196,31 @@ export function getListeningLyricDisplay(
   meaningText: string;
   isMeaningAvailable: boolean;
   isSameAsOriginal: boolean;
+  scriptType: 'native' | 'romanized';
+  isNativeScriptAvailable: boolean;
 } {
   if (!line) {
-    return { originalText: '', meaningText: '', isMeaningAvailable: false, isSameAsOriginal: false };
-  }
-
-  const originalText = (line.karaoke?.native || line.text || '').trim();
-  const effectiveOriginalLang = (line.original_language || songOriginalLang || detectLanguage(originalText)) as string;
-  const isSameAsOriginal = meaningLang === effectiveOriginalLang;
-
-  // Check listening_meaning first, then fallback to translations
-  let meaning = line.listening_meaning?.[meaningLang]?.trim();
-  if (!meaning && line.translations?.[meaningLang]) {
-    meaning = line.translations[meaningLang].trim();
-  }
-
-  if (meaning && meaning.length > 0) {
     return {
-      originalText,
-      meaningText: meaning,
-      isMeaningAvailable: true,
-      isSameAsOriginal
+      originalText: '',
+      meaningText: '',
+      isMeaningAvailable: false,
+      isSameAsOriginal: false,
+      scriptType: 'romanized',
+      isNativeScriptAvailable: false
     };
   }
 
-  // If the user selected the original language and no secondary translation needed
-  if (isSameAsOriginal) {
-    return {
-      originalText,
-      meaningText: originalText,
-      isMeaningAvailable: true,
-      isSameAsOriginal: true
-    };
-  }
+  const rawOriginal = (line.karaoke?.native || line.text || '').trim();
+  const cleanedOriginal = cleanDisplayLyricText(rawOriginal);
+  const effectiveOriginalLang = (line.original_language || songOriginalLang || detectLanguage(cleanedOriginal)) as string;
 
-  // Meaning is genuinely unavailable for this language
+  const INDIC_SCRIPT_REGEX: Record<string, RegExp> = {
+    te: /[\u0C00-\u0C7F]/, // Telugu
+    ta: /[\u0B80-\u0BFF]/, // Tamil
+    hi: /[\u0900-\u097F]/, // Devanagari (Hindi)
+    ml: /[\u0D00-\u0D7F]/  // Malayalam
+  };
+
   const languageNames: Record<Language, string> = {
     en: 'English',
     hi: 'Hindi',
@@ -172,13 +228,134 @@ export function getListeningLyricDisplay(
     ta: 'Tamil',
     ml: 'Malayalam'
   };
-  const langName = languageNames[meaningLang] || String(meaningLang).toUpperCase();
+
+  const targetRegex = INDIC_SCRIPT_REGEX[meaningLang];
+
+  // 1. Check if genuine native script for the target Indic language exists across any field
+  let nativeScriptCandidate = '';
+  if (targetRegex) {
+    if (line.karaoke?.native && targetRegex.test(line.karaoke.native)) {
+      nativeScriptCandidate = cleanDisplayLyricText(line.karaoke.native);
+    } else if (line.translations?.[meaningLang] && targetRegex.test(line.translations[meaningLang])) {
+      nativeScriptCandidate = cleanDisplayLyricText(line.translations[meaningLang]);
+    } else if (line.listening_meaning?.[meaningLang] && targetRegex.test(line.listening_meaning[meaningLang])) {
+      nativeScriptCandidate = cleanDisplayLyricText(line.listening_meaning[meaningLang]);
+    } else if (line.text && targetRegex.test(line.text)) {
+      nativeScriptCandidate = cleanDisplayLyricText(line.text);
+    }
+  }
+
+  const isIndicTarget = Boolean(targetRegex);
+
+  // Case A: User selected an Indic language (e.g. 'te' for Telugu) and it matches the song's original language
+  if (meaningLang === effectiveOriginalLang && isIndicTarget) {
+    if (nativeScriptCandidate) {
+      // Genuine native script is available
+      return {
+        originalText: nativeScriptCandidate,
+        meaningText: nativeScriptCandidate,
+        isMeaningAvailable: true,
+        isSameAsOriginal: true,
+        scriptType: 'native',
+        isNativeScriptAvailable: true
+      };
+    }
+
+    // Genuine Indic native script is NOT available in provider/catalog — only Romanized transliteration exists
+    const romanizedText = cleanDisplayLyricText(line.text || line.karaoke?.transliteration || rawOriginal);
+    const langName = languageNames[meaningLang] || String(meaningLang).toUpperCase();
+
+    return {
+      originalText: romanizedText,
+      meaningText: `${langName} script unavailable`,
+      isMeaningAvailable: false,
+      isSameAsOriginal: false,
+      scriptType: 'romanized',
+      isNativeScriptAvailable: false
+    };
+  }
+
+  // Case B: User selected an Indic language different from song's original language (e.g. Telugu meaning for English song)
+  if (isIndicTarget && meaningLang !== effectiveOriginalLang) {
+    let meaning = line.listening_meaning?.[meaningLang]?.trim() || line.translations?.[meaningLang]?.trim();
+    const hasValidScript = meaning ? targetRegex.test(meaning) : false;
+
+    // Resolve primary lyric (prefer native script if original was Indic, else Romanized/English)
+    const origRegex = INDIC_SCRIPT_REGEX[effectiveOriginalLang];
+    let primaryText = cleanedOriginal;
+    let isNativeAvail = true;
+    let scriptType = 'native';
+
+    if (origRegex && !origRegex.test(cleanedOriginal)) {
+      isNativeAvail = false;
+      scriptType = 'romanized';
+    }
+
+    if (meaning && hasValidScript) {
+      return {
+        originalText: primaryText,
+        meaningText: cleanDisplayLyricText(meaning),
+        isMeaningAvailable: true,
+        isSameAsOriginal: false,
+        scriptType: scriptType as 'native' | 'romanized',
+        isNativeScriptAvailable: isNativeAvail
+      };
+    }
+
+    const langName = languageNames[meaningLang] || String(meaningLang).toUpperCase();
+    return {
+      originalText: primaryText,
+      meaningText: `Meaning unavailable in ${langName}`,
+      isMeaningAvailable: false,
+      isSameAsOriginal: false,
+      scriptType: scriptType as 'native' | 'romanized',
+      isNativeScriptAvailable: isNativeAvail
+    };
+  }
+
+  // Case C: User selected English ('en')
+  let meaning = line.listening_meaning?.[meaningLang]?.trim() || line.translations?.[meaningLang]?.trim();
+  const isSameAsOriginal = effectiveOriginalLang === 'en';
+
+  const origRegex = INDIC_SCRIPT_REGEX[effectiveOriginalLang];
+  let primaryText = cleanedOriginal;
+  let isNativeAvail = true;
+  let scriptType = 'native';
+
+  if (origRegex && !origRegex.test(cleanedOriginal)) {
+    isNativeAvail = false;
+    scriptType = 'romanized';
+  }
+
+  if (meaning && meaning.length > 0) {
+    return {
+      originalText: primaryText,
+      meaningText: cleanDisplayLyricText(meaning),
+      isMeaningAvailable: true,
+      isSameAsOriginal,
+      scriptType: scriptType as 'native' | 'romanized',
+      isNativeScriptAvailable: isNativeAvail
+    };
+  }
+
+  if (isSameAsOriginal) {
+    return {
+      originalText: primaryText,
+      meaningText: primaryText,
+      isMeaningAvailable: true,
+      isSameAsOriginal: true,
+      scriptType: 'native',
+      isNativeScriptAvailable: true
+    };
+  }
 
   return {
-    originalText,
-    meaningText: `Meaning unavailable in ${langName}`,
+    originalText: primaryText,
+    meaningText: 'Meaning unavailable in English',
     isMeaningAvailable: false,
-    isSameAsOriginal: false
+    isSameAsOriginal: false,
+    scriptType: scriptType as 'native' | 'romanized',
+    isNativeScriptAvailable: isNativeAvail
   };
 }
 
@@ -404,7 +581,8 @@ export function getLyricRepresentationText(
     };
   }
 
-  const native = (line.karaoke?.native || line.text || '').trim();
+  const rawNative = (line.karaoke?.native || line.text || '').trim();
+  const native = cleanDisplayLyricText(rawNative);
   const effectiveOriginalLang = (line.original_language || songOriginalLang || detectLanguage(native)) as string;
   const langMeta = getLanguageDisplayName(effectiveOriginalLang);
 

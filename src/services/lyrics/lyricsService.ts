@@ -20,14 +20,18 @@ import {
   getListeningLyricDisplay,
   getAvailableLyricRepresentations,
   getLyricRepresentationText,
-  getLanguageDisplayName
+  getLanguageDisplayName,
+  cleanDisplayLyricText,
+  parseLyricWords
 } from '../../shared';
 export {
   getKaraokeLyricLine,
   getListeningLyricDisplay,
   getAvailableLyricRepresentations,
   getLyricRepresentationText,
-  getLanguageDisplayName
+  getLanguageDisplayName,
+  cleanDisplayLyricText,
+  parseLyricWords
 };
 export type {
   KaraokeScriptMode,
@@ -338,9 +342,26 @@ export function getCanonicalLyricLines(song: Song | null | undefined): TimedLyri
 
   // Clean and populate translations dictionary strictly with valid scripts
   const result: TimedLyricLine[] = selectedLines.map((line, idx) => {
-    const translations: Record<string, string> = { ...(line.translations || {}) };
-    translations[defaultDisplay] = line.text;
-    translations[sourceLang] = line.text;
+    const rawText = line.text || '';
+    const cleanText = cleanDisplayLyricText(rawText);
+    const lineStart = line.startTime ?? line.time ?? 0;
+    const lineEnd = line.endTime ?? (line.duration ? lineStart + line.duration : lineStart + 3.5);
+    const words = line.words || parseLyricWords(rawText, lineStart, lineEnd);
+    const translations: Record<string, string> = {};
+    if (line.translations) {
+      for (const [k, v] of Object.entries(line.translations)) {
+        translations[k] = cleanDisplayLyricText(v);
+      }
+    }
+    const isIndic = ['te', 'ta', 'hi', 'ml'].includes(sourceLang);
+    const hasValidSourceScript = validateScriptForLanguage(cleanText, sourceLang as Language);
+
+    if (defaultDisplay === 'en' || !isIndic) {
+      translations[defaultDisplay] = cleanText;
+    }
+    if (hasValidSourceScript) {
+      translations[sourceLang] = cleanText;
+    }
 
     for (const lang of otherLangs) {
       const otherLine = song.lyrics?.[lang]?.lines?.[idx];
@@ -351,19 +372,37 @@ export function getCanonicalLyricLines(song: Song | null | undefined): TimedLyri
       }
     }
 
-    const native = line.karaoke?.native || line.text;
+    // Determine genuine native script vs Romanized transliteration
+    let native = '';
     let transliteration = line.karaoke?.transliteration;
-    if (!transliteration || transliteration.trim().length === 0) {
-      if (sourceLang === 'en' || isLatinScript(native)) {
-        transliteration = native;
-      } else if (canTransliterate(native)) {
-        transliteration = transliterateText(native, sourceLang);
+
+    if (isIndic) {
+      if (hasValidSourceScript) {
+        native = cleanText;
+      } else if (line.karaoke?.native && validateScriptForLanguage(line.karaoke.native, sourceLang as Language)) {
+        native = cleanDisplayLyricText(line.karaoke.native);
+      } else if (translations[sourceLang] && validateScriptForLanguage(translations[sourceLang], sourceLang as Language)) {
+        native = translations[sourceLang];
+      }
+      if (!transliteration || transliteration.trim().length === 0) {
+        if (isLatinScript(cleanText)) {
+          transliteration = cleanText;
+        } else if (native && canTransliterate(native)) {
+          transliteration = transliterateText(native, sourceLang);
+        }
+      }
+    } else {
+      native = cleanDisplayLyricText(line.karaoke?.native || cleanText);
+      if (!transliteration || transliteration.trim().length === 0) {
+        transliteration = cleanText;
       }
     }
     const listeningMeaning = { ...translations, ...(line.listening_meaning || {}) };
 
     return {
       ...line,
+      text: cleanDisplayLyricText(line.text),
+      words: words || line.words,
       original_language: line.original_language || sourceLang,
       karaoke: {
         native,
@@ -401,6 +440,8 @@ export function generateSegmentTimestamps(
 
     return {
       ...line,
+      text: cleanDisplayLyricText(line.text),
+      words: line.words || parseLyricWords(line.rawText || line.text, startTime, endTime),
       startTime,
       endTime,
       time: startTime,

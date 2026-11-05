@@ -101,10 +101,10 @@ export const ANIRUDH_GAALI_VAALUGA: Song = {
   title: 'Gaali Vaaluga',
   artist: 'Anirudh Ravichander',
   album: 'Agnyaathavaasi (Original Motion Picture Soundtrack)',
-  duration: 258,
+  duration: 30,
   fullTrackDuration: 258,
   isStreamPreview: true,
-  fullLengthAvailable: true,
+  fullLengthAvailable: false,
   previewAvailable: true,
   playbackAvailable: true,
   playbackType: 'preview',
@@ -462,7 +462,7 @@ export const ANIRUDH_GAALI_VAALUGA: Song = {
   playbackSource: {
     provider: 'apple-music',
     providerTrackId: '1327314759',
-    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/44/e9/a0/44e9a0f4-5f53-27aa-e869-7ba55060bc0d/m4a.mp1',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/9e/49/f4/9e49f403-f96d-73d7-b15f-0f11a2e082a4/mzaf_10388231531758867237.plus.aac.p.m4a',
     format: 'm4a',
     isStreamPreview: true,
     playbackSourceType: 'preview'

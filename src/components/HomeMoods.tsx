@@ -18,7 +18,6 @@ import {
 import { MusicCard } from './MusicCard';
 import { getMoodCatalog, type MoodId } from '../data/moodCatalog';
 import type { Song } from '../types/music';
-import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 import './HomeMoods.css';
 
 export type MoodType = MoodId;
@@ -172,13 +171,6 @@ export const HomeMoods: React.FC<HomeMoodsProps> = ({ title = 'MOODS', id = 'hom
   const activeMoodSongs = useMemo<Song[]>(() => {
     return getMoodCatalog(activeMood);
   }, [activeMood]);
-
-  // Pre-resolve lyrics for visible mood songs in background
-  useEffect(() => {
-    if (activeMoodSongs.length > 0) {
-      lyricsPipelineService.preResolveTracks(activeMoodSongs.slice(0, 10));
-    }
-  }, [activeMoodSongs]);
 
   // Unique languages represented in this active mood
   const activeLanguagesCount = useMemo(() => {

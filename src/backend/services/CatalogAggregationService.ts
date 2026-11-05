@@ -153,7 +153,7 @@ export class CatalogAggregationService implements ICatalogService {
 
       // Resolve genuine full-length audio sources for eligible catalog tracks
       const resolvedSongs = await Promise.all(
-        validSongs.map((s) => playbackSourceResolver.resolvePlaybackSource(s))
+        validSongs.map((s) => playbackSourceResolver.resolvePlaybackSource(s).catch(() => s))
       );
 
       this.inMemoryCache.set(cacheKey, resolvedSongs);

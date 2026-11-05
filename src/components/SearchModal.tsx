@@ -23,7 +23,6 @@ import {
 import type { Song } from '../types/music';
 import type { ArtistProfile } from '../data/artistCatalog';
 import { getCanonicalTrackDuration } from '../shared/track';
-import { lyricsPipelineService } from '../services/lyrics/lyricsPipelineService';
 
 export const SearchModal: React.FC = () => {
   const {
@@ -114,6 +113,7 @@ export const SearchModal: React.FC = () => {
           }
         } catch {
           if (searchRequestIdRef.current === requestId) {
+            setOfflineMessage('Live music catalog search is temporarily unavailable. Showing local matches.');
             setLoading(false);
           }
         }
@@ -126,13 +126,6 @@ export const SearchModal: React.FC = () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, [searchQuery, searchModalOpen, isOnline]);
-
-  // Pre-resolve lyrics for visible search results in background
-  useEffect(() => {
-    if (songResults.length > 0) {
-      lyricsPipelineService.preResolveTracks(songResults.slice(0, 8));
-    }
-  }, [songResults]);
 
   // Keyboard navigation
   useEffect(() => {

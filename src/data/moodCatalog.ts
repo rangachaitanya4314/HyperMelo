@@ -29,7 +29,14 @@ export interface MoodCatalogSongParams {
 
 function createMoodSong(params: MoodCatalogSongParams): Song {
   const hasRealAudio = Boolean(params.fallbackAudio);
-  const streamUrl = params.fallbackAudio || '';
+  const isPreview = Boolean(
+    params.fallbackAudio &&
+      (params.fallbackAudio.includes('mzstatic') ||
+        params.fallbackAudio.includes('audio-ssl') ||
+        params.fallbackAudio.includes('saavncdn') ||
+        params.fallbackAudio.includes('.m4a'))
+  );
+  const playableDuration = isPreview ? 30 : params.duration;
   const verifiedArtUrl =
     params.imageUrl ||
     getVerifiedSongArtwork({ id: params.id, title: params.title, artist: params.artist });
@@ -39,7 +46,7 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
     title: params.title,
     artist: params.artist,
     album: params.album,
-    duration: params.duration,
+    duration: playableDuration,
     fullTrackDuration: params.duration,
     genre: params.genre,
     language: params.language,
@@ -47,14 +54,14 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
     bpm: params.bpm,
     musicalKey: params.musicalKey,
     releaseYear: params.releaseYear,
-    isStreamPreview: false,
-    fullLengthAvailable: hasRealAudio,
-    previewAvailable: false,
+    isStreamPreview: isPreview,
+    fullLengthAvailable: !isPreview && hasRealAudio,
+    previewAvailable: isPreview,
     playbackAvailable: hasRealAudio,
-    playbackType: hasRealAudio ? 'full' : 'unavailable',
-    playbackAvailability: hasRealAudio ? 'full' : 'unavailable',
-    playbackSourceType: hasRealAudio ? 'naro-licensed' : 'unavailable',
-    playbackProvider: 'naro',
+    playbackType: hasRealAudio ? (isPreview ? 'preview' : 'full') : 'unavailable',
+    playbackAvailability: hasRealAudio ? (isPreview ? 'preview' : 'full') : 'unavailable',
+    playbackSourceType: hasRealAudio ? (isPreview ? 'preview' : 'naro-licensed') : 'unavailable',
+    playbackProvider: isPreview ? 'apple-music' : 'naro',
     karaokeReady: hasRealAudio,
     karaokeAvailable: hasRealAudio,
     karaokeAvailability: hasRealAudio ? 'available' : 'unavailable',
@@ -85,12 +92,12 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
       }
     },
     playbackSource: hasRealAudio ? {
-      provider: 'naro',
+      provider: isPreview ? 'apple-music' : 'naro',
       providerTrackId: params.id,
-      streamUrl,
-      format: 'mp3',
-      isStreamPreview: false,
-      playbackSourceType: 'naro-licensed'
+      streamUrl: params.fallbackAudio || '',
+      format: isPreview ? 'm4a' : 'mp3',
+      isStreamPreview: isPreview,
+      playbackSourceType: isPreview ? 'preview' : 'naro-licensed'
     } : undefined,
     capabilities: {
       playback: hasRealAudio,
@@ -106,7 +113,7 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
         type: 'dedicated-instrumental',
         provider: 'naro',
         providerTrackId: `${params.id}-novox`,
-        streamUrl,
+        streamUrl: params.fallbackAudio,
         duration: params.duration,
         availability: 'available'
       } : undefined,
@@ -165,7 +172,8 @@ export const MOOD_CATALOG: Record<string, Song[]> = {
       musicalKey: 'G Major',
       palette: ['#818CF8', '#1E1B4B', '#0F172A', '#E0E7FF'],
       accentWarm: '#818CF8',
-      accentCool: '#6366F1'
+      accentCool: '#6366F1',
+      fallbackAudio: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/11/71/d6/1171d6ad-3c96-e027-2af6-58028426588c/mzaf_15137631797407745471.plus.aac.p.m4a'
     }),
     createMoodSong({
       id: 'ln-midnight-city',
@@ -963,7 +971,8 @@ export const MOOD_CATALOG: Record<string, Song[]> = {
       musicalKey: 'C Minor',
       palette: ['#EF4444', '#7F1D1D', '#0F172A', '#FEE2E2'],
       accentWarm: '#EF4444',
-      accentCool: '#B91C1C'
+      accentCool: '#B91C1C',
+      fallbackAudio: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/20/4b/a5/204ba5f1-aa95-9204-049a-3af28613dfdb/mzaf_9848955577816183835.plus.aac.p.m4a'
     }),
     createMoodSong({
       id: 'pt-badass',

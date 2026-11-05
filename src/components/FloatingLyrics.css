@@ -1,0 +1,247 @@
+/* =========================================================================
+   HYPERMELO FLOATING LYRICS ANIMATION SYSTEM
+   Premium Floating Typography • Acoustic Virtual Depth Stage
+   Signature Peach Accent: #E7A58D • Midnight Glass Foundation
+   ========================================================================= */
+
+.floating-lyrics-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  padding: clamp(16px, 3vh, 32px) clamp(8px, 2vw, 20px) clamp(60px, 12vh, 120px);
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  perspective: 1200px;
+  /* Cinematic top and bottom atmospheric depth dissolution */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.85) 6%,
+    rgba(0, 0, 0, 1) 14%,
+    rgba(0, 0, 0, 1) 86%,
+    rgba(0, 0, 0, 0.85) 94%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.85) 6%,
+    rgba(0, 0, 0, 1) 14%,
+    rgba(0, 0, 0, 1) 86%,
+    rgba(0, 0, 0, 0.85) 94%,
+    transparent 100%
+  );
+}
+
+.floating-lyrics-container::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+/* Individual Typographic Lyric Item */
+.floating-lyric-item {
+  position: relative;
+  box-sizing: border-box;
+  padding: 12px 18px;
+  margin: 6px 0;
+  border-radius: 14px;
+  transform-origin: left center;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: pointer;
+  overflow: visible !important; /* Protects Indic script ascenders/descenders (matras/vattulu) */
+  contain: layout style;
+  border-left: 3px solid transparent;
+  background-color: transparent;
+
+  /* Dynamic vocal pace timing variables with defaults */
+  --lyric-dur: 0.38s;
+  --lyric-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  transition: transform var(--lyric-dur) var(--lyric-ease),
+              opacity var(--lyric-dur) var(--lyric-ease),
+              color 0.22s ease,
+              background-color 0.25s ease,
+              border-color 0.25s ease,
+              box-shadow 0.3s ease,
+              text-shadow 0.3s ease;
+  will-change: transform, opacity;
+}
+
+/* -------------------------------------------------------------------------
+   STAGE DEPTH STATES
+   ------------------------------------------------------------------------- */
+
+/* State: Focal Plane (Active Singing Lyric) */
+.floating-lyric-item[data-state="active"] {
+  transform: translate3d(6px, 0, 0) scale(1.035);
+  opacity: 1;
+  color: #FFFFFF;
+  font-weight: 700;
+  background-color: rgba(244, 240, 235, 0.07);
+  border-left: 3px solid var(--ambient-accent, var(--accent-warm, #E7A58D));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  text-shadow: 0 0 24px rgba(231, 165, 141, 0.25);
+  z-index: 2;
+}
+
+/* State: Impending Line (Immediately Next Lyric Line) */
+.floating-lyric-item[data-state="impending"] {
+  transform: translate3d(0, 6px, 0) scale(0.975);
+  opacity: 0.46;
+  color: rgba(244, 240, 235, 0.58);
+  font-weight: 500;
+  z-index: 1;
+}
+
+/* State: Future Lines (Far Upcoming) */
+.floating-lyric-item[data-state="future"] {
+  transform: translate3d(0, 10px, 0) scale(0.94);
+  opacity: 0.24;
+  color: rgba(244, 240, 235, 0.40);
+  font-weight: 500;
+  z-index: 0;
+}
+
+/* State: Ascending Past Line (Immediately Previous Lyric Line) */
+.floating-lyric-item[data-state="ascending"] {
+  transform: translate3d(0, -6px, 0) scale(0.98);
+  opacity: 0.42;
+  color: rgba(244, 240, 235, 0.52);
+  font-weight: 500;
+  z-index: 1;
+}
+
+/* State: Historical Lines (Far Past) */
+.floating-lyric-item[data-state="past"] {
+  transform: translate3d(0, -10px, 0) scale(0.95);
+  opacity: 0.20;
+  color: rgba(244, 240, 235, 0.32);
+  font-weight: 500;
+  z-index: 0;
+}
+
+/* Hover refinement on clickable lyrics */
+.floating-lyric-item:hover:not([data-state="active"]) {
+  opacity: 0.75;
+  color: #F4F0EB;
+  background-color: rgba(244, 240, 235, 0.04);
+}
+
+/* -------------------------------------------------------------------------
+   PRIMARY SUNG TEXT (NATIVE SCRIPT)
+   ------------------------------------------------------------------------- */
+.floating-lyric-primary {
+  font-size: clamp(1.18rem, 2.3vw, 1.58rem);
+  line-height: 1.62 !important; /* Critical for Telugu, Tamil, Malayalam & Hindi matras */
+  letter-spacing: 0.01em;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow: visible !important;
+  font-family: inherit, 'Noto Sans Devanagari', 'Noto Sans Telugu', 'Noto Sans Tamil', 'Noto Sans Malayalam', sans-serif;
+  transition: color 0.2s ease;
+}
+
+/* -------------------------------------------------------------------------
+   SECONDARY MEANING / TRANSLATION (SUBTLE 40ms STAGGER)
+   ------------------------------------------------------------------------- */
+.floating-lyric-meaning {
+  font-size: clamp(0.85rem, 1.35vw, 1.02rem);
+  line-height: 1.48 !important;
+  margin-top: 6px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow: visible !important;
+  font-weight: 400;
+
+  /* Subtle 40ms stagger so meaning moves in harmony with primary line */
+  transition: transform var(--lyric-dur) var(--lyric-ease) 0.04s,
+              opacity var(--lyric-dur) var(--lyric-ease) 0.04s,
+              color 0.2s ease;
+  will-change: transform, opacity;
+}
+
+.floating-lyric-item[data-state="active"] .floating-lyric-meaning {
+  color: rgba(231, 165, 141, 0.95);
+}
+
+.floating-lyric-item:not([data-state="active"]) .floating-lyric-meaning {
+  color: rgba(244, 240, 235, 0.40);
+}
+
+.floating-lyric-meaning.unavailable {
+  font-style: italic;
+  color: rgba(244, 240, 235, 0.35) !important;
+}
+
+/* -------------------------------------------------------------------------
+   VOCAL PACE ADAPTATION (Dynamic Transition Rates)
+   ------------------------------------------------------------------------- */
+.floating-lyric-item[data-pace-category="fast"] {
+  --lyric-dur: 0.24s;
+  --lyric-ease: linear;
+}
+
+.floating-lyric-item[data-pace-category="slow"] {
+  --lyric-dur: 0.48s;
+  --lyric-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.floating-lyric-item[data-pace-category="moderate"] {
+  --lyric-dur: 0.36s;
+  --lyric-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* -------------------------------------------------------------------------
+   PLAYBACK PAUSED STATE (Gentle Rest Without Movement)
+   ------------------------------------------------------------------------- */
+.floating-lyrics-container[data-playback-paused="true"] .floating-lyric-item[data-state="active"] {
+  text-shadow: 0 0 12px rgba(231, 165, 141, 0.16);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* -------------------------------------------------------------------------
+   ACCESSIBILITY: PREFERS-REDUCED-MOTION
+   Zero movement, zero scale, gentle opacity only
+   ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .floating-lyrics-container {
+    scroll-behavior: auto !important;
+    perspective: none !important;
+    mask-image: none !important;
+    -webkit-mask-image: none !important;
+  }
+
+  .floating-lyric-item {
+    transform: none !important;
+    transition: opacity 0.12s ease !important;
+    animation: none !important;
+  }
+
+  .floating-lyric-item[data-state="active"] {
+    transform: none !important;
+    opacity: 1 !important;
+    color: #FFFFFF !important;
+    background-color: rgba(244, 240, 235, 0.08) !important;
+  }
+
+  .floating-lyric-item[data-state="impending"],
+  .floating-lyric-item[data-state="ascending"],
+  .floating-lyric-item[data-state="future"],
+  .floating-lyric-item[data-state="past"] {
+    transform: none !important;
+    opacity: 0.45 !important;
+  }
+
+  .floating-lyric-meaning {
+    transform: none !important;
+    transition: color 0.12s ease !important;
+  }
+}

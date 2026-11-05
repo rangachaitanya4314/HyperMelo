@@ -269,7 +269,7 @@ export const AbstractArtwork: React.FC<AbstractArtworkProps> = ({
         overflow: 'hidden',
         position: 'relative',
         backgroundColor: '#090D14',
-        background: 'linear-gradient(145deg, #0D121D 0%, #080B10 60%, #120B16 100%)',
+        backgroundImage: 'linear-gradient(145deg, #0D121D 0%, #080B10 60%, #120B16 100%)',
         border: '1px solid rgba(231, 165, 141, 0.15)',
         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
         display: 'flex',
