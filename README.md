@@ -339,7 +339,7 @@ For substantial changes, open an issue or discussion before starting implementat
 A music, lyrics, and karaoke experience.
 
 Website: https://hypermelo.app  
-Repository: https://github.com/rangachaitanya4314/NARO
+Repository: https://github.com/rangachaitanya4314/HyperMelo
 
 ---
 
