@@ -89,8 +89,18 @@ class CapabilityService {
     const provider = playbackService.selectProviderForSong(song);
     const playbackCap = this.getPlaybackCapability(song);
 
+    const hasPlayableAudio = Boolean(
+      song.playbackSource?.streamUrl ||
+      (song as any).streamUrl ||
+      (song as any).audioUrl ||
+      (song as any).stream_url ||
+      song.playbackAvailable !== false ||
+      song.previewAvailable ||
+      (song.playbackType !== 'unavailable' && song.playbackAvailability !== 'unavailable')
+    );
+
     // If no playable audio at all (and no dedicated backing)
-    if (playbackCap === 'UNAVAILABLE' && song.playbackSourceType !== 'dev-fixture') {
+    if (!hasPlayableAudio && playbackCap === 'UNAVAILABLE' && song.playbackSourceType !== 'dev-fixture') {
       return 'UNAVAILABLE';
     }
 
@@ -100,8 +110,8 @@ class CapabilityService {
       return 'SING_ALONG';
     }
 
-    // Unencrypted audio (official preview, licensed stream, dev fixture) routed to Web Audio DSP
-    if (song.playbackSource?.streamUrl) {
+    // Unencrypted audio (official preview, licensed stream, dev fixture, center-channel reduction fallback) routed to Web Audio DSP
+    if (hasPlayableAudio) {
       return 'KARAOKE_READY';
     }
 

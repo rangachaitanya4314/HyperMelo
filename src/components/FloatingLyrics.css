@@ -168,8 +168,9 @@
   will-change: transform, opacity;
 }
 
-.floating-lyric-item[data-state="active"] .floating-lyric-meaning {
-  color: rgba(231, 165, 141, 0.95);
+.floating-lyric-item[data-state="active"] .floating-lyric-meaning,
+.hm-lyric-line.active .floating-lyric-meaning {
+  color: #e7a58d !important;
 }
 
 .floating-lyric-item:not([data-state="active"]) .floating-lyric-meaning {
@@ -205,6 +206,41 @@
 .floating-lyrics-container[data-playback-paused="true"] .floating-lyric-item[data-state="active"] {
   text-shadow: 0 0 12px rgba(231, 165, 141, 0.16);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* =========================================================================
+   MOBILE FLOATING ACTIVE LYRIC OVERRIDE (< 900px)
+   Borderless, boxless floating typography for compact touch screens
+   ========================================================================= */
+@media (max-width: 899px) {
+  .floating-lyric-item[data-state="active"],
+  .hm-lyric-line.active {
+    transform: translate3d(4px, 0, 0) scale(1.035);
+    opacity: 1 !important;
+    color: #FFFFFF !important;
+    font-weight: 700;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-left: none !important;
+    box-shadow: none !important;
+    padding-left: 0 !important;
+    text-shadow: 0 0 16px rgba(255, 255, 255, 0.45), 0 0 32px var(--ambient-glow, rgba(231, 165, 141, 0.35)) !important;
+    z-index: 2;
+  }
+
+  .floating-lyric-item[data-state="active"] .floating-lyric-meaning,
+  .hm-lyric-line.active .floating-lyric-meaning {
+    color: #e7a58d !important;
+  }
+
+  .floating-lyric-item[data-state="impending"],
+  .floating-lyric-item[data-state="future"],
+  .floating-lyric-item[data-state="ascending"],
+  .floating-lyric-item[data-state="past"] {
+    opacity: 0.35 !important;
+    color: #FFFFFF !important;
+  }
 }
 
 /* -------------------------------------------------------------------------

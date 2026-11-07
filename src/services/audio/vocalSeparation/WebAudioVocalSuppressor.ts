@@ -85,15 +85,16 @@ export class WebAudioVocalSuppressor {
 
     // --- Band 3: Vocal / Midrange Band (180 Hz - 4500 Hz) with Center-Channel Phase Inversion ---
     // Most lead vocals are mixed center (L == R). L - R completely eliminates the center vocal.
+    // Centered at 900 Hz with wide Q = 0.25 covering the 180 Hz - 4500 Hz vocal fundamental & formant spectrum.
     this.midBpL = this.ctx.createBiquadFilter();
     this.midBpL.type = 'bandpass';
-    this.midBpL.frequency.setValueAtTime(1200, this.ctx.currentTime);
-    this.midBpL.Q.setValueAtTime(0.6, this.ctx.currentTime);
+    this.midBpL.frequency.setValueAtTime(900, this.ctx.currentTime);
+    this.midBpL.Q.setValueAtTime(0.25, this.ctx.currentTime);
 
     this.midBpR = this.ctx.createBiquadFilter();
     this.midBpR.type = 'bandpass';
-    this.midBpR.frequency.setValueAtTime(1200, this.ctx.currentTime);
-    this.midBpR.Q.setValueAtTime(0.6, this.ctx.currentTime);
+    this.midBpR.frequency.setValueAtTime(900, this.ctx.currentTime);
+    this.midBpR.Q.setValueAtTime(0.25, this.ctx.currentTime);
 
     splitter.connect(this.midBpL, 0);
     splitter.connect(this.midBpR, 1);
@@ -168,17 +169,27 @@ export class WebAudioVocalSuppressor {
     const clamped = Math.max(0, Math.min(1, amount));
     this.suppressionAmount = clamped;
 
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+
     const now = this.ctx.currentTime;
     const rampTime = rampDurationMs / 1000;
 
     // Linear crossfade prevents clicks and audio gaps
     this.dryGain.gain.cancelScheduledValues(now);
-    this.dryGain.gain.setValueAtTime(this.dryGain.gain.value, now);
-    this.dryGain.gain.linearRampToValueAtTime(1.0 - clamped, now + rampTime);
-
     this.wetGain.gain.cancelScheduledValues(now);
-    this.wetGain.gain.setValueAtTime(this.wetGain.gain.value, now);
-    this.wetGain.gain.linearRampToValueAtTime(clamped, now + rampTime);
+
+    if (rampTime <= 0.005) {
+      this.dryGain.gain.setValueAtTime(1.0 - clamped, now);
+      this.wetGain.gain.setValueAtTime(clamped, now);
+    } else {
+      this.dryGain.gain.setValueAtTime(this.dryGain.gain.value, now);
+      this.dryGain.gain.linearRampToValueAtTime(1.0 - clamped, now + rampTime);
+
+      this.wetGain.gain.setValueAtTime(this.wetGain.gain.value, now);
+      this.wetGain.gain.linearRampToValueAtTime(clamped, now + rampTime);
+    }
   }
 
   public getSuppression(): number {

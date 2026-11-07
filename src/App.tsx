@@ -19,6 +19,7 @@ import { AuthModal } from './components/AuthModal';
 import { AddToPlaylistModal } from './components/AddToPlaylistModal';
 import { ShareMomentModal } from './components/ShareMomentModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 export const AppContent: React.FC = () => {
   const [showIntro, setShowIntro] = useState<boolean>(() => {
@@ -107,6 +108,9 @@ export const AppContent: React.FC = () => {
 
       {/* Persistent Bottom Studio Music Player */}
       <BottomPlayer />
+
+      {/* Floating Bottom Navigation Bar (Strictly Mobile Isolated) */}
+      <MobileBottomNav />
     </div>
   );
 };

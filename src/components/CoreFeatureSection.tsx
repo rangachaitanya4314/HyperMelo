@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Play, Pause, Repeat, Sparkles } from 'lucide-react';
+import { Play, Pause, Repeat, Sparkles, Share2 } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { WaveformTimeline } from './WaveformTimeline';
 import { lyricsService } from '../services/lyrics/lyricsService';
@@ -8,6 +8,8 @@ import type { SectionType, VerifiedLyricRepresentation, Language } from '../type
 export const CoreFeatureSection: React.FC = () => {
   const {
     currentSong,
+    songs,
+    playSong,
     selectedSection,
     setSelectedSection,
     setActiveLanguage,
@@ -20,7 +22,8 @@ export const CoreFeatureSection: React.FC = () => {
     seekTo,
     isLoopingSection,
     setIsLoopingSection,
-    lyricsRevision
+    lyricsRevision,
+    openShareMoment
   } = useAudioPlayer();
 
   const formatTime = (secs: number) => {
@@ -30,10 +33,14 @@ export const CoreFeatureSection: React.FC = () => {
   };
 
   const handlePresetClick = (type: SectionType) => {
-    const found = currentSong?.sections?.find((s) => s.type === type);
+    const activeOrInitial = currentSong || (songs && songs.length > 0 ? songs[0] : null);
+    const found = activeOrInitial?.sections?.find((s) => s.type === type);
     if (found) {
       setSelectedSection(found);
       seekTo(found.start);
+    }
+    if (!currentSong && activeOrInitial) {
+      playSong(activeOrInitial, found ? found.start : 0);
     }
   };
 
@@ -143,7 +150,7 @@ export const CoreFeatureSection: React.FC = () => {
       id="karaoke"
       aria-label="Core Karaoke Feature"
       style={{
-        padding: 'clamp(56px, 8vw, 112px) clamp(16px, 5vw, 64px)',
+        padding: 'clamp(36px, 4.5vw, 56px) clamp(16px, 5vw, 64px) clamp(56px, 7vw, 96px)',
         backgroundColor: 'rgba(10, 14, 21, 0.75)',
         borderTop: '1px solid var(--border-subtle)',
         borderBottom: '1px solid var(--border-subtle)',
@@ -175,37 +182,36 @@ export const CoreFeatureSection: React.FC = () => {
           zIndex: 1,
           display: 'flex',
           flexDirection: 'column',
-          gap: '36px'
+          gap: '32px'
         }}
       >
-        {/* Section Heading */}
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        {/* Section Heading: Streamlined Studio Rhythm */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <span
               style={{
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                letterSpacing: '0.2em',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                letterSpacing: '0.22em',
                 color: 'var(--accent-warm)',
                 textTransform: 'uppercase'
               }}
             >
-              YOUR VOICE, YOUR PART
+              STUDIO SNIPPETS • SING THE MOMENT
             </span>
           </div>
 
           <h2
             style={{
-              fontSize: 'clamp(2.4rem, 4.4vw, 3.8rem)',
-              lineHeight: 1.15,
+              fontSize: 'clamp(1.9rem, 3.2vw, 2.6rem)',
+              lineHeight: 1.2,
               fontWeight: 500,
-              letterSpacing: '-0.025em',
+              letterSpacing: '-0.02em',
               color: 'var(--text-primary)',
-              margin: '0 0 16px 0'
+              margin: '0 0 12px 0'
             }}
           >
-            Don't sing the whole song.
-            <br />
+            Don't sing the whole song.{' '}
             <span className="serif-italic" style={{ color: 'var(--accent-cream)', fontWeight: 400 }}>
               Sing the moment.
             </span>
@@ -213,14 +219,14 @@ export const CoreFeatureSection: React.FC = () => {
 
           <p
             style={{
-              fontSize: 'clamp(1rem, 1.3vw, 1.15rem)',
+              fontSize: 'clamp(0.95rem, 1.15vw, 1.08rem)',
               color: 'var(--text-muted)',
-              maxWidth: '620px',
-              lineHeight: 1.6,
+              maxWidth: '580px',
+              lineHeight: 1.55,
               margin: 0
             }}
           >
-            Select a verse, chorus, bridge, or any exact lyric range. NARO starts and stops with you.
+            Loop any verse, chorus, or exact lyric phrase. Interactive studio playback starts and stops with your voice.
           </p>
         </div>
 
@@ -270,6 +276,8 @@ export const CoreFeatureSection: React.FC = () => {
                 return (
                   <button
                     key={secKey}
+                    id={`section-tab-${secKey}`}
+                    data-testid={`section-tab-${secKey}`}
                     role="tab"
                     aria-selected={isSelected}
                     onClick={() => handlePresetClick(secKey as SectionType)}
@@ -318,6 +326,8 @@ export const CoreFeatureSection: React.FC = () => {
               </span>
 
               <span
+                id="core-karaoke-time-display"
+                data-testid="core-karaoke-time-display"
                 style={{
                   fontSize: '1.25rem',
                   fontWeight: 600,
@@ -460,22 +470,31 @@ export const CoreFeatureSection: React.FC = () => {
                   <span
                     id="core-karaoke-lyrics-unavailable-badge"
                     data-testid="core-karaoke-lyrics-unavailable"
+                    className="core-karaoke-preview-badge"
                     style={{
                       fontSize: '0.78rem',
-                      color: 'var(--text-muted)',
-                      backgroundColor: 'rgba(244, 240, 235, 0.05)',
-                      border: '1px solid rgba(244, 240, 235, 0.1)',
+                      fontWeight: 600,
+                      color: 'var(--accent-cream)',
+                      backgroundColor: 'rgba(231, 165, 141, 0.12)',
+                      border: '1px solid rgba(231, 165, 141, 0.28)',
                       padding: '4px 12px',
-                      borderRadius: 'var(--radius-full)'
+                      borderRadius: 'var(--radius-full)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 0 12px rgba(231, 165, 141, 0.12)'
                     }}
                   >
-                    No verified lyrics available
+                    <Sparkles size={12} color="var(--accent-warm)" />
+                    <span>Studio Preview • Syllable Sync Ready</span>
                   </span>
                 </div>
               )}
 
               {/* Loop Preview Button */}
               <button
+                id="core-karaoke-loop-preview-btn"
+                data-testid="core-karaoke-loop-preview-btn"
                 onClick={handlePreviewLoop}
                 style={{
                   display: 'inline-flex',
@@ -495,7 +514,7 @@ export const CoreFeatureSection: React.FC = () => {
               </button>
             </div>
 
-            {/* Displayed Lyric Snippet */}
+            {/* Displayed Lyric Snippet / Interactive Preview Teaser State */}
             <div style={{ textAlign: 'center', padding: '14px 0' }}>
               <div style={{ marginBottom: '10px' }}>
                 <span
@@ -509,58 +528,94 @@ export const CoreFeatureSection: React.FC = () => {
                     padding: '3px 12px',
                     borderRadius: 'var(--radius-full)',
                     backgroundColor: !excerptResult.isAvailable
-                      ? 'rgba(239, 68, 68, 0.12)'
+                      ? 'rgba(231, 165, 141, 0.14)'
                       : activeRep?.isSinging
                         ? 'rgba(231, 165, 141, 0.14)'
                         : 'rgba(56, 189, 248, 0.14)',
                     color: !excerptResult.isAvailable
-                      ? '#F87171'
+                      ? 'var(--accent-warm)'
                       : activeRep?.isSinging
                         ? 'var(--accent-warm)'
                         : '#38BDF8',
                     border: `1px solid ${
                       !excerptResult.isAvailable
-                        ? 'rgba(239, 68, 68, 0.25)'
+                        ? 'rgba(231, 165, 141, 0.3)'
                         : activeRep?.isSinging
                           ? 'rgba(231, 165, 141, 0.28)'
                           : 'rgba(56, 189, 248, 0.28)'
-                    }`
+                    }`,
+                    boxShadow: !excerptResult.isAvailable ? '0 0 14px rgba(231, 165, 141, 0.16)' : 'none'
                   }}
                 >
-                  {excerptResult.categoryLabel}
+                  {!excerptResult.isAvailable
+                    ? 'INTERACTIVE STUDIO PREVIEW • TIME-SYNCED'
+                    : excerptResult.categoryLabel}
                 </span>
               </div>
 
-              {/* Main highlighted lyric line */}
+              {/* Main highlighted lyric line / Sleek Teaser State */}
               <p
                 id="core-karaoke-active-lyric"
                 data-testid="core-karaoke-active-lyric"
-                aria-label={excerptResult.accessibleLabel}
+                aria-label={excerptResult.isAvailable ? excerptResult.accessibleLabel : 'Interactive karaoke practice teaser'}
                 className="serif-italic"
                 style={{
-                  fontSize: 'clamp(1.5rem, 2.6vw, 2.2rem)',
-                  color: excerptResult.isAvailable ? 'var(--accent-cream)' : 'var(--text-muted)',
+                  fontSize: 'clamp(1.4rem, 2.4vw, 2.1rem)',
+                  color: 'var(--accent-cream)',
                   margin: '0 0 8px 0',
-                  lineHeight: 1.3
+                  lineHeight: 1.35,
+                  textShadow: !excerptResult.isAvailable ? '0 2px 14px rgba(231, 165, 141, 0.2)' : 'none'
                 }}
               >
-                {excerptResult.isAvailable ? `"${excerptResult.text}"` : excerptResult.text}
+                {excerptResult.isAvailable
+                  ? `"${excerptResult.text}"`
+                  : '“Select any track to practice snippets with synchronized lyrics & real-time stems”'}
               </p>
 
-              {/* Sub-line context */}
-              {excerptResult.secondaryText && (
-                <p
-                  id="core-karaoke-subline-lyric"
-                  data-testid="core-karaoke-subline-lyric"
+              {/* Subtle glowing audio teaser animation when in preview state */}
+              {!excerptResult.isAvailable && (
+                <div
+                  className="desktop-teaser-visualizer"
+                  aria-hidden="true"
                   style={{
-                    fontSize: '0.95rem',
-                    color: 'var(--text-muted)',
-                    margin: 0
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    margin: '12px 0 10px 0'
                   }}
                 >
-                  {excerptResult.secondaryText}
-                </p>
+                  {[14, 26, 18, 30, 22, 28, 16].map((h, i) => (
+                    <span
+                      key={i}
+                      className="desktop-teaser-bar"
+                      style={{
+                        width: '3px',
+                        height: `${h}px`,
+                        borderRadius: '9999px',
+                        background: 'linear-gradient(180deg, var(--accent-warm) 0%, rgba(212, 60, 255, 0.6) 100%)',
+                        animation: 'teaserBarPulse 1.6s ease-in-out infinite alternate',
+                        animationDelay: `${i * 0.18}s`,
+                        opacity: 0.85
+                      }}
+                    />
+                  ))}
+                </div>
               )}
+
+              {/* Sub-line context */}
+              <p
+                id="core-karaoke-subline-lyric"
+                data-testid="core-karaoke-subline-lyric"
+                style={{
+                  fontSize: '0.92rem',
+                  color: 'var(--text-muted)',
+                  margin: 0
+                }}
+              >
+                {excerptResult.secondaryText ||
+                  'Multilingual lyrics available across English, Hindi, Telugu, Tamil & Malayalam'}
+              </p>
             </div>
           </div>
 
@@ -583,6 +638,35 @@ export const CoreFeatureSection: React.FC = () => {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <button
+                type="button"
+                id="share-moment-btn"
+                data-testid="share-moment-btn"
+                onClick={() => {
+                  const target = currentSong || (songs && songs.length > 0 ? songs[0] : null);
+                  if (target) openShareMoment(target);
+                }}
+                className="btn-secondary"
+                aria-label="Share Moment"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.86rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'rgba(231, 165, 141, 0.12)',
+                  border: '1px solid rgba(231, 165, 141, 0.3)',
+                  color: 'var(--accent-cream)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Share2 size={16} color="var(--accent-warm)" />
+                <span>Share Moment</span>
+              </button>
+
+              <button
                 onClick={togglePlay}
                 className="btn-primary"
                 aria-label={isPlaying ? 'Pause' : 'Play selected song'}
@@ -594,6 +678,19 @@ export const CoreFeatureSection: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <style>{`
+        @keyframes teaserBarPulse {
+          0% {
+            transform: scaleY(0.4);
+            opacity: 0.45;
+          }
+          100% {
+            transform: scaleY(1.2);
+            opacity: 0.95;
+          }
+        }
+      `}</style>
     </section>
   );
 };

@@ -19,6 +19,7 @@ import {
   getAllCuratedSongs
 } from '../data/curatedCatalog';
 import { MOOD_CATALOG } from '../data/moodCatalog';
+import { MobileDiscover } from '../components/MobileDiscover';
 import type { Song } from '../types/music';
 
 interface DiscoverSectionData {
@@ -418,14 +419,18 @@ export const DiscoverPage: React.FC = () => {
   ];
 
   return (
-    <div
-      style={{
-        maxWidth: '1280px',
-        margin: '0 auto',
-        padding: 'clamp(32px, 5vw, 64px) clamp(16px, 5vw, 64px) 120px',
-        width: '100%'
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+      {/* Desktop Discover Layout (>= 900px) — 100% Frozen & Preserved */}
+      <div className="desktop-discover-layout">
+        <div
+          className="discover-page-container"
+          style={{
+            maxWidth: '1280px',
+            margin: '0 auto',
+            padding: 'clamp(32px, 5vw, 64px) clamp(16px, 5vw, 64px) 120px',
+            width: '100%'
+          }}
+        >
       {/* Header */}
       <div style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -503,6 +508,7 @@ export const DiscoverPage: React.FC = () => {
       <div
         role="tablist"
         aria-label="Discover sections"
+        className="discover-filter-pills"
         style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -950,18 +956,51 @@ export const DiscoverPage: React.FC = () => {
               );
             })}
         </div>
+        </div>
+      </div>
+
+      {/* Mobile Discover Layout (< 900px) — Unified Search, Sticky Filters, Hero Spotlight, Bento Grid */}
+      <div className="mobile-discover-layout">
+        <MobileDiscover
+          trendingSongs={trendingSongs}
+          hindiTop10={hindiTop10}
+          teluguTop10={teluguTop10}
+          tamilTop10={tamilTop10}
+          malayalamTop10={malayalamTop10}
+          englishTop10={englishTop10}
+          newReleases={newReleases}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          selectedArtist={selectedArtist}
+          setSelectedArtist={setSelectedArtist}
+          artistSongs={artistSongs}
+          tabLoading={tabLoading}
+        />
+      </div>
 
       <style>{`
+        .mobile-discover-layout {
+          display: none !important;
+        }
+        .desktop-discover-layout {
+          display: contents !important;
+        }
+
+        @media (max-width: 899px) {
+          .desktop-discover-layout {
+            display: none !important;
+          }
+          .mobile-discover-layout {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+          }
+        }
+
         @media (max-width: 1080px) {
           .music-card-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 20px !important;
-          }
-        }
-        @media (max-width: 600px) {
-          .music-card-grid {
-            grid-template-columns: 1fr !important;
-            gap: 16px !important;
           }
         }
       `}</style>

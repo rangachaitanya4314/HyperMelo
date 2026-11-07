@@ -83,6 +83,7 @@ export const FloatingLyrics: React.FC<FloatingLyricsProps> = ({
               data-pace={pace}
               data-pace-category={paceTransition.category}
               data-animation-mode="classic"
+              className={`hm-lyric-line ${isActive ? 'active' : ''}`}
               onClick={() => {
                 if (isSynced && typeof lineTime === 'number' && !isNaN(lineTime) && lineTime >= 0) {
                   onSeek(lineTime);
@@ -158,7 +159,7 @@ export const FloatingLyrics: React.FC<FloatingLyricsProps> = ({
             data-pace={pace}
             data-pace-category={paceTransition.category}
             data-animation-mode="floating"
-            className="floating-lyric-item"
+            className={`floating-lyric-item hm-lyric-line ${isActive ? 'active' : ''}`}
             onClick={() => {
               if (isSynced && typeof lineTime === 'number' && !isNaN(lineTime) && lineTime >= 0) {
                 onSeek(lineTime);

@@ -142,6 +142,14 @@ export const BottomPlayer: React.FC = () => {
       {/* Subtle Studio Metallic Top Accent Trim */}
       <div className="bottom-player-accent-trim" />
 
+      {/* Mobile Top Edge Slim Progress Track */}
+      <div className="player-mobile-progress-track" aria-hidden="true">
+        <div
+          className="player-mobile-progress-fill"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
       {/* =====================================================================
           REGION 1 (Mobile Row 2 Left / Desktop Left): Artwork & Track Metadata
           ===================================================================== */}

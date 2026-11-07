@@ -541,23 +541,35 @@ class AuthService {
   public getGoogleAuthConfig(): GoogleAuthConfig {
     const origin =
       typeof window !== 'undefined' ? window.location.origin : 'https://hypermelo.app';
-    const clientId =
+    const rawClientId =
       (typeof window !== 'undefined' &&
         (window as unknown as { __HYPERMELO_GOOGLE_CLIENT_ID?: string })
           .__HYPERMELO_GOOGLE_CLIENT_ID) ||
-      (import.meta.env?.VITE_GOOGLE_CLIENT_ID as string) ||
+      (typeof import.meta !== 'undefined' &&
+        (import.meta.env?.VITE_GOOGLE_CLIENT_ID as string)) ||
       null;
 
+    const trimmedClientId = rawClientId?.trim()
+      ? rawClientId.trim().replace(/^["']|["']$/g, '')
+      : null;
+    const isValidClientId = Boolean(
+      trimmedClientId &&
+        trimmedClientId !== 'undefined' &&
+        trimmedClientId !== 'null' &&
+        !trimmedClientId.includes('your_google_client_id_here') &&
+        trimmedClientId.length > 5
+    );
+
     const missingSettings: string[] = [];
-    if (!clientId) {
+    if (!isValidClientId) {
       missingSettings.push(
         'Missing VITE_GOOGLE_CLIENT_ID environment variable or window.__HYPERMELO_GOOGLE_CLIENT_ID'
       );
     }
 
     return {
-      configured: !!clientId,
-      clientId,
+      configured: isValidClientId,
+      clientId: isValidClientId ? trimmedClientId : null,
       redirectUri: origin,
       missingSettings
     };

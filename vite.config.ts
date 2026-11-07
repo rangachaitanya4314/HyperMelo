@@ -1,5 +1,17 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import fs from 'fs'
+import path from 'path'
+
+// Ensure .env is available if .env.txt was created (e.g. Windows Notepad default extension artifact)
+try {
+  const rootDir = process.cwd();
+  const envPath = path.resolve(rootDir, '.env');
+  const envTxtPath = path.resolve(rootDir, '.env.txt');
+  if (fs.existsSync(envTxtPath) && !fs.existsSync(envPath)) {
+    fs.copyFileSync(envTxtPath, envPath);
+  }
+} catch {}
 
 let neteaseCooldownUntil = 0;
 

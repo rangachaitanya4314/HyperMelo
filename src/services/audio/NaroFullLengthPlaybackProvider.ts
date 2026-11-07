@@ -25,11 +25,13 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
   private clockListener: PlaybackClockListener | null = null;
   private volume = 0.8;
   private clockPollTimer: number | null = null;
+  private pendingBackingSeekTime: number | null = null;
 
   constructor(clockListener?: PlaybackClockListener) {
     this.clockListener = clockListener || null;
     if (typeof Audio !== 'undefined') {
       this.audio = new Audio();
+      this.audio.crossOrigin = 'anonymous';
       this.audio.preload = 'auto';
       if (typeof window !== 'undefined') {
         (window as unknown as { __naro_audio?: HTMLAudioElement; __naro_full_audio?: HTMLAudioElement }).__naro_audio = this.audio;
@@ -108,20 +110,29 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
 
     const currentTime = seekTime !== undefined && seekTime >= 0 ? seekTime : this.audio.currentTime;
     const isPlaying = !this.audio.paused;
+    this.pendingBackingSeekTime = currentTime;
 
     const onLoadedMetadata = () => {
+      this.audio.removeEventListener('error', onError);
       try {
         this.audio.currentTime = currentTime;
       } catch (err) {
         console.warn('Could not set currentTime after backing source change:', err);
       }
+      this.pendingBackingSeekTime = null;
       if (isPlaying) {
         this.audio.play().catch((err) => console.warn('Error resuming backing audio:', err));
       }
       this.emitClock();
     };
 
+    const onError = () => {
+      this.audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+      this.pendingBackingSeekTime = null;
+    };
+
     this.audio.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+    this.audio.addEventListener('error', onError, { once: true });
     this.audio.src = targetUrl;
     this.audio.load();
   }
@@ -219,6 +230,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
 
   public async load(song: Song, startTime = 0): Promise<void> {
     this.currentSong = song;
+    this.pendingBackingSeekTime = null;
     this.state = 'loading';
     this.stopClockPoll();
     this.emitClock();
@@ -346,6 +358,7 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
 
   public seek(time: number): void {
     if (!this.audio) return;
+    this.pendingBackingSeekTime = null;
     const dur = this.getDuration();
     const clamped = dur > 0 ? Math.max(0, Math.min(dur, time)) : Math.max(0, time);
     try {
@@ -364,6 +377,9 @@ export class NaroFullLengthPlaybackProvider implements MusicPlaybackProvider {
   }
 
   public getCurrentTime(): number {
+    if (this.pendingBackingSeekTime !== null) {
+      return this.pendingBackingSeekTime;
+    }
     return this.audio?.currentTime || 0;
   }
 

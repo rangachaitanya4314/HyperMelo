@@ -1,0 +1,565 @@
+/* =========================================================================
+   HYPERMELO MOBILE HOME VIEW
+   Strictly isolated to @media (max-width: 899px)
+   Desktop layout (>= 900px) remains completely frozen.
+   ========================================================================= */
+
+.hm-mobile-home-container {
+  display: none !important;
+}
+
+@media (max-width: 899px) {
+  .hm-mobile-home-container {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 12px 16px 40px 16px !important;
+    gap: 28px !important;
+    background: transparent !important;
+  }
+
+  /* -----------------------------------------------------------------------
+     1. Hypermelo / Google Authentication Banner
+     ----------------------------------------------------------------------- */
+  .hm-mobile-auth-banner {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 14px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(135deg, rgba(231, 165, 141, 0.12) 0%, rgba(20, 24, 34, 0.88) 100%) !important;
+    border: 1px solid rgba(231, 165, 141, 0.28) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+    gap: 12px !important;
+  }
+
+  .hm-mobile-auth-lead {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  .hm-brand-icon-wrap,
+  .hm-ytm-logo-wrap {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: rgba(231, 165, 141, 0.12) !important;
+    border: 1px solid rgba(231, 165, 141, 0.35) !important;
+    box-shadow: 0 0 12px rgba(231, 165, 141, 0.25) !important;
+    flex-shrink: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .hm-brand-badge-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: 50% !important;
+  }
+
+  .hm-mobile-auth-copy {
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  .hm-mobile-auth-title {
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    color: #FFFFFF !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .hm-mobile-auth-desc {
+    font-size: 0.7rem !important;
+    color: rgba(244, 240, 235, 0.6) !important;
+    margin: 2px 0 0 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .hm-mobile-auth-ctrls {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .hm-mobile-signin-btn {
+    padding: 6px 14px !important;
+    border-radius: 9999px !important;
+    background: var(--accent-warm, #E7A58D) !important;
+    color: #080B10 !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+    border: none !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 10px rgba(231, 165, 141, 0.3) !important;
+    transition: transform 0.15s ease !important;
+    white-space: nowrap !important;
+  }
+
+  .hm-mobile-signin-btn:active {
+    transform: scale(0.94) !important;
+  }
+
+  .hm-mobile-dismiss-btn {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: rgba(244, 240, 235, 0.5) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+  }
+
+  /* Authenticated Welcome Card */
+  .hm-mobile-welcome-card {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 10px 14px !important;
+    border-radius: 14px !important;
+    background: rgba(244, 240, 235, 0.04) !important;
+    border: 1px solid rgba(244, 240, 235, 0.08) !important;
+  }
+
+  .hm-mobile-user-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 50% !important;
+    background: var(--accent-warm, #E7A58D) !important;
+    color: #080B10 !important;
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+  }
+
+  .hm-mobile-welcome-copy {
+    min-width: 0 !important;
+    flex: 1 !important;
+  }
+
+  .hm-mobile-welcome-badge {
+    display: block !important;
+    font-size: 0.62rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em !important;
+    color: var(--accent-warm, #E7A58D) !important;
+    text-transform: uppercase !important;
+  }
+
+  .hm-mobile-welcome-name {
+    font-size: 0.88rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    margin: 2px 0 0 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* -----------------------------------------------------------------------
+     2. Interactive Audio Visualizer Section
+     ----------------------------------------------------------------------- */
+  .hm-mobile-visualizer-section {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 16px 12px 20px 12px !important;
+    border-radius: 20px !important;
+    background: linear-gradient(180deg, rgba(16, 20, 28, 0.85) 0%, rgba(9, 12, 18, 0.95) 100%) !important;
+    border: 1px solid rgba(244, 240, 235, 0.08) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden !important;
+  }
+
+  .hm-mobile-visualizer-ambient-glow {
+    position: absolute !important;
+    top: 15% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 220px !important;
+    height: 220px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle, rgba(231, 165, 141, 0.22) 0%, rgba(143, 168, 200, 0.08) 50%, transparent 70%) !important;
+    filter: blur(40px) !important;
+    pointer-events: none !important;
+  }
+
+  .hm-mobile-visualizer-box {
+    width: clamp(210px, 62vw, 260px) !important;
+    height: clamp(210px, 62vw, 260px) !important;
+    position: relative !important;
+    z-index: 2 !important;
+    filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.7)) !important;
+    margin-bottom: 12px !important;
+  }
+
+  .hm-mobile-viz-meta {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    position: relative !important;
+    z-index: 2 !important;
+    gap: 12px !important;
+  }
+
+  .hm-mobile-viz-song-info {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 100% !important;
+    gap: 4px !important;
+  }
+
+  .hm-mobile-viz-status-pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 3px 10px !important;
+    border-radius: 9999px !important;
+    background: rgba(244, 240, 235, 0.06) !important;
+    border: 1px solid rgba(244, 240, 235, 0.1) !important;
+    font-size: 0.65rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em !important;
+    color: var(--accent-warm, #E7A58D) !important;
+    text-transform: uppercase !important;
+  }
+
+  .hm-viz-live-dot {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    background: var(--accent-warm, #E7A58D) !important;
+  }
+
+  .hm-viz-live-dot.pulsing {
+    animation: hmPulseDot 1.4s ease-in-out infinite !important;
+  }
+
+  @keyframes hmPulseDot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(1.4); }
+  }
+
+  .hm-mobile-viz-title {
+    font-size: 1.15rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    margin: 2px 0 0 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 90% !important;
+    line-height: 1.3 !important;
+  }
+
+  .hm-mobile-viz-artist {
+    font-size: 0.82rem !important;
+    color: var(--text-muted) !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 85% !important;
+  }
+
+  .hm-mobile-viz-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .hm-mobile-viz-play-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding: 8px 18px !important;
+    border-radius: 9999px !important;
+    background: var(--accent-warm, #E7A58D) !important;
+    color: #080B10 !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.05em !important;
+    border: none !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 16px rgba(231, 165, 141, 0.35) !important;
+    transition: transform 0.15s ease !important;
+  }
+
+  .hm-mobile-viz-play-btn:active {
+    transform: scale(0.94) !important;
+  }
+
+  .hm-mobile-viz-open-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    padding: 8px 16px !important;
+    border-radius: 9999px !important;
+    background: rgba(244, 240, 235, 0.06) !important;
+    border: 1px solid rgba(244, 240, 235, 0.14) !important;
+    color: var(--accent-cream, #F4DFC9) !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+    cursor: pointer !important;
+    transition: transform 0.15s ease !important;
+  }
+
+  .hm-mobile-viz-open-btn:active {
+    transform: scale(0.94) !important;
+  }
+
+  /* -----------------------------------------------------------------------
+     3. Shelves & Horizontal Carousels
+     ----------------------------------------------------------------------- */
+  .hm-mobile-shelf-section {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  .hm-mobile-shelf-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .hm-mobile-shelf-title-cluster {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .hm-mobile-shelf-title {
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    margin: 0 !important;
+  }
+
+  .hm-mobile-shelf-see-all {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    background: none !important;
+    border: none !important;
+    color: var(--accent-warm, #E7A58D) !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    padding: 4px !important;
+  }
+
+  /* Cards Carousel */
+  .hm-mobile-cards-carousel {
+    display: flex !important;
+    gap: 12px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    padding-bottom: 4px !important;
+    margin: 0 -16px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .hm-mobile-cards-carousel::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .hm-mobile-card-item {
+    flex: 0 0 144px !important;
+    width: 144px !important;
+    scroll-snap-align: start !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    cursor: pointer !important;
+    border-radius: 12px !important;
+    transition: transform 0.15s ease !important;
+  }
+
+  .hm-mobile-card-item:active {
+    transform: scale(0.96) !important;
+  }
+
+  .hm-mobile-card-thumb-wrap {
+    width: 144px !important;
+    height: 144px !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    position: relative !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45) !important;
+    background: #10141D !important;
+  }
+
+  .hm-mobile-card-item.is-active .hm-mobile-card-thumb-wrap {
+    box-shadow: 0 0 0 2px var(--accent-warm, #E7A58D), 0 8px 24px rgba(231, 165, 141, 0.3) !important;
+  }
+
+  .hm-mobile-card-hover-play {
+    position: absolute !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background: rgba(244, 240, 235, 0.95) !important;
+    border: none !important;
+    color: #080B10 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6) !important;
+    cursor: pointer !important;
+  }
+
+  .hm-mobile-card-now-playing-badge {
+    position: absolute !important;
+    top: 8px !important;
+    left: 8px !important;
+    font-size: 0.6rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.08em !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    background: var(--accent-warm, #E7A58D) !important;
+    color: #080B10 !important;
+  }
+
+  .hm-mobile-card-meta {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+
+  .hm-mobile-card-title {
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.3 !important;
+  }
+
+  .hm-mobile-card-subtitle {
+    font-size: 0.74rem !important;
+    color: var(--text-muted) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* -----------------------------------------------------------------------
+     4. Featured Artist Highlight Bubbles
+     ----------------------------------------------------------------------- */
+  .hm-mobile-artist-bubbles-scroll {
+    display: flex !important;
+    gap: 14px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    margin: 0 -16px !important;
+    padding: 4px 16px 8px 16px !important;
+  }
+
+  .hm-mobile-artist-bubbles-scroll::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .hm-mobile-artist-bubble-btn {
+    flex: 0 0 74px !important;
+    width: 74px !important;
+    scroll-snap-align: start !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 8px !important;
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 0 !important;
+    outline: none !important;
+  }
+
+  .hm-mobile-artist-bubble-btn:active {
+    transform: scale(0.94) !important;
+  }
+
+  .hm-mobile-artist-img-frame {
+    width: 72px !important;
+    height: 72px !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    position: relative !important;
+    border: 2px solid rgba(231, 165, 141, 0.4) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+    background: #141822 !important;
+  }
+
+  .hm-mobile-artist-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
+  }
+
+  .hm-mobile-artist-fallback-letter {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    color: var(--accent-warm, #E7A58D) !important;
+    background: #141822 !important;
+  }
+
+  .hm-mobile-artist-bubble-name {
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    color: var(--text-primary) !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    width: 100% !important;
+    line-height: 1.2 !important;
+  }
+}
+

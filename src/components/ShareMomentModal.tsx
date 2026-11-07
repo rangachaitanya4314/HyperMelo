@@ -540,10 +540,16 @@ export const ShareMomentModal: React.FC<ShareMomentModalProps> = ({
   };
 
   // Copy Moment Link
-  const handleCopyMomentLink = () => {
+  const handleCopyMomentLink = async () => {
     if (!targetSong) return;
     const shareText = `Check out "${targetSong.title}" (${formatMomentTime(startSec)}) on HyperMelo!`;
-    navigator.clipboard?.writeText(shareText);
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(shareText);
+      }
+    } catch (e) {
+      console.warn('[ShareMomentModal] Clipboard copy failed:', e);
+    }
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2400);
   };
@@ -878,17 +884,41 @@ export const ShareMomentModal: React.FC<ShareMomentModalProps> = ({
               </div>
             </div>
           ) : !exportResult ? (
-            /* Primary Export Trigger */
-            <button
-              type="button"
-              id="export-moment-btn"
-              data-testid="export-moment-btn"
-              className="share-primary-btn"
-              onClick={handleExportVideo}
-            >
-              <Film size={18} />
-              <span>Export 9:16 Video ({durationSec}s)</span>
-            </button>
+            /* Primary Export Trigger & Quick Link Sharing */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+              <button
+                type="button"
+                id="export-moment-btn"
+                data-testid="export-moment-btn"
+                className="share-primary-btn"
+                onClick={handleExportVideo}
+              >
+                <Film size={18} />
+                <span>Export 9:16 Video ({durationSec}s)</span>
+              </button>
+
+              <button
+                type="button"
+                id="copy-moment-link-btn"
+                data-testid="copy-moment-link-btn"
+                onClick={handleCopyMomentLink}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-dim)',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '6px 0'
+                }}
+              >
+                {copiedLink ? <Check size={14} color="#34D399" /> : <Copy size={14} />}
+                <span>{copiedLink ? 'Moment link copied!' : 'Copy song & moment link'}</span>
+              </button>
+            </div>
           ) : (
             /* Ready to Share Actions */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

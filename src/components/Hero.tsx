@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Sparkles } from 'lucide-react';
+import { Play, Pause, Sparkles, ChevronDown } from 'lucide-react';
 import { useAudioPlayer } from '../context/AudioPlayerContext';
 import { BeatSyncedVisualizer } from './BeatSyncedVisualizer';
 import { SUPPORTED_LANGUAGES } from '../types/music';
@@ -18,12 +18,13 @@ export const Hero: React.FC = () => {
     <section
       id="home"
       aria-label="HyperMelo Hero"
+      className="hypermelo-desktop-hero"
       style={{
         position: 'relative',
-        minHeight: '84vh',
+        minHeight: '74vh',
         display: 'flex',
         alignItems: 'center',
-        padding: ' clamp(32px, 6vw, 80px) clamp(16px, 5vw, 64px) clamp(48px, 8vw, 100px)',
+        padding: 'clamp(28px, 4.5vw, 64px) clamp(16px, 5vw, 64px) clamp(20px, 3vw, 40px)',
         overflow: 'hidden'
       }}
     >
@@ -231,12 +232,34 @@ export const Hero: React.FC = () => {
                     <strong style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
                       HyperMelo Experience
                     </strong>{' '}
-                    — Select a track to listen
+                    — Select a track or jump into studio practice
                   </>
                 )}
               </span>
             </div>
           </div>
+
+          {/* Seamless Studio Practice Jump Link */}
+          <a
+            href="#karaoke"
+            className="hero-studio-flow-pill"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginTop: '4px',
+              color: 'var(--accent-cream)',
+              fontSize: '0.82rem',
+              fontWeight: 500,
+              textDecoration: 'none',
+              opacity: 0.85,
+              transition: 'all 0.2s ease',
+              width: 'fit-content'
+            }}
+          >
+            <span>Interactive Practice Studio below</span>
+            <ChevronDown size={14} className="animate-bounce" />
+          </a>
         </div>
 
         {/* Right Column: Abstract Album / Vinyl Object with Floating Lyric Fragments */}

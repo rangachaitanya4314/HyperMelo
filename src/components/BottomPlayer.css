@@ -268,199 +268,183 @@
   }
 }
 
+/* Mobile Progress Track Default Hidden on Desktop */
+.player-mobile-progress-track {
+  display: none;
+}
+
 /* -------------------------------------------------------------------------
-   DELIBERATE MOBILE LAYOUT (max-width: 768px)
-   Organized 3-region vertical hierarchy:
-   Region 1: Full-width dedicated Scrubber Row at top
-   Region 2: Artwork & Metadata (left) + Like, Add, Expand buttons (right)
-   Region 3: Dominant centered Playback Controls with ample spacing
+   STICKY MOBILE MINI PLAYER (@media (max-width: 899px))
+   Directly docked above the 4-tab mobile bottom navigation bar.
+   Artwork + Track Meta (left) -> Play/Pause + Skip (right) -> Zero Overlap.
+   Desktop layout (>= 900px) remains completely frozen.
    ------------------------------------------------------------------------- */
-@media (max-width: 768px) {
+@media (max-width: 899px) {
+  :root {
+    --bottom-player-height: calc(114px + env(safe-area-inset-bottom, 0px));
+  }
+
   .bottom-player-aside {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto auto;
-    grid-template-areas:
-      "progress progress"
-      "info     actions"
-      "controls controls";
-    row-gap: 6px;
-    column-gap: 8px;
-    padding: 8px clamp(10px, 3.5vw, 18px) calc(8px + env(safe-area-inset-bottom, 0px)) clamp(10px, 3.5vw, 18px);
-    height: auto;
-    min-height: calc(128px + env(safe-area-inset-bottom, 0px));
+    position: fixed !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 56px !important;
+    min-height: 56px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 12px 0 10px !important;
+    background: rgba(12, 15, 22, 0.96) !important;
+    backdrop-filter: blur(28px) saturate(1.8) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.8) !important;
+    border-top: 1px solid rgba(244, 240, 235, 0.08) !important;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5) !important;
+    z-index: 94 !important;
+    box-sizing: border-box !important;
   }
 
-  /* Unbox .player-center to distribute scrubber and buttons into their own grid areas */
-  .player-center {
-    display: contents !important;
+  /* 1. Slim 2px Progress Line across the top of Mini Player */
+  .player-mobile-progress-track {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 2px !important;
+    background: rgba(244, 240, 235, 0.1) !important;
+    overflow: hidden !important;
+    z-index: 10 !important;
   }
 
-  /* 1. DEDICATED PROGRESS ROW (Top of mobile player) */
-  .player-scrubber-row {
-    grid-area: progress;
-    width: 100% !important;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    box-sizing: border-box;
-    padding: 2px 0;
+  .player-mobile-progress-fill {
+    height: 100% !important;
+    background: var(--accent-warm, #E7A58D) !important;
+    box-shadow: 0 0 6px rgba(231, 165, 141, 0.6) !important;
+    transition: width 0.15s linear !important;
   }
 
-  .player-time-display {
-    font-size: 0.72rem;
-    color: var(--text-dim);
-    font-variant-numeric: tabular-nums;
-    min-width: 36px;
-    width: auto;
-    padding: 0 1px;
-    flex-shrink: 0;
-  }
-
-  .player-time-current {
-    text-align: right;
-  }
-
-  .player-time-duration {
-    text-align: left;
-  }
-
-  /* 2. TRACK ARTWORK & METADATA (Left column of middle row) */
+  /* 2. Track Artwork & Metadata (Left Column) */
   .player-left {
-    grid-area: info;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-    width: 100% !important;
-    overflow: hidden;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+    flex: 1 !important;
+    cursor: pointer !important;
+    overflow: hidden !important;
   }
 
   .player-artwork-box {
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 8px;
-    overflow: hidden;
-    flex-shrink: 0;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-    position: relative;
-    touch-action: manipulation;
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+    cursor: pointer !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6) !important;
+    position: relative !important;
+    touch-action: manipulation !important;
   }
 
   .player-track-info {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    flex: 1;
-    cursor: pointer;
-    overflow: hidden;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+    flex: 1 !important;
+    cursor: pointer !important;
+    overflow: hidden !important;
   }
 
   .player-track-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.25;
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.25 !important;
   }
 
   .player-track-sub {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow: hidden;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
   }
 
   .player-track-artist {
-    font-size: 0.76rem;
-    color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 0.74rem !important;
+    color: var(--text-muted) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
   }
 
   .player-left-actions {
-    display: none !important; /* Like/add moved to actions area on mobile */
-  }
-
-  /* 2b. SECONDARY ACTIONS: LIKE & EXPAND (Right column of middle row) */
-  .player-right {
-    grid-area: actions;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-    width: auto !important;
-    flex-shrink: 0;
-  }
-
-  /* Volume slider and Mute button hidden on mobile — hardware keys are used */
-  .player-volume-wrap {
     display: none !important;
   }
 
-  /* Desktop-only sound mode pill hidden from header row on mobile */
-  .player-desktop-sound-pill {
+  #player-attribution-badge,
+  .player-track-spectrum {
     display: none !important;
   }
 
-  /* 3. PRIMARY PLAYBACK CONTROLS (Bottom row: Shuffle, Prev, Play/Pause, Next, Repeat) */
+  /* 3. Playback Controls (Right Column: Play/Pause & Skip Only) */
+  .player-center {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .player-scrubber-row {
+    display: none !important;
+  }
+
   .player-buttons-row {
-    grid-area: controls;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(8px, 3.2vw, 24px);
-    width: 100%;
-    padding: 2px 0;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+    padding: 0 !important;
   }
 
-  .player-control-icon-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 10px;
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    color: var(--text-muted);
-    transition: color 0.2s ease, transform 0.15s ease;
-    touch-action: manipulation;
+  /* Hide auxiliary buttons on mobile mini player */
+  .player-buttons-row button[aria-label*="Shuffle"],
+  .player-buttons-row button[aria-label*="Previous"],
+  .player-buttons-row button[aria-label*="Loop"] {
+    display: none !important;
   }
 
   .player-master-play-btn {
-    width: 48px !important;
-    height: 48px !important;
-    min-width: 48px !important;
-    min-height: 48px !important;
-    box-shadow: 0 4px 18px rgba(244, 240, 235, 0.4) !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    background-color: var(--text-primary, #F4F0EB) !important;
+    color: #080B10 !important;
+    box-shadow: 0 2px 10px rgba(244, 240, 235, 0.35) !important;
   }
 
-  /* On narrow screens (<= 400px), hide auxiliary badges to ensure 100% collision-free text */
-  @media (max-width: 400px) {
-    #player-attribution-badge,
-    .player-track-spectrum {
-      display: none !important;
-    }
+  .player-control-icon-btn {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    color: var(--text-primary) !important;
   }
 
-  /* On ultra-narrow screens (<= 340px) */
-  @media (max-width: 340px) {
-    .bottom-player-aside {
-      padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 8px;
-    }
-    .player-buttons-row {
-      gap: 10px;
-    }
+  /* 4. Desktop-only Right Cluster Hidden on Mobile */
+  .player-right {
+    display: none !important;
   }
 }

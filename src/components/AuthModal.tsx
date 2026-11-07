@@ -41,6 +41,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const googleConfig = authService.getGoogleAuthConfig();
+  const isGoogleConfigured = Boolean(
+    googleConfig.configured ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_CLIENT_ID)
+  );
+
+  useEffect(() => {
+    if (errorMsg && errorMsg.includes('Google Sign-In is not configured') && isGoogleConfigured) {
+      setErrorMsg(null);
+    }
+  }, [errorMsg, isGoogleConfigured]);
+
   useEffect(() => {
     if (isOpen) {
       setMode(initialMode);
@@ -97,7 +109,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Google sign in failed.';
-      setErrorMsg(msg);
+      if (msg.includes('Google Sign-In is not configured') && isGoogleConfigured) {
+        setErrorMsg('Google sign in encountered an issue. Please try again.');
+      } else {
+        setErrorMsg(msg);
+      }
     } finally {
       setIsLoading(false);
     }

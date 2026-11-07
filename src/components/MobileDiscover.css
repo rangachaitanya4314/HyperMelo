@@ -1,0 +1,675 @@
+/* ==========================================================================
+   HyperMelo Mobile Discover Styles
+   Strictly isolated to mobile screens (@media (max-width: 899px))
+   Features:
+   - Unified single search input pill (eliminates duplicate search triggers)
+   - Sticky frosted filter category row
+   - Swipeable Hero Spotlight carousel (snap-scrolling, high-impact artwork)
+   - Bento Grid layout for genres and moods (varied proportions & gradients)
+   - Ranked Top 10 Spotlight with premium rank badges (#1 gold, #2 silver, etc.)
+   - Horizontal artists reel & clean 2-column cards
+   - Proper padding for sticky mini-player and bottom navigation
+   ========================================================================== */
+
+@media (max-width: 899px) {
+  .hm-mobile-discover-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
+    padding-top: 10px;
+    padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+    min-height: 100vh;
+    color: var(--text-primary, #F4F0EB);
+    overflow-x: hidden;
+  }
+
+  /* --------------------------------------------------------------------------
+     1. Unified Single Search Bar (Top of Mobile Discover)
+     -------------------------------------------------------------------------- */
+  .hm-mobile-search-pill-wrap {
+    padding: 4px 16px 12px 16px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hm-mobile-search-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 11px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1), background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .hm-mobile-search-pill:active {
+    transform: scale(0.98);
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(231, 165, 141, 0.35);
+  }
+
+  .hm-mobile-search-lead {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .hm-mobile-search-icon {
+    color: var(--accent-warm, #E7A58D);
+    flex-shrink: 0;
+  }
+
+  .hm-mobile-search-placeholder {
+    font-size: 0.88rem;
+    color: rgba(244, 240, 235, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 400;
+  }
+
+  .hm-mobile-search-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--accent-warm, #E7A58D);
+    background: rgba(231, 165, 141, 0.12);
+    border: 1px solid rgba(231, 165, 141, 0.25);
+    padding: 3px 8px;
+    border-radius: 9999px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+
+  /* --------------------------------------------------------------------------
+     2. Sticky Filter Category Row
+     -------------------------------------------------------------------------- */
+  .hm-mobile-sticky-filters {
+    position: sticky;
+    top: 64px;
+    z-index: 35;
+    background: rgba(8, 11, 16, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(244, 240, 235, 0.06);
+    padding: 8px 0;
+    margin-bottom: 16px;
+    width: 100%;
+  }
+
+  .hm-mobile-filter-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 16px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hm-mobile-filter-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hm-mobile-filter-btn {
+    padding: 7px 16px;
+    border-radius: 9999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(244, 240, 235, 0.7);
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .hm-mobile-filter-btn.active {
+    background: var(--accent-warm, #E7A58D);
+    color: #080B10;
+    font-weight: 700;
+    border-color: var(--accent-warm, #E7A58D);
+    box-shadow: 0 4px 14px rgba(231, 165, 141, 0.32);
+  }
+
+  .hm-mobile-filter-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* --------------------------------------------------------------------------
+     3. Hero Spotlight Carousel
+     -------------------------------------------------------------------------- */
+  .hm-mobile-hero-section {
+    margin-bottom: 24px;
+    width: 100%;
+  }
+
+  .hm-mobile-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px 12px 16px;
+  }
+
+  .hm-mobile-section-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hm-mobile-section-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #FFFFFF;
+    margin: 0;
+  }
+
+  .hm-mobile-section-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    background: rgba(231, 165, 141, 0.14);
+    color: var(--accent-warm, #E7A58D);
+    border: 1px solid rgba(231, 165, 141, 0.25);
+    text-transform: uppercase;
+  }
+
+  .hm-mobile-carousel {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 0 16px 8px 16px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hm-mobile-carousel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hm-hero-card {
+    scroll-snap-align: center;
+    flex: 0 0 86%;
+    max-width: 330px;
+    height: 180px;
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+  }
+
+  .hm-hero-bg {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  .hm-hero-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.02);
+    transition: transform 0.4s ease;
+  }
+
+  .hm-hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(8, 11, 16, 0.05) 0%,
+      rgba(8, 11, 16, 0.5) 45%,
+      rgba(8, 11, 16, 0.95) 100%
+    );
+  }
+
+  .hm-hero-content {
+    position: absolute;
+    inset: 0;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .hm-hero-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hm-hero-pill-badge {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 3px 9px;
+    border-radius: 9999px;
+    background: rgba(231, 165, 141, 0.22);
+    color: var(--accent-warm, #E7A58D);
+    border: 1px solid rgba(231, 165, 141, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    text-transform: uppercase;
+  }
+
+  .hm-hero-bottom-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .hm-hero-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .hm-hero-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    margin: 0 0 3px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+
+  .hm-hero-artist {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.8);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-hero-play-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--accent-warm, #E7A58D);
+    color: #080B10;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(231, 165, 141, 0.45);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .hm-hero-play-btn:active {
+    transform: scale(0.92);
+  }
+
+  /* --------------------------------------------------------------------------
+     4. Bento Grid (Genres & Moods)
+     -------------------------------------------------------------------------- */
+  .hm-mobile-bento-section {
+    padding: 0 16px;
+    margin-bottom: 28px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hm-bento-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+
+  .hm-bento-tile {
+    border-radius: 18px;
+    padding: 14px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    box-sizing: border-box;
+  }
+
+  .hm-bento-tile:active {
+    transform: scale(0.97);
+  }
+
+  .hm-bento-tile.span-2 {
+    grid-column: span 2;
+  }
+
+  /* Bento Themes */
+  .hm-bento-tile.theme-trending {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%);
+    border: 1px solid rgba(239, 68, 68, 0.32);
+    min-height: 104px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .hm-bento-tile.theme-chill {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.28) 0%, rgba(59, 130, 246, 0.16) 100%);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    min-height: 114px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .hm-bento-tile.theme-south {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.28) 0%, rgba(6, 182, 212, 0.16) 100%);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    min-height: 114px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .hm-bento-tile.theme-global {
+    background: linear-gradient(135deg, rgba(231, 165, 141, 0.25) 0%, rgba(244, 114, 182, 0.16) 100%);
+    border: 1px solid rgba(231, 165, 141, 0.3);
+    min-height: 94px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hm-bento-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .hm-bento-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+    text-transform: uppercase;
+  }
+
+  .hm-bento-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: #FFFFFF;
+    margin: 6px 0 2px 0;
+  }
+
+  .hm-bento-desc {
+    font-size: 0.74rem;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  /* --------------------------------------------------------------------------
+     5. Ranked Top 10 Spotlight (#1 Gold, #2 Silver, #3 Bronze)
+     -------------------------------------------------------------------------- */
+  .hm-mobile-ranked-section {
+    padding: 0 16px;
+    margin-bottom: 28px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hm-ranked-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 8px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+
+  .hm-ranked-item:active {
+    background: rgba(255, 255, 255, 0.07);
+    transform: scale(0.99);
+  }
+
+  .hm-ranked-item.is-playing {
+    background: rgba(231, 165, 141, 0.08);
+    border-color: rgba(231, 165, 141, 0.3);
+  }
+
+  .hm-rank-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .hm-rank-badge.rank-1 {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+    color: #080B10;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45);
+  }
+
+  .hm-rank-badge.rank-2 {
+    background: linear-gradient(135deg, #E2E8F0 0%, #94A3B8 100%);
+    color: #080B10;
+    box-shadow: 0 2px 8px rgba(148, 163, 184, 0.35);
+  }
+
+  .hm-rank-badge.rank-3 {
+    background: linear-gradient(135deg, #D97706 0%, #92400E 100%);
+    color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+  }
+
+  .hm-rank-badge.rank-other {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.65);
+    font-weight: 600;
+  }
+
+  .hm-ranked-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    overflow: hidden;
+    flex-shrink: 0;
+    position: relative;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .hm-ranked-thumb-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hm-ranked-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hm-ranked-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin: 0 0 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-ranked-item.is-playing .hm-ranked-title {
+    color: var(--accent-warm, #E7A58D);
+  }
+
+  .hm-ranked-artist {
+    font-size: 0.76rem;
+    color: rgba(244, 240, 235, 0.6);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hm-ranked-play-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .hm-ranked-play-btn.active {
+    background: var(--accent-warm, #E7A58D);
+    color: #080B10;
+    border-color: var(--accent-warm, #E7A58D);
+  }
+
+  /* --------------------------------------------------------------------------
+     6. Featured Artists Reel
+     -------------------------------------------------------------------------- */
+  .hm-mobile-artists-section {
+    margin-bottom: 28px;
+    width: 100%;
+  }
+
+  .hm-artist-reel {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 0 16px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hm-artist-reel::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hm-artist-bubble {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    width: 76px;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+  }
+
+  .hm-artist-bubble:active {
+    transform: scale(0.94);
+  }
+
+  .hm-artist-avatar {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    margin-bottom: 8px;
+    position: relative;
+    overflow: hidden;
+    border: 2px solid rgba(231, 165, 141, 0.3);
+    background: rgba(231, 165, 141, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-warm, #E7A58D);
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+
+  .hm-artist-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hm-artist-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    text-align: center;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+  }
+
+  .hm-artist-lang {
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 2px;
+    text-align: center;
+  }
+
+  /* --------------------------------------------------------------------------
+     7. Multi-column Grids (Clean 2-Column Cards)
+     -------------------------------------------------------------------------- */
+  .hm-mobile-grid-section {
+    padding: 0 16px;
+    margin-bottom: 28px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .hm-mobile-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+  }
+
+  @media (max-width: 340px) {
+    .hm-mobile-cards-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+

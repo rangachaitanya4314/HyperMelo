@@ -37,7 +37,7 @@ export const KaraokeModal: React.FC = () => {
   const capabilities = capabilityService.evaluate(currentSong);
   const karaokeCap = capabilities.karaoke;
   const vocalResolution = vocalRemovalService.resolveMethod(currentSong);
-  const isKaraokeEligible = karaokeCap !== 'UNAVAILABLE';
+  const isKaraokeEligible = karaokeCap !== 'UNAVAILABLE' || vocalResolution.type === 'center_channel_reduction';
   const isSingAlong = karaokeCap === 'SING_ALONG';
   const [backingStatus, setBackingStatus] = useState<'verifying' | 'ready' | 'unavailable'>(() =>
     isKaraokeEligible ? 'verifying' : 'unavailable'
@@ -210,13 +210,19 @@ export const KaraokeModal: React.FC = () => {
       })
       .catch((err) => {
         console.warn('Backing audio failed verification:', err);
-        if (isCurrent) setBackingStatus('unavailable');
+        if (isCurrent) {
+          if (vocalResolution.type === 'center_channel_reduction' || karaokeCap === 'SING_ALONG') {
+            setBackingStatus('ready');
+          } else {
+            setBackingStatus('unavailable');
+          }
+        }
       });
 
     return () => {
       isCurrent = false;
     };
-  }, [karaokeModalOpen, currentSong, selectedSection?.start, isKaraokeEligible]);
+  }, [karaokeModalOpen, currentSong, selectedSection?.start, isKaraokeEligible, vocalResolution.type, karaokeCap]);
 
   const formatTime = (secs?: number) => {
     if (typeof secs !== 'number' || isNaN(secs) || secs < 0) return '00:00';
@@ -963,7 +969,7 @@ export const KaraokeModal: React.FC = () => {
 
         {/* Bottom CTA Button: Start Recording (No arbitrary limits) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {!isKaraokeEligible || backingStatus === 'unavailable' ? (
+          {!isKaraokeEligible || (backingStatus === 'unavailable' && vocalResolution.type === 'unavailable_protected') ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div
                 style={{
@@ -981,7 +987,7 @@ export const KaraokeModal: React.FC = () => {
                 }}
               >
                 <AlertCircle size={20} color="#EF4444" />
-                <span>Karaoke unavailable for this track (no authorized instrumental source).</span>
+                <span>Karaoke unavailable for this track (no playable audio stream available).</span>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
@@ -1095,7 +1101,7 @@ export const KaraokeModal: React.FC = () => {
                   : vocalResolution.type === 'center_channel_reduction' && !karaokeMixer.isAudioRouteConnected()
                   ? `Vocal reduction unavailable: this playback source is not routed through Web Audio. Original vocals will remain. Starts at ${formatTime(selectedSection.start)}.`
                   : vocalResolution.type === 'center_channel_reduction'
-                  ? `Approximate center-channel vocal reduction available • Vocal remnants and centered instruments may remain. Starts at ${formatTime(selectedSection.start)}.`
+                  ? `Experimental center-channel vocal reduction available • Vocal remnants and centered instruments may remain. Starts at ${formatTime(selectedSection.start)}.`
                   : isSingAlong
                   ? `Live microphone monitoring & synced lyrics active • Backing starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`
                   : `Karaoke starts at ${formatTime(selectedSection.start)}. Record freely until you choose to stop.`}

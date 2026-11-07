@@ -150,7 +150,7 @@ export const KaraokeRecordingState: React.FC = () => {
     if (!karaokePlaybackService.isAvailableForSong(currentSong)) {
       setTimeout(() => {
         if (isMounted) {
-          setMicError('Karaoke unavailable: No authorized instrumental backing track exists for this song.');
+          setMicError('Karaoke unavailable: No playable audio source exists for this song.');
           setIsRecording(false);
         }
       }, 0);

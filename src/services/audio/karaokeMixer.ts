@@ -126,6 +126,16 @@ class KaraokeMixer {
       }
 
       if (this.connectedAudioElement === audio && this.audioSourceNode === source) {
+        if (this.vocalSuppressor) {
+          try {
+            source.connect(this.vocalSuppressor.getInput());
+          } catch {
+            // ignore
+          }
+          if (this.isKaraokeActive) {
+            this.vocalSuppressor.setSuppression(1.0, 0);
+          }
+        }
         return true;
       }
 
@@ -187,9 +197,22 @@ class KaraokeMixer {
   public setKaraokeMode(enabled: boolean): void {
     this.isKaraokeActive = enabled;
     if (enabled) {
-      this.resumeContext().catch(() => {});
+      this.resumeContext()
+        .then(() => {
+          if (this.isKaraokeActive && this.vocalSuppressor) {
+            this.vocalSuppressor.setSuppression(1.0, 40);
+          }
+        })
+        .catch(() => {});
     }
     if (this.vocalSuppressor) {
+      if (enabled && this.audioSourceNode) {
+        try {
+          this.audioSourceNode.connect(this.vocalSuppressor.getInput());
+        } catch {
+          // ignore
+        }
+      }
       this.vocalSuppressor.setSuppression(enabled ? 1.0 : 0.0, 80);
     }
   }

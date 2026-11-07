@@ -762,14 +762,25 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
+  const previousSongIdRef = useRef<string | null>(null);
+
   // Update selected section when song changes
   useEffect(() => {
     if (!currentSong) return;
-    const chorus = currentSong.sections?.find((s) => s.type === 'chorus') || currentSong.sections?.[0];
-    if (chorus) {
-      setSelectedSectionState(chorus);
+    if (previousSongIdRef.current === currentSong.id) return;
+    previousSongIdRef.current = currentSong.id;
+
+    // Only default to chorus if selectedSection does not already belong to this song
+    const currentBelongsToSong = currentSong.sections?.some(
+      (s) => s.type === selectedSection.type && s.start === selectedSection.start
+    );
+    if (!currentBelongsToSong) {
+      const chorus = currentSong.sections?.find((s) => s.type === 'chorus') || currentSong.sections?.[0];
+      if (chorus) {
+        setSelectedSectionState(chorus);
+      }
     }
-  }, [currentSong]);
+  }, [currentSong, selectedSection]);
 
   // Sync online status
   useEffect(() => {

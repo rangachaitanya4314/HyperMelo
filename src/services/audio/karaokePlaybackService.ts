@@ -41,6 +41,7 @@ class KaraokePlaybackService {
   constructor() {
     if (typeof window !== 'undefined') {
       this.audio = new Audio();
+      this.audio.crossOrigin = 'anonymous';
       this.audio.preload = 'auto';
 
       this.audio.addEventListener('timeupdate', () => {

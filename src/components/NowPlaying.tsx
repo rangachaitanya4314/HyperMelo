@@ -7,6 +7,11 @@ import {
   SkipForward,
   Volume2,
   VolumeX,
+  Volume1,
+  Airplay,
+  Smartphone,
+  MessageSquare,
+  SlidersHorizontal,
   Repeat,
   Shuffle,
   Heart,
@@ -21,7 +26,6 @@ import {
   RotateCw,
   Loader2,
   AlertCircle,
-  Mic2,
   ListPlus,
   Bookmark,
   BookmarkCheck,
@@ -40,6 +44,7 @@ import { lyricsService } from '../services/lyrics/lyricsService';
 import { getListeningLyricDisplay } from '../shared/lyrics';
 import { getConsumerLicenseLabel, getCanonicalTrackDuration } from '../shared';
 import { useArtworkColors } from '../services/artwork/colorExtractor';
+import { getVerifiedSongArtwork } from '../data/verifiedArtwork';
 import type { Song, TimedLyricLine } from '../types/music';
 import { SUPPORTED_LANGUAGES } from '../types/music';
 import { FloatingLyrics } from './FloatingLyrics';
@@ -135,6 +140,18 @@ export const NowPlaying: React.FC = () => {
   const [isClosing, setIsClosing] = useState<boolean>(false);
   const moreMenuRef = useRef<HTMLDivElement | null>(null);
   const artworkColors = useArtworkColors(currentSong);
+  const currentArtworkUrl = useMemo(() => {
+    if (!currentSong) return '';
+    return (
+      currentSong.artwork?.imageUrl ||
+      getVerifiedSongArtwork({
+        id: currentSong.id,
+        title: currentSong.title,
+        artist: currentSong.artist
+      }) ||
+      ''
+    );
+  }, [currentSong]);
   const activeLyricRef = useRef<HTMLDivElement | null>(null);
   const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,7 +177,7 @@ export const NowPlaying: React.FC = () => {
 
   const [showTrackDetails, setShowTrackDetails] = useState<boolean>(false);
   const [menuToast, setMenuToast] = useState<string | null>(null);
-  const [isMenuAudiophileExpanded, setIsMenuAudiophileExpanded] = useState<boolean>(false);
+  const [isMenuAudiophileExpanded, setIsMenuAudiophileExpanded] = useState<boolean>(true);
   const [lyricsAnimationMode, setLyricsAnimationMode] = useState<'floating' | 'classic'>('floating');
   const lyricsAnimationModeRef = useRef<'floating' | 'classic'>('floating');
   lyricsAnimationModeRef.current = lyricsAnimationMode;
@@ -614,7 +631,7 @@ export const NowPlaying: React.FC = () => {
       const containerRect = container.getBoundingClientRect();
       const activeRect = activeEl.getBoundingClientRect();
       const relativeTop = activeRect.top - containerRect.top + container.scrollTop;
-      const targetScroll = relativeTop - (container.clientHeight / 2) + (activeRect.height / 2);
+      const targetScroll = relativeTop - (container.clientHeight * 0.35) + (activeRect.height / 2);
 
       container.scrollTo({
         top: Math.max(0, targetScroll),
@@ -866,7 +883,8 @@ export const NowPlaying: React.FC = () => {
         ['--ambient-primary' as any]: artworkColors.primary,
         ['--ambient-secondary' as any]: artworkColors.secondary,
         ['--ambient-accent' as any]: artworkColors.accent,
-        ['--ambient-glow' as any]: artworkColors.ambientGlow
+        ['--ambient-glow' as any]: artworkColors.ambientGlow,
+        ['--current-song-art' as any]: currentArtworkUrl ? `url("${currentArtworkUrl}")` : 'none'
       }}
     >
       {/* =========================================================================
@@ -885,6 +903,15 @@ export const NowPlaying: React.FC = () => {
           transition: 'background 0.8s ease'
         }}
       >
+        {/* Cinematic Ambient Motion & Glassmorphic Light-Leak Backdrop (Mobile Only) */}
+        {!isDesktopLayout && (
+          <div className="hm-ambient-backdrop" data-testid="hm-ambient-backdrop">
+            <div className="hm-ambient-blur-layer hm-ambient-layer-1" />
+            <div className="hm-ambient-blur-layer hm-ambient-layer-2" />
+            <div className="hm-ambient-blur-layer hm-light-leak" />
+            <div className="hm-ambient-radial-mask" />
+          </div>
+        )}
         {/* Dynamic Fluid Artwork Mesh Gradient (BitChord style) */}
         <div
           className="now-playing-ambient-mesh"
@@ -1183,7 +1210,7 @@ export const NowPlaying: React.FC = () => {
             <div
               id="now-playing-more-menu"
               data-testid="now-playing-more-menu"
-              className={`now-playing-more-menu ${isMoreMenuClosing ? 'closing' : ''}`}
+              className={`now-playing-more-menu ${!isDesktopLayout ? 'hm-glass-sheet' : ''} ${isMoreMenuClosing ? 'closing' : ''}`}
               role="menu"
               aria-label="Player options"
               style={menuDragOffset > 0 ? { transform: `translateY(${menuDragOffset}px)`, transition: 'none' } : undefined}
@@ -1432,9 +1459,11 @@ export const NowPlaying: React.FC = () => {
                   />
                 </button>
 
-                {isMenuAudiophileExpanded && (
-                  <div className="now-playing-menu-audiophile-body">
-                    <div className="now-playing-menu-modes-grid" role="radiogroup" aria-label="Menu Sound Modes">
+                <div
+                  className="now-playing-menu-audiophile-body"
+                  style={{ display: isMenuAudiophileExpanded ? 'block' : 'none' }}
+                >
+                  <div className="now-playing-menu-modes-grid" role="radiogroup" aria-label="Menu Sound Modes">
                       <button
                         type="button"
                         id="now-playing-menu-mode-original"
@@ -1494,9 +1523,8 @@ export const NowPlaying: React.FC = () => {
                       />
                     </div>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
           )}
         </div>
       </header>
@@ -2412,14 +2440,29 @@ export const NowPlaying: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '12px'
                 }}
               >
-                <span style={{ fontSize: '0.92rem', color: 'var(--text-dim)' }}>
-                  No lyrics found in catalogue for "{currentSong?.title}"
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '50%',
+                    backgroundColor: 'rgba(231, 165, 141, 0.1)',
+                    border: '1px solid rgba(231, 165, 141, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--accent-warm)'
+                  }}
+                >
+                  <Sparkles size={18} />
+                </div>
+                <span style={{ fontSize: '0.94rem', color: 'var(--accent-cream)', fontWeight: 500 }}>
+                  High-Fidelity Audio Active • Syllable sync unavailable for "{currentSong?.title}"
                 </span>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Verified across available catalogue and external providers
+                  Enjoy real-time stem practice with ambient audiophile visualizer
                 </span>
               </div>
             )}
@@ -2440,7 +2483,7 @@ export const NowPlaying: React.FC = () => {
         <div
           id="now-playing-lang-picker-sheet"
           data-testid="now-playing-lang-picker-sheet"
-          className={`now-playing-lang-picker-sheet ${isLangPickerClosing ? 'closing' : ''}`}
+          className={`now-playing-lang-picker-sheet ${!isDesktopLayout ? 'hm-glass-sheet' : ''} ${isLangPickerClosing ? 'closing' : ''}`}
           role="dialog"
           aria-modal="true"
           aria-label="Select Lyric Language"
@@ -2532,7 +2575,7 @@ export const NowPlaying: React.FC = () => {
         <div
           id="now-playing-queue-sheet"
           data-testid="now-playing-queue-sheet"
-          className={`now-playing-queue-sheet ${isQueueClosing ? 'closing' : ''}`}
+          className={`now-playing-queue-sheet ${!isDesktopLayout ? 'hm-glass-sheet' : ''} ${isQueueClosing ? 'closing' : ''}`}
           role="dialog"
           aria-modal="true"
           aria-label="Play Queue"
@@ -2693,239 +2736,468 @@ export const NowPlaying: React.FC = () => {
           BOTTOM AUTHORITATIVE CONTROLS BAR
           Authoritative Playhead Scrubber, Hi-Fi Controls, Volume & Karaoke
           ========================================================================= */}
-      <footer className="now-playing-footer">
-        {/* Scrubber & Central Playback Clock */}
-        <div className="now-playing-scrubber-row">
-          <span
-            id="now-playing-current-time"
-            style={{
-              fontSize: '0.82rem',
-              fontWeight: 500,
-              fontVariantNumeric: 'tabular-nums',
-              color: 'var(--text-muted, #CBD5E1)',
-              width: '42px',
-              textAlign: 'right'
-            }}
-          >
-            {formatTime(currentTime)}
-          </span>
-
-          <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-            <input
-              id="now-playing-seek-slider"
-              data-testid="now-playing-seek-slider"
-              type="range"
-              min={0}
-              max={effectiveDuration}
-              step={0.1}
-              value={currentTime}
-              onChange={(e) => seekTo(parseFloat(e.target.value))}
-              aria-label="Authoritative Timeline Scrubber"
-              style={{
-                width: '100%',
-                accentColor: 'var(--ambient-accent, var(--accent-warm, #E7A58D))',
-                cursor: 'pointer',
-                height: '6px'
-              }}
-            />
-          </div>
-
-          <span
-            id="now-playing-duration"
-            style={{
-              fontSize: '0.82rem',
-              fontWeight: 500,
-              fontVariantNumeric: 'tabular-nums',
-              color: 'var(--text-muted, #CBD5E1)',
-              width: '42px',
-              textAlign: 'left'
-            }}
-          >
-            {formatTime(effectiveDuration)}
-          </span>
+      {/* Floating Toast Notification (when more menu is closed) */}
+      {menuToast && !isMoreMenuOpen && (
+        <div
+          className="now-playing-floating-toast"
+          role="status"
+          style={{
+            position: 'fixed',
+            top: '72px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 3000,
+            background: 'rgba(15, 16, 21, 0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            borderRadius: '9999px',
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            color: '#F4F0EB',
+            fontSize: '0.82rem',
+            fontWeight: 500,
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+            animation: 'moreMenuFadeIn 0.2s ease-out',
+            pointerEvents: 'none'
+          }}
+        >
+          <Check size={14} color="#34D399" />
+          <span>{menuToast}</span>
         </div>
+      )}
 
-        {/* Preview Completion Notice */}
-        {playbackState === 'ended' && isPreview && (
-          <div
-            id="now-playing-preview-ended-notice"
-            data-testid="now-playing-preview-ended-notice"
-            style={{
-              textAlign: 'center',
-              fontSize: '0.78rem',
-              color: 'var(--accent-warm)',
-              padding: '2px 0 6px',
-              fontWeight: 500
-            }}
-          >
-            30-second preview completed. Full track requires authorized provider subscription.
-          </div>
-        )}
-
-        {/* Action Controls Row */}
-        <div className="now-playing-controls-row">
-          {/* Left Dock: Dedicated Mobile Lyrics Toggle & Shuffle */}
-          <div className="now-playing-controls-left-dock">
-            {!isDesktopLayout && (
-              <button
-                type="button"
-                id="now-playing-lyrics-btn"
-                data-testid="now-playing-lyrics-btn"
-                className={`now-playing-control-btn now-playing-lyrics-dock-btn ${isLyricsActive ? 'active' : ''}`}
-                aria-label={isLyricsActive ? 'Close lyrics view' : 'Open lyrics view'}
-                aria-expanded={isLyricsActive}
-                aria-pressed={isLyricsActive}
-                onClick={() => {
-                  if (isMobileLyricsOpen) {
-                    closeMobileLyrics();
-                  } else {
-                    closeQueue(true);
-                    openMobileLyrics();
-                  }
+      <footer className="now-playing-footer">
+        {isDesktopLayout ? (
+          <>
+            {/* Scrubber & Central Playback Clock */}
+            <div className="now-playing-scrubber-row">
+              <span
+                id="now-playing-current-time"
+                style={{
+                  fontSize: '0.82rem',
+                  fontWeight: 500,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: 'var(--text-muted, #CBD5E1)',
+                  width: '42px',
+                  textAlign: 'right'
                 }}
-                title={isLyricsActive ? 'Return to album artwork' : 'View synchronized lyrics'}
               >
-                <Mic2 size={18} />
-                <span className="lyrics-dock-label">Lyrics</span>
-              </button>
+                {formatTime(currentTime)}
+              </span>
+
+              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                <input
+                  id="now-playing-seek-slider"
+                  data-testid="now-playing-seek-slider"
+                  className="now-playing-seek-slider"
+                  type="range"
+                  min={0}
+                  max={effectiveDuration}
+                  step={0.1}
+                  value={currentTime}
+                  onChange={(e) => seekTo(parseFloat(e.target.value))}
+                  aria-label="Authoritative Timeline Scrubber"
+                  style={{
+                    width: '100%',
+                    accentColor: 'var(--ambient-accent, var(--accent-warm, #E7A58D))',
+                    cursor: 'pointer',
+                    height: '6px',
+                    ['--progress-pct' as any]: `${effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0}%`
+                  }}
+                />
+              </div>
+
+              <span
+                id="now-playing-duration"
+                style={{
+                  fontSize: '0.82rem',
+                  fontWeight: 500,
+                  fontVariantNumeric: 'tabular-nums',
+                  color: 'var(--text-muted, #CBD5E1)',
+                  width: '42px',
+                  textAlign: 'left'
+                }}
+              >
+                {formatTime(effectiveDuration)}
+              </span>
+            </div>
+
+            {/* Preview Completion Notice */}
+            {playbackState === 'ended' && isPreview && (
+              <div
+                id="now-playing-preview-ended-notice"
+                data-testid="now-playing-preview-ended-notice"
+                style={{
+                  textAlign: 'center',
+                  fontSize: '0.78rem',
+                  color: 'var(--accent-warm)',
+                  padding: '2px 0 6px',
+                  fontWeight: 500
+                }}
+              >
+                30-second preview completed. Full track requires authorized provider subscription.
+              </div>
             )}
 
-            <button
-              id="now-playing-shuffle-btn"
-              data-testid="now-playing-shuffle-btn"
-              onClick={() => setIsShuffle(!isShuffle)}
-              aria-label={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
-              className={`now-playing-control-btn now-playing-shuffle-btn ${isShuffle ? 'active' : ''}`}
-              style={{
-                color: isShuffle ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)'
-              }}
-              title={isShuffle ? 'Shuffle active' : 'Shuffle tracks'}
-            >
-              <Shuffle size={18} />
-            </button>
+            {/* Desktop Action Controls Row (Frozen, untouched) */}
+            <div className="now-playing-controls-row">
+              {/* Left Dock: Shuffle & Repeat */}
+              <div className="now-playing-controls-left-dock">
+                <button
+                  id="now-playing-shuffle-btn"
+                  data-testid="now-playing-shuffle-btn"
+                  onClick={() => setIsShuffle(!isShuffle)}
+                  aria-label={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
+                  className={`now-playing-control-btn now-playing-shuffle-btn ${isShuffle ? 'active' : ''}`}
+                  style={{
+                    color: isShuffle ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)'
+                  }}
+                  title={isShuffle ? 'Shuffle active' : 'Shuffle tracks'}
+                >
+                  <Shuffle size={18} />
+                </button>
 
-            {isDesktopLayout && (
+                <button
+                  id="now-playing-repeat-btn"
+                  data-testid="now-playing-repeat-btn"
+                  onClick={() => setIsLoopingSection(!isLoopingSection)}
+                  aria-label={isLoopingSection ? 'Disable Section Repeat' : 'Repeat Section'}
+                  className={`now-playing-control-btn now-playing-repeat-btn ${isLoopingSection ? 'active' : ''}`}
+                  style={{
+                    color: isLoopingSection ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)'
+                  }}
+                  title={isLoopingSection ? 'Moment looping active' : 'Repeat moment'}
+                >
+                  <Repeat size={18} />
+                </button>
+              </div>
+
+              {/* Center Group: Prev, Play/Pause, Next */}
+              <div className="now-playing-controls-center-group">
+                <button
+                  id="now-playing-prev-btn"
+                  data-testid="now-playing-prev-btn"
+                  onClick={prevSong}
+                  aria-label="Previous Track"
+                  className="now-playing-control-btn now-playing-prev-btn"
+                  title="Previous Track"
+                >
+                  <SkipBack size={22} />
+                </button>
+
+                <button
+                  id="now-playing-play-btn"
+                  data-testid="now-playing-play-btn"
+                  onClick={togglePlay}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  className="now-playing-play-btn"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? <Pause size={24} fill="#080B10" /> : <Play size={24} fill="#080B10" style={{ marginLeft: '3px' }} />}
+                </button>
+
+                <button
+                  id="now-playing-next-btn"
+                  data-testid="now-playing-next-btn"
+                  onClick={nextSong}
+                  aria-label="Next Track"
+                  className="now-playing-control-btn now-playing-next-btn"
+                  title="Next Track"
+                >
+                  <SkipForward size={22} />
+                </button>
+              </div>
+
+              {/* Right Dock: Master Volume */}
+              <div className="now-playing-controls-right-dock">
+                <div className="now-playing-desktop-volume">
+                  <button
+                    onClick={handleMuteToggle}
+                    aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+                    className="now-playing-control-btn now-playing-volume-btn"
+                    title={volume === 0 ? 'Unmute' : 'Mute'}
+                  >
+                    {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                  </button>
+
+                  <input
+                    id="now-playing-volume-slider"
+                    className="now-playing-volume-slider"
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    aria-label="Master volume"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* Mobile Dedicated 3-Tier Layout (Reference Design) */
+          <div className="now-playing-mobile-container" data-testid="now-playing-mobile-container">
+            {/* Preview Completion Notice */}
+            {playbackState === 'ended' && isPreview && (
+              <div
+                id="now-playing-preview-ended-notice"
+                data-testid="now-playing-preview-ended-notice"
+                style={{
+                  textAlign: 'center',
+                  fontSize: '0.78rem',
+                  color: 'var(--accent-warm)',
+                  padding: '2px 0 6px',
+                  fontWeight: 500
+                }}
+              >
+                30-second preview completed. Full track requires authorized provider subscription.
+              </div>
+            )}
+
+            {/* Tier 1: Main Controls (Rewind, Play/Pause, Fast Forward, flanked by Shuffle & Repeat) */}
+            <div className="now-playing-mobile-tier1-controls" data-testid="now-playing-mobile-tier1-controls">
+              <button
+                id="now-playing-shuffle-btn"
+                data-testid="now-playing-shuffle-btn"
+                onClick={() => setIsShuffle(!isShuffle)}
+                aria-label={isShuffle ? 'Disable Shuffle' : 'Enable Shuffle'}
+                className={`now-playing-control-btn now-playing-shuffle-btn hm-ctrl-btn hm-ctrl-secondary ${isShuffle ? 'active' : ''}`}
+                style={{
+                  color: isShuffle ? 'var(--ambient-accent, #f5cbb7)' : 'rgba(255, 255, 255, 0.75)'
+                }}
+                title={isShuffle ? 'Shuffle active' : 'Shuffle tracks'}
+              >
+                <Shuffle size={20} />
+              </button>
+
+              <div className="now-playing-mobile-tier1-center-group">
+                <button
+                  id="now-playing-prev-btn"
+                  data-testid="now-playing-prev-btn"
+                  onClick={prevSong}
+                  aria-label="Previous Track"
+                  className="now-playing-control-btn now-playing-prev-btn hm-ctrl-btn"
+                  title="Previous Track"
+                >
+                  <SkipBack size={28} />
+                </button>
+
+                <button
+                  id="now-playing-play-btn"
+                  data-testid="now-playing-play-btn"
+                  onClick={togglePlay}
+                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  className="now-playing-play-btn hm-play-btn"
+                  title={isPlaying ? 'Pause' : 'Play'}
+                >
+                  {isPlaying ? (
+                    <Pause size={30} fill="#0f1015" />
+                  ) : (
+                    <Play size={30} fill="#0f1015" style={{ marginLeft: '4px' }} />
+                  )}
+                </button>
+
+                <button
+                  id="now-playing-next-btn"
+                  data-testid="now-playing-next-btn"
+                  onClick={nextSong}
+                  aria-label="Next Track"
+                  className="now-playing-control-btn now-playing-next-btn hm-ctrl-btn"
+                  title="Next Track"
+                >
+                  <SkipForward size={28} />
+                </button>
+              </div>
+
               <button
                 id="now-playing-repeat-btn"
                 data-testid="now-playing-repeat-btn"
                 onClick={() => setIsLoopingSection(!isLoopingSection)}
                 aria-label={isLoopingSection ? 'Disable Section Repeat' : 'Repeat Section'}
-                className={`now-playing-control-btn now-playing-repeat-btn ${isLoopingSection ? 'active' : ''}`}
+                className={`now-playing-control-btn now-playing-repeat-btn hm-ctrl-btn hm-ctrl-secondary ${isLoopingSection ? 'active' : ''}`}
                 style={{
-                  color: isLoopingSection ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)'
+                  color: isLoopingSection ? 'var(--ambient-accent, #f5cbb7)' : 'rgba(255, 255, 255, 0.75)'
                 }}
                 title={isLoopingSection ? 'Moment looping active' : 'Repeat moment'}
               >
-                <Repeat size={18} />
+                <Repeat size={20} />
               </button>
-            )}
-          </div>
+            </div>
 
-          {/* Center Group: Prev, Play/Pause, Next */}
-          <div className="now-playing-controls-center-group">
-            <button
-              id="now-playing-prev-btn"
-              data-testid="now-playing-prev-btn"
-              onClick={prevSong}
-              aria-label="Previous Track"
-              className="now-playing-control-btn now-playing-prev-btn"
-              title="Previous Track"
-            >
-              <SkipBack size={22} />
-            </button>
+            {/* Tier 2: Progress & Volume */}
+            <div className="now-playing-mobile-tier2-container" data-testid="now-playing-mobile-tier2-container">
+              {/* Sleek Seek Bar with current time and -remaining time (-4:14 style) */}
+              <div className="now-playing-mobile-seek-row">
+                <span
+                  id="now-playing-current-time"
+                  data-testid="now-playing-current-time"
+                  className="now-playing-mobile-time-label"
+                >
+                  {formatTime(currentTime)}
+                </span>
 
-            <button
-              id="now-playing-play-btn"
-              data-testid="now-playing-play-btn"
-              onClick={togglePlay}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-              className="now-playing-play-btn"
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause size={24} fill="#080B10" /> : <Play size={24} fill="#080B10" style={{ marginLeft: '3px' }} />}
-            </button>
+                <div className="now-playing-mobile-seek-track-wrapper">
+                  <input
+                    id="now-playing-seek-slider"
+                    data-testid="now-playing-seek-slider"
+                    className="now-playing-progress-bar now-playing-seek-slider"
+                    type="range"
+                    min={0}
+                    max={effectiveDuration}
+                    step={0.1}
+                    value={currentTime}
+                    onChange={(e) => seekTo(parseFloat(e.target.value))}
+                    aria-label="Authoritative Timeline Scrubber"
+                    style={{
+                      width: '100%',
+                      cursor: 'pointer',
+                      ['--progress-pct' as any]: `${effectiveDuration > 0 ? (currentTime / effectiveDuration) * 100 : 0}%`
+                    }}
+                  />
+                </div>
 
-            <button
-              id="now-playing-next-btn"
-              data-testid="now-playing-next-btn"
-              onClick={nextSong}
-              aria-label="Next Track"
-              className="now-playing-control-btn now-playing-next-btn"
-              title="Next Track"
-            >
-              <SkipForward size={22} />
-            </button>
-          </div>
+                <span
+                  id="now-playing-duration"
+                  data-testid="now-playing-duration"
+                  className="now-playing-mobile-time-label"
+                >
+                  {`-${formatTime(Math.max(0, effectiveDuration - currentTime))}`}
+                </span>
+              </div>
 
-          {/* Right Dock:
-              Mobile: Repeat + Queue
-              Desktop: Master Volume */}
-          <div className="now-playing-controls-right-dock">
-            {!isDesktopLayout && (
-              <button
-                id="now-playing-repeat-btn"
-                data-testid="now-playing-repeat-btn"
-                onClick={() => setIsLoopingSection(!isLoopingSection)}
-                aria-label={isLoopingSection ? 'Disable Section Repeat' : 'Repeat Section'}
-                className={`now-playing-control-btn now-playing-repeat-btn ${isLoopingSection ? 'active' : ''}`}
-                style={{
-                  color: isLoopingSection ? 'var(--accent-warm, #E7A58D)' : 'var(--text-dim, #64748B)'
-                }}
-                title={isLoopingSection ? 'Moment looping active' : 'Repeat moment'}
-              >
-                <Repeat size={18} />
-              </button>
-            )}
+              {/* Clean Horizontal Volume Slider with speaker icons */}
+              <div className="now-playing-mobile-volume-row">
+                <button
+                  type="button"
+                  className="now-playing-mobile-vol-icon-btn"
+                  aria-label={volume === 0 ? 'Unmute' : 'Mute'}
+                  onClick={handleMuteToggle}
+                  title={volume === 0 ? 'Unmute' : 'Mute'}
+                >
+                  {volume === 0 ? <VolumeX size={16} /> : <Volume1 size={16} />}
+                </button>
 
-            {!isDesktopLayout && (
-              <button
-                type="button"
-                id="now-playing-queue-btn"
-                data-testid="now-playing-queue-btn"
-                className={`now-playing-control-btn now-playing-queue-dock-btn ${isQueueActive ? 'active' : ''}`}
-                aria-label={isQueueActive ? 'Close play queue' : 'Open play queue'}
-                aria-expanded={isQueueActive}
-                aria-pressed={isQueueActive}
-                onClick={() => {
-                  if (isQueueOpen) {
-                    closeQueue();
-                  } else {
-                    closeMobileLyrics(true);
-                    openQueue();
-                  }
-                }}
-                title={isQueueActive ? 'Close play queue' : 'View play queue'}
-              >
-                <ListMusic size={18} />
-                <span className="queue-dock-label">Queue</span>
-              </button>
-            )}
+                <div className="now-playing-mobile-vol-track-wrapper">
+                  <input
+                    id="now-playing-mobile-volume-slider"
+                    data-testid="now-playing-mobile-volume-slider"
+                    className="now-playing-mobile-volume-slider"
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    aria-label="Volume slider"
+                    style={{
+                      ['--volume-pct' as any]: `${volume * 100}%`
+                    }}
+                  />
+                </div>
 
-            {/* Master Volume (Desktop only) */}
-            <div className="now-playing-desktop-volume">
-              <button
-                onClick={handleMuteToggle}
-                aria-label={volume === 0 ? 'Unmute' : 'Mute'}
-                className="now-playing-control-btn now-playing-volume-btn"
-                title={volume === 0 ? 'Unmute' : 'Mute'}
-              >
-                {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </button>
+                <button
+                  type="button"
+                  className="now-playing-mobile-vol-icon-btn"
+                  aria-label="Maximum Volume"
+                  onClick={() => setVolume(1)}
+                  title="Maximum Volume"
+                >
+                  <Volume2 size={16} />
+                </button>
+              </div>
+            </div>
 
-              <input
-                id="now-playing-volume-slider"
-                className="now-playing-volume-slider"
-                type="range"
-                min={0}
-                max={1}
-                step={0.02}
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                aria-label="Master volume"
-              />
+            {/* Tier 3: Bottom Dock Utility Bar */}
+            <div className="now-playing-mobile-tier3-dock" data-testid="now-playing-mobile-tier3-dock">
+              <div className="now-playing-mobile-utility-icons-row">
+                {/* 1. Lyrics speech bubble */}
+                <button
+                  type="button"
+                  id="now-playing-lyrics-btn"
+                  data-testid="now-playing-lyrics-btn"
+                  className={`now-playing-control-btn now-playing-mobile-util-btn ${isLyricsActive ? 'active' : ''}`}
+                  aria-label={isLyricsActive ? 'Close lyrics view' : 'Open lyrics view'}
+                  aria-expanded={isLyricsActive}
+                  aria-pressed={isLyricsActive}
+                  onClick={() => {
+                    if (isMobileLyricsOpen) {
+                      closeMobileLyrics();
+                    } else {
+                      closeQueue(true);
+                      openMobileLyrics();
+                    }
+                  }}
+                  title={isLyricsActive ? 'Return to album artwork' : 'View synchronized lyrics'}
+                >
+                  <MessageSquare size={20} />
+                </button>
+
+                {/* 2. Device / AirPlay / Cast */}
+                <button
+                  type="button"
+                  id="now-playing-device-btn"
+                  data-testid="now-playing-device-btn"
+                  className="now-playing-control-btn now-playing-mobile-util-btn"
+                  aria-label="Device and Cast options"
+                  onClick={() => {
+                    showToast('Audio output: This phone (current device)');
+                  }}
+                  title="Audio output device"
+                >
+                  <Airplay size={20} />
+                </button>
+
+                {/* 3. Profile / Sound Engine */}
+                <button
+                  type="button"
+                  id="now-playing-audio-mode-btn"
+                  data-testid="now-playing-audio-mode-btn"
+                  className="now-playing-control-btn now-playing-mobile-util-btn"
+                  aria-label="Sound Engine and Profiles"
+                  onClick={() => {
+                    setIsMenuAudiophileExpanded(true);
+                    openMoreMenu();
+                  }}
+                  title="Audiophile sound engine"
+                >
+                  <SlidersHorizontal size={20} />
+                </button>
+
+                {/* 4. Queue List */}
+                <button
+                  type="button"
+                  id="now-playing-queue-btn"
+                  data-testid="now-playing-queue-btn"
+                  className={`now-playing-control-btn now-playing-mobile-util-btn ${isQueueActive ? 'active' : ''}`}
+                  aria-label={isQueueActive ? 'Close play queue' : 'Open play queue'}
+                  aria-expanded={isQueueActive}
+                  aria-pressed={isQueueActive}
+                  onClick={() => {
+                    if (isQueueOpen) {
+                      closeQueue();
+                    } else {
+                      closeMobileLyrics(true);
+                      openQueue();
+                    }
+                  }}
+                  title={isQueueActive ? 'Close play queue' : 'View play queue'}
+                >
+                  <ListMusic size={20} />
+                </button>
+              </div>
+
+              {/* Subtle Device Indicator Text */}
+              <div className="now-playing-device-indicator" data-testid="now-playing-device-indicator">
+                <Smartphone size={12} />
+                <span>This phone</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </footer>
     </div>
   );

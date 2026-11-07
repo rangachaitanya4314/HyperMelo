@@ -43,7 +43,7 @@ export const Header: React.FC = () => {
     <>
       <header
         role="banner"
-        className="naro-app-header"
+        className={`naro-app-header view-${currentView}`}
         style={{
           position: 'sticky',
           top: 0,
@@ -756,6 +756,10 @@ export const Header: React.FC = () => {
           }
           .header-search-bar {
             width: 150px !important;
+          }
+          /* Eliminate duplicate search button on mobile when on Discover view */
+          .naro-app-header.view-discover #header-search-bar {
+            display: none !important;
           }
         }
 

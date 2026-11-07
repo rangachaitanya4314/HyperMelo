@@ -117,6 +117,8 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
       {/* Waveform track container */}
       <div
+        id="core-waveform-track"
+        data-testid="core-waveform-track"
         ref={containerRef}
         onClick={handleTimelineClick}
         role="slider"
@@ -212,6 +214,8 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 
         {/* Start Handle */}
         <div
+          id="waveform-handle-start"
+          data-testid="waveform-handle-start"
           onPointerDown={(e) => handlePointerDown('start', e)}
           role="button"
           tabIndex={0}
@@ -255,6 +259,8 @@ export const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 
         {/* End Handle */}
         <div
+          id="waveform-handle-end"
+          data-testid="waveform-handle-end"
           onPointerDown={(e) => handlePointerDown('end', e)}
           role="button"
           tabIndex={0}

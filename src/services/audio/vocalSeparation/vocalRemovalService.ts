@@ -129,18 +129,34 @@ export class VocalRemovalService {
     }
 
     // PRIORITY 3: Ordinary Stereo Audio with Web Audio Routing -> Center-Channel Vocal Reduction Fallback
-    const hasStreamUrl = Boolean(song.playbackSource?.streamUrl);
-    if (hasStreamUrl) {
+    const streamUrl =
+      song.playbackSource?.streamUrl ||
+      (song as any).streamUrl ||
+      (song as any).stream_url ||
+      (song as any).audioUrl ||
+      (song as any).url;
+
+    const hasPlayableAudio = Boolean(
+      streamUrl ||
+      song.playbackAvailable !== false ||
+      song.previewAvailable ||
+      song.playbackType === 'full' ||
+      song.playbackType === 'preview' ||
+      song.playbackSourceType === 'open-license' ||
+      song.playbackSourceType === 'naro-licensed'
+    );
+
+    if (hasPlayableAudio && song.playbackType !== 'unavailable' && song.playbackAvailability !== 'unavailable') {
       return {
         type: 'center_channel_reduction',
-        methodName: 'Approximate Center-Channel Vocal Reduction',
-        badgeLabel: 'APPROXIMATE VOCAL REDUCTION',
+        methodName: 'Experimental Center-Channel Vocal Reduction',
+        badgeLabel: 'EXPERIMENTAL VOCAL REDUCTION',
         badgeColor: '#F59E0B',
-        description: 'Real-time center-channel phase inversion fallback. Approximate: centered instruments may be attenuated and reverberant vocal remnants may remain.',
+        description: 'Real-time Web Audio center-channel vocal reduction fallback. Center-panned vocals are attenuated; stereo reverb, backing harmonies, and centered instruments may remain.',
         isVocalAbsent: false,
         isApproximate: true,
         isVocalRemovalUnavailable: false,
-        explanation: 'No dedicated instrumental exists for this track. Real-time center-channel phase inversion is applied as an approximate fallback.'
+        explanation: 'No dedicated instrumental exists for this track. Real-time center-channel phase inversion is applied as an experimental fallback.'
       };
     }
 
@@ -150,11 +166,11 @@ export class VocalRemovalService {
       methodName: 'Vocal Removal Unavailable',
       badgeLabel: 'KARAOKE UNAVAILABLE',
       badgeColor: '#EF4444',
-      description: 'Karaoke backing is unavailable for this track (no authorized instrumental source).',
+      description: 'Karaoke backing is unavailable for this track (no playable audio stream available).',
       isVocalAbsent: false,
       isApproximate: false,
       isVocalRemovalUnavailable: true,
-      explanation: 'No playable stream or instrumental source available.'
+      explanation: 'No playable stream or audio source available.'
     };
   }
 }
