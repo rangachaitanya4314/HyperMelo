@@ -221,14 +221,6 @@ export function getListeningLyricDisplay(
     ml: /[\u0D00-\u0D7F]/  // Malayalam
   };
 
-  const languageNames: Record<Language, string> = {
-    en: 'English',
-    hi: 'Hindi',
-    te: 'Telugu',
-    ta: 'Tamil',
-    ml: 'Malayalam'
-  };
-
   const targetRegex = INDIC_SCRIPT_REGEX[meaningLang];
 
   // 1. Check if genuine native script for the target Indic language exists across any field
@@ -263,11 +255,10 @@ export function getListeningLyricDisplay(
 
     // Genuine Indic native script is NOT available in provider/catalog — only Romanized transliteration exists
     const romanizedText = cleanDisplayLyricText(line.text || line.karaoke?.transliteration || rawOriginal);
-    const langName = languageNames[meaningLang] || String(meaningLang).toUpperCase();
 
     return {
       originalText: romanizedText,
-      meaningText: `${langName} script unavailable`,
+      meaningText: '',
       isMeaningAvailable: false,
       isSameAsOriginal: false,
       scriptType: 'romanized',
@@ -302,10 +293,9 @@ export function getListeningLyricDisplay(
       };
     }
 
-    const langName = languageNames[meaningLang] || String(meaningLang).toUpperCase();
     return {
       originalText: primaryText,
-      meaningText: `Meaning unavailable in ${langName}`,
+      meaningText: '',
       isMeaningAvailable: false,
       isSameAsOriginal: false,
       scriptType: scriptType as 'native' | 'romanized',
@@ -351,7 +341,7 @@ export function getListeningLyricDisplay(
 
   return {
     originalText: primaryText,
-    meaningText: 'Meaning unavailable in English',
+    meaningText: '',
     isMeaningAvailable: false,
     isSameAsOriginal: false,
     scriptType: scriptType as 'native' | 'romanized',

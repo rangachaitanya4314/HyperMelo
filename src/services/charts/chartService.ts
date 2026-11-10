@@ -368,7 +368,7 @@ export class ChartService {
       (chartTrack.stream_url.includes('mzstatic') ||
         chartTrack.stream_url.includes('apple.com') ||
         chartTrack.stream_url.includes('itunes'));
-    const playableDuration = isPreview ? 30 : (chartTrack.duration_if_available || 180);
+    const playableDuration = chartTrack.duration_if_available || 180;
     const playbackType: PlaybackAvailability = chartTrack.stream_url
       ? isPreview
         ? 'preview'

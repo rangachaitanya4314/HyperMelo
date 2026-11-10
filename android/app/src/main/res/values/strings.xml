@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hypermelo</string>
+    <string name="title_activity_main">Hypermelo</string>
+    <string name="package_name">com.hypermelo.app</string>
+    <string name="custom_url_scheme">com.hypermelo.app</string>
+</resources>

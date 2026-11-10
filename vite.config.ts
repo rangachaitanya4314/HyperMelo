@@ -45,6 +45,16 @@ export default defineConfig({
           });
         }
       },
+      '/api/yt': {
+        target: 'https://www.youtube.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/yt/, ''),
+        headers: {
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        timeout: 6000,
+        proxyTimeout: 6000
+      },
       '/api/netease': {
         target: 'https://music.163.com',
         changeOrigin: true,

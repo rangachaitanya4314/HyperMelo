@@ -125,21 +125,19 @@ export const FloatingLyrics: React.FC<FloatingLyricsProps> = ({
                 {display.originalText}
               </div>
 
-              {display.meaningText && !display.isSameAsOriginal ? (
+              {display.isMeaningAvailable && display.meaningText && !display.isSameAsOriginal ? (
                 <div
-                  data-testid={display.isMeaningAvailable ? 'listening-secondary-meaning' : 'listening-meaning-unavailable'}
+                  data-testid="listening-secondary-meaning"
                   style={{
                     fontSize: isActive ? 'clamp(0.85rem, 1.4vw, 1.02rem)' : 'clamp(0.76rem, 1.1vw, 0.88rem)',
-                    color: display.isMeaningAvailable
-                      ? (isActive ? 'rgba(231, 165, 141, 0.95)' : 'rgba(244, 240, 235, 0.6)')
-                      : 'rgba(244, 240, 235, 0.4)',
-                    fontStyle: display.isMeaningAvailable ? 'normal' : 'italic',
+                    color: isActive ? 'rgba(231, 165, 141, 0.95)' : 'rgba(244, 240, 235, 0.6)',
+                    fontStyle: 'normal',
                     marginTop: '6px',
                     lineHeight: 1.45,
                     fontWeight: 400
                   }}
                 >
-                  {display.isMeaningAvailable ? display.meaningText : `[${display.meaningText}]`}
+                  {display.meaningText}
                 </div>
               ) : null}
             </div>
@@ -185,12 +183,12 @@ export const FloatingLyrics: React.FC<FloatingLyricsProps> = ({
             </div>
 
             {/* Contextual Meaning / Translation (with subtle 40ms stagger) */}
-            {display.meaningText && !display.isSameAsOriginal ? (
+            {display.isMeaningAvailable && display.meaningText && !display.isSameAsOriginal ? (
               <div
-                className={`floating-lyric-meaning ${!display.isMeaningAvailable ? 'unavailable' : ''}`}
-                data-testid={display.isMeaningAvailable ? 'listening-secondary-meaning' : 'listening-meaning-unavailable'}
+                className="floating-lyric-meaning"
+                data-testid="listening-secondary-meaning"
               >
-                {display.isMeaningAvailable ? display.meaningText : `[${display.meaningText}]`}
+                {display.meaningText}
               </div>
             ) : null}
           </div>

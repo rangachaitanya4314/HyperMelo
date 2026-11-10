@@ -275,38 +275,163 @@ export class PlaybackSourceResolver {
       song.isStreamPreview ||
       song.playbackSource?.isStreamPreview ||
       song.playbackType === 'preview' ||
-      song.playbackSource?.streamUrl?.includes('itunes.apple.com')
+      song.playbackSource?.streamUrl?.includes('itunes.apple.com') ||
+      song.playbackSource?.streamUrl?.includes('audio-ssl')
     );
 
-    if (isPreview && song.playbackSource?.streamUrl) {
-      return {
-        ...song,
-        duration: 30,
-        fullTrackDuration: song.fullTrackDuration || song.duration || 30,
-        isStreamPreview: true,
-        previewAvailable: true,
-        fullLengthAvailable: false,
-        playbackType: 'preview',
-        playbackAvailability: 'preview',
-        playbackSourceType: 'preview',
-        playbackSource: {
-          ...song.playbackSource,
-          isStreamPreview: true,
-          playbackSourceType: 'preview'
-        },
-        capabilities: {
-          ...song.capabilities,
-          playback: song.capabilities?.playback ?? true,
-          lyrics: song.capabilities?.lyrics ?? true,
-          karaoke: song.capabilities?.karaoke ?? false,
-          recording: song.capabilities?.recording ?? true,
-          playbackAvailable: true,
-          playbackType: 'preview',
-          playbackSourceType: 'preview'
+    const fullDuration = song.fullTrackDuration || song.duration || 180;
+
+    return {
+      ...song,
+      duration: fullDuration,
+      fullTrackDuration: fullDuration,
+      previewAvailable: isPreview,
+      isStreamPreview: isPreview && !song.fullLengthAvailable && !song.playbackAvailable,
+      capabilities: {
+        ...song.capabilities,
+        playback: song.capabilities?.playback ?? true,
+        lyrics: song.capabilities?.lyrics ?? true,
+        karaoke: song.capabilities?.karaoke ?? false,
+        recording: song.capabilities?.recording ?? true,
+        playbackAvailable: true
+      }
+    };
+  }
+
+  /**
+   * BitChord-Inspired Stream Extraction:
+   * Fallback to YouTube / YouTube Music search and stream resolution
+   * when primary high-res catalog search does not match or fails.
+   */
+  public async resolveYouTubeStream(
+    cleanTitle: string,
+    cleanArtist: string,
+    song: Song
+  ): Promise<Song | null> {
+    const query = `${cleanTitle} ${cleanArtist}`.trim();
+    if (!query) return null;
+    const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.origin);
+
+    // Strategy A: YouTube Search Scraper (via Vite proxy /api/yt in dev, or direct fetch)
+    try {
+      const endpoint = isBrowser
+        ? `/api/yt/results?search_query=${encodeURIComponent(query)}`
+        : `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+
+      const res = await fetch(endpoint, {
+        headers: isBrowser
+          ? {}
+          : {
+              'user-agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+        signal: AbortSignal.timeout(4500)
+      });
+
+      if (res.ok) {
+        const html = await res.text();
+        const videoMatch = html.match(/\/watch\?v=([a-zA-Z0-9_-]{11})/);
+        if (videoMatch && videoMatch[1]) {
+          const videoId = videoMatch[1];
+          const fullDuration = song.fullTrackDuration || song.duration || 180;
+
+          return {
+            ...song,
+            duration: fullDuration,
+            fullTrackDuration: fullDuration,
+            isStreamPreview: false,
+            previewAvailable: false,
+            fullLengthAvailable: true,
+            playbackAvailable: true,
+            playbackType: 'full',
+            playbackAvailability: 'full',
+            playbackSourceType: 'official-provider',
+            playbackProvider: 'youtube',
+            playbackSource: {
+              provider: 'youtube',
+              providerTrackId: videoId,
+              youtubeId: videoId,
+              format: 'aac',
+              isStreamPreview: false,
+              playbackSourceType: 'official-provider'
+            },
+            capabilities: {
+              ...song.capabilities,
+              playback: true,
+              lyrics: song.capabilities?.lyrics ?? true,
+              karaoke: song.capabilities?.karaoke ?? false,
+              recording: true,
+              playbackAvailable: true,
+              playbackType: 'full',
+              playbackSourceType: 'official-provider'
+            }
+          };
         }
-      };
+      }
+    } catch (err) {
+      console.warn('YouTube search extraction notice:', err);
     }
-    return song;
+
+    // Strategy B: Piped / Invidious API instance fallback (BitChord style)
+    const pipedInstances = [
+      'https://pipedapi.kavin.rocks',
+      'https://api.piped.video',
+      'https://pipedapi.tokhmi.xyz'
+    ];
+
+    for (const instance of pipedInstances) {
+      try {
+        const res = await fetch(`${instance}/search?q=${encodeURIComponent(query)}&filter=music_songs`, {
+          signal: AbortSignal.timeout(3500)
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : data.items;
+        if (Array.isArray(items) && items.length > 0) {
+          const first = items[0];
+          const url = first.url || '';
+          const videoId = url.replace('/watch?v=', '').split('&')[0];
+          if (videoId && videoId.length === 11) {
+            const fullDuration = first.duration || song.fullTrackDuration || song.duration || 180;
+            return {
+              ...song,
+              duration: fullDuration,
+              fullTrackDuration: fullDuration,
+              isStreamPreview: false,
+              previewAvailable: false,
+              fullLengthAvailable: true,
+              playbackAvailable: true,
+              playbackType: 'full',
+              playbackAvailability: 'full',
+              playbackSourceType: 'official-provider',
+              playbackProvider: 'youtube',
+              playbackSource: {
+                provider: 'youtube',
+                providerTrackId: videoId,
+                youtubeId: videoId,
+                format: 'aac',
+                isStreamPreview: false,
+                playbackSourceType: 'official-provider'
+              },
+              capabilities: {
+                ...song.capabilities,
+                playback: true,
+                lyrics: song.capabilities?.lyrics ?? true,
+                karaoke: song.capabilities?.karaoke ?? false,
+                recording: true,
+                playbackAvailable: true,
+                playbackType: 'full',
+                playbackSourceType: 'official-provider'
+              }
+            };
+          }
+        }
+      } catch {
+        // try next instance
+      }
+    }
+
+    return null;
   }
 
   public async resolvePlaybackSource(song: Song | null): Promise<Song> {
@@ -314,16 +439,20 @@ export class PlaybackSourceResolver {
       throw new Error('Cannot resolve source for null song');
     }
 
-    // 1. Control tracks & already verified full-length tracks with valid streamUrl (e.g. Josh Woodward - Shot Down)
+    // 1. Control tracks & already verified full-length tracks with valid streamUrl or youtubeId
     if (
-      song.playbackSource?.streamUrl &&
-      (song.playbackSourceType === 'open-license' ||
-        (song.fullLengthAvailable && !song.isStreamPreview && !song.playbackSource.streamUrl.includes('itunes.apple.com')))
+      (song.playbackSource?.streamUrl &&
+        (song.playbackSourceType === 'open-license' ||
+          (song.fullLengthAvailable &&
+            !song.isStreamPreview &&
+            !song.playbackSource.streamUrl.includes('itunes.apple.com') &&
+            !song.playbackSource.streamUrl.includes('audio-ssl')))) ||
+      (song.playbackSource?.youtubeId && song.fullLengthAvailable)
     ) {
       return song;
     }
 
-    // 3. Dev fixtures remain tagged as dev fixtures
+    // 2. Dev fixtures remain tagged as dev fixtures
     if (song.playbackSourceType === 'dev-fixture') {
       return song;
     }
@@ -343,10 +472,10 @@ export class PlaybackSourceResolver {
       };
     }
 
-    try {
-      const cleanTitle = song.title.replace(/[[({].*?[)\]}]/g, '').trim();
-      const cleanArtist = song.artist.split('&')[0].split(',')[0].replace(/feat\..*/i, '').trim();
+    const cleanTitle = song.title.replace(/[[({].*?[)\]}]/g, '').trim();
+    const cleanArtist = song.artist.split('&')[0].split(',')[0].replace(/feat\..*/i, '').trim();
 
+    try {
       const isBrowser = typeof window !== 'undefined' && Boolean(window.location?.origin);
 
       const fetchSearchResults = async (queryText: string): Promise<SaavnResult[]> => {
@@ -413,16 +542,20 @@ export class PlaybackSourceResolver {
         .sort((a, b) => b.score - a.score);
 
       if (scored.length === 0) {
-        // No legitimate matching recording found for this exact version/language.
-        // Never substitute an alternate-language dub or unrelated audio file.
+        // Tier 1 JioSaavn had no matching recording.
+        // Invoke Tier 2 BitChord-inspired YouTube extraction before falling back.
+        const ytResolved = await this.resolveYouTubeStream(cleanTitle, cleanArtist, song);
+        if (ytResolved) {
+          this.cache.set(cacheKey, ytResolved);
+          return ytResolved;
+        }
         return this.preservePreviewSong(song);
       }
 
       // Conservative Selection Rule when target language is unknown:
       // If target language could not be determined from song metadata (language, title, or album),
       // inspect competing top candidates. If multiple candidates remain indistinguishable
-      // across different language versions (e.g. score difference <= 30 points and competing candidates
-      // represent different languages), do NOT silently select a potentially incorrect dub.
+      // across different language versions, do NOT silently select a potentially incorrect dub.
       if (!targetLang && scored.length > 1) {
         const topScore = scored[0].score;
         const topLang = this.getCandidateLanguage(scored[0].result);
@@ -443,8 +576,12 @@ export class PlaybackSourceResolver {
         });
 
         if (hasConflictingLanguage) {
-          // Multiple language versions compete with insufficient confidence to choose.
-          // Return safe unresolved song rather than silently playing an arbitrary dub.
+          // Check YouTube stream for authentic version
+          const ytResolved = await this.resolveYouTubeStream(cleanTitle, cleanArtist, song);
+          if (ytResolved) {
+            this.cache.set(cacheKey, ytResolved);
+            return ytResolved;
+          }
           return this.preservePreviewSong(song);
         }
       }
@@ -452,12 +589,22 @@ export class PlaybackSourceResolver {
       const match = scored[0].result;
       const encUrl = match.more_info?.encrypted_media_url;
       if (!encUrl) {
+        const ytResolved = await this.resolveYouTubeStream(cleanTitle, cleanArtist, song);
+        if (ytResolved) {
+          this.cache.set(cacheKey, ytResolved);
+          return ytResolved;
+        }
         return this.preservePreviewSong(song);
       }
 
       // Decrypt DES ECB stream URL
       const decrypted = decryptDesEcb(encUrl, this.cipherKey);
       if (!decrypted || !decrypted.startsWith('http')) {
+        const ytResolved = await this.resolveYouTubeStream(cleanTitle, cleanArtist, song);
+        if (ytResolved) {
+          this.cache.set(cacheKey, ytResolved);
+          return ytResolved;
+        }
         return this.preservePreviewSong(song);
       }
 
@@ -500,7 +647,12 @@ export class PlaybackSourceResolver {
       this.cache.set(cacheKey, resolvedSong);
       return resolvedSong;
     } catch (err) {
-      console.warn('PlaybackSourceResolver error, falling back to original song:', err);
+      console.warn('PlaybackSourceResolver error, attempting YouTube stream resolution:', err);
+      const ytResolved = await this.resolveYouTubeStream(cleanTitle, cleanArtist, song).catch(() => null);
+      if (ytResolved) {
+        this.cache.set(cacheKey, ytResolved);
+        return ytResolved;
+      }
       return this.preservePreviewSong(song);
     }
   }

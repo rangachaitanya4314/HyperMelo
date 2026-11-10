@@ -12,8 +12,7 @@ import {
   type KaraokeSource,
   type MusicProvider,
   type SearchOptions,
-  type Language,
-  getCanonicalTrackDuration
+  type Language
 } from '../../shared';
 import { lyricsService } from '../lyrics/lyricsService';
 import { indexedDbService } from '../storage/indexedDbService';
@@ -217,17 +216,12 @@ export class AppleMusicCatalogProvider implements MusicProvider {
     );
 
     const isPreview = !!result.streamUrl && (result.streamUrl.includes('mzstatic') || result.streamUrl.includes('apple') || result.streamUrl.includes('itunes'));
-    const playableDuration = isPreview ? 30 : (result.duration || 180);
     const fullTrackDuration = result.duration && result.duration > 0 ? result.duration : 180;
-    const duration = getCanonicalTrackDuration({
-      duration: result.duration,
-      fullTrackDuration,
-      fullLengthAvailable: result.fullLengthAvailable
-    });
+    const duration = fullTrackDuration;
     const playbackType: PlaybackAvailability = result.streamUrl ? (isPreview ? 'preview' : 'full') : 'unavailable';
 
     // Build intelligent moment sections within playable audio bounds
-    const sections = this.generateSections(playableDuration, isPreview, lyrics);
+    const sections = this.generateSections(fullTrackDuration, isPreview, lyrics);
 
     const karaokeSource: KaraokeSource = {
       type: 'instrumental',
@@ -259,7 +253,7 @@ export class AppleMusicCatalogProvider implements MusicProvider {
       title: result.title,
       artist: result.artist,
       album: result.album,
-      duration: isPreview ? 30 : duration,
+      duration: fullTrackDuration,
       fullTrackDuration: fullTrackDuration,
       isStreamPreview: isPreview,
       playbackAvailable: !!result.streamUrl,

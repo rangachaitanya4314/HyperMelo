@@ -33,8 +33,8 @@ function createMoodSong(params: MoodCatalogSongParams): Song {
     params.fallbackAudio &&
       (params.fallbackAudio.includes('mzstatic') ||
         params.fallbackAudio.includes('audio-ssl') ||
-        params.fallbackAudio.includes('saavncdn') ||
-        params.fallbackAudio.includes('.m4a'))
+        params.fallbackAudio.includes('/preview.mp3') ||
+        params.fallbackAudio.includes('/preview.m4a'))
   );
   const playableDuration = isPreview ? 30 : params.duration;
   const verifiedArtUrl =

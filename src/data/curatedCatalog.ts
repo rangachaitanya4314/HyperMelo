@@ -50,7 +50,8 @@ export function createCuratedSong(params: CuratedTrackParams): Song {
     !!effectiveStreamUrl &&
     (effectiveStreamUrl.includes('mzstatic') ||
       effectiveStreamUrl.includes('audio-ssl') ||
-      effectiveStreamUrl.includes('saavncdn'));
+      effectiveStreamUrl.includes('/preview.mp3') ||
+      effectiveStreamUrl.includes('/preview.m4a'));
   const playableDuration = isPreview ? 30 : params.duration;
 
   // Resolve authentic album artwork: filter out dummy paths and check authoritative registry
