@@ -56,8 +56,8 @@ export const LogoRevealLegacy: React.FC<LogoRevealProps> = ({ onComplete, onTogg
       ((window as any).__HYPERMELO_PAUSE_INTRO__ === true ||
         new URLSearchParams(window.location.search).get('pauseIntro') === 'true');
 
-    let dissolveTimer: NodeJS.Timeout | undefined;
-    let completeTimer: NodeJS.Timeout | undefined;
+    let dissolveTimer: ReturnType<typeof setTimeout> | undefined;
+    let completeTimer: ReturnType<typeof setTimeout> | undefined;
 
     if (!isAutoDismissPaused) {
       dissolveTimer = setTimeout(() => {

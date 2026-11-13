@@ -103,8 +103,8 @@ export const LogoRevealCinematic: React.FC<LogoRevealProps> = ({ onComplete, onT
     const wordmarkTimer = setTimeout(() => setPhase('wordmark'), 2400);
     const settledTimer = setTimeout(() => setPhase('settled'), 3200);
 
-    let dissolveTimer: NodeJS.Timeout | undefined;
-    let completeTimer: NodeJS.Timeout | undefined;
+    let dissolveTimer: ReturnType<typeof setTimeout> | undefined;
+    let completeTimer: ReturnType<typeof setTimeout> | undefined;
 
     if (!isAutoDismissPaused) {
       dissolveTimer = setTimeout(() => setIsDissolving(true), 6000);
